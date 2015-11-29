@@ -23,8 +23,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: head/sys/dev/etherswitch/rtl8366/rtl8366rb.c 268564 2014-07-12 06:23:42Z rpaulo $
  */
+
+#define RTL8366SR
 
 #include <sys/param.h>
 #include <sys/bus.h>
@@ -53,7 +55,11 @@
 #include <dev/mii/miivar.h>
 
 #include <dev/etherswitch/etherswitch.h>
+#ifdef RTL8366SR
+#include <dev/etherswitch/rtl8366/rtl8366srvar.h>
+#else
 #include <dev/etherswitch/rtl8366/rtl8366rbvar.h>
+#endif
 
 #include "iicbus_if.h"
 #include "miibus_if.h"
@@ -156,6 +162,7 @@ rtl8366rb_init(device_t dev)
 	smi_rmw(dev, RTL8366RB_RCR,
 		RTL8366RB_RCR_HARD_RESET,
 		RTL8366RB_RCR_HARD_RESET, RTL_WAITOK);
+	/* hard reset not return ack */
 	DELAY(100000);
 	/* Enable 16 VLAN mode */
 	smi_rmw(dev, RTL8366RB_SGCR,
@@ -412,6 +419,11 @@ smi_select(device_t dev, int op, int sleep)
 	int slave = devi->addr;
 
 	RTL_SMI_ACQUIRED_ASSERT((struct rtl8366rb_softc *)device_get_softc(dev));
+#ifdef RTL8366SR
+	// this is same work around at probe
+	for (int i=3; i--; )
+		IICBUS_STOP(device_get_parent(device_get_parent(dev)));
+#endif
 	/*
 	 * The chip does not use clock stretching when it is busy,
 	 * instead ignoring the command. Retry a few times.
@@ -636,7 +648,7 @@ rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	uint16_t vmcr[3];
 	int i;
 	
-	for (i=0; i<3; i++)
+	for (i=0; i<RTL8366RB_VMCR_MULT; i++)
 		vmcr[i] = rtl_readreg(dev, RTL8366RB_VMCR(i, vg->es_vlangroup));
 		
 	sc = device_get_softc(dev);
@@ -661,11 +673,18 @@ rtl_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	sc->vid[g] |= ETHERSWITCH_VID_VALID;
 	rtl_writereg(dev, RTL8366RB_VMCR(RTL8366RB_VMCR_DOT1Q_REG, g),
 		(vg->es_vid << RTL8366RB_VMCR_DOT1Q_VID_SHIFT) & RTL8366RB_VMCR_DOT1Q_VID_MASK);
+#ifdef RTL8366SR
+	rtl_writereg(dev, RTL8366RB_VMCR(RTL8366RB_VMCR_MU_REG, g),
+		((vg->es_member_ports << RTL8366RB_VMCR_MU_MEMBER_SHIFT) & RTL8366RB_VMCR_MU_MEMBER_MASK) |
+		((vg->es_untagged_ports << RTL8366RB_VMCR_MU_UNTAG_SHIFT) & RTL8366RB_VMCR_MU_UNTAG_MASK) |
+		((vg->es_fid << RTL8366RB_VMCR_FID_FID_SHIFT) & RTL8366RB_VMCR_FID_FID_MASK));
+#else
 	rtl_writereg(dev, RTL8366RB_VMCR(RTL8366RB_VMCR_MU_REG, g),
 		((vg->es_member_ports << RTL8366RB_VMCR_MU_MEMBER_SHIFT) & RTL8366RB_VMCR_MU_MEMBER_MASK) |
 		((vg->es_untagged_ports << RTL8366RB_VMCR_MU_UNTAG_SHIFT) & RTL8366RB_VMCR_MU_UNTAG_MASK));
 	rtl_writereg(dev, RTL8366RB_VMCR(RTL8366RB_VMCR_FID_REG, g),
 		vg->es_fid);
+#endif
 	return (0);
 }
 
