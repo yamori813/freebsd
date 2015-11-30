@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: head/sys/dev/etherswitch/rtl8366/rtl8366rb.c 268564 2014-07-12 06:23:42Z rpaulo $
+ * $FreeBSD$
  */
 
 #define RTL8366SR
@@ -645,7 +645,7 @@ static int
 rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
 	struct rtl8366rb_softc *sc;
-	uint16_t vmcr[3];
+	uint16_t vmcr[RTL8366RB_VMCR_MULT];
 	int i;
 	
 	for (i=0; i<RTL8366RB_VMCR_MULT; i++)

@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: head/sys/dev/etherswitch/rtl8366/rtl8366rbvar.h 268094 2014-07-01 14:49:46Z loos $
+ * $FreeBSD$
  */
 
 #ifndef _DEV_ETHERSWITCH_RTL8366RBVAR_H_
