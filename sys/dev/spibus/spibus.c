@@ -50,7 +50,7 @@ static int
 spibus_probe(device_t dev)
 {
 	device_set_desc(dev, "spibus bus");
-	return (BUS_PROBE_GENERIC);
+	return (0);
 }
 
 static int
@@ -105,6 +105,7 @@ spibus_print_child(device_t dev, device_t child)
 
 	retval += bus_print_child_header(dev, child);
 	retval += printf(" at cs %d", devi->cs);
+	retval += printf(" mode %d", devi->mode);
 	retval += bus_print_child_footer(dev, child);
 
 	return (retval);
@@ -149,6 +150,9 @@ spibus_read_ivar(device_t bus, device_t child, int which, u_int *result)
 	case SPIBUS_IVAR_CS:
 		*(uint32_t *)result = devi->cs;
 		break;
+	case SPIBUS_IVAR_MODE:
+		*(uint32_t *)result = devi->mode;
+		break;
 	}
 	return (0);
 }
@@ -179,13 +183,26 @@ spibus_hinted_child(device_t bus, const char *dname, int dunit)
 
 	child = BUS_ADD_CHILD(bus, 0, dname, dunit);
 	devi = SPIBUS_IVAR(child);
+	devi->mode = MODE_NONE;
 	resource_int_value(dname, dunit, "cs", &devi->cs);
+	resource_int_value(dname, dunit, "mode", &devi->mode);
 }
 
 static int
 spibus_transfer_impl(device_t dev, device_t child, struct spi_command *cmd)
 {
+	/* Maybe set flags too? spi mode? */
+	spibus_get_cs(dev, &cmd->cs);
+
 	return (SPIBUS_TRANSFER(device_get_parent(dev), child, cmd));
+}
+
+static int
+spibus_get_block_impl(device_t dev, device_t child, off_t offset,
+	caddr_t data, off_t count)
+{
+	return (SPIBUS_GET_BLOCK(device_get_parent(dev), child, offset, data,
+		count));
 }
 
 static device_method_t spibus_methods[] = {
@@ -208,6 +225,7 @@ static device_method_t spibus_methods[] = {
 
 	/* spibus interface */
 	DEVMETHOD(spibus_transfer,	spibus_transfer_impl),
+	DEVMETHOD(spibus_get_block,	spibus_get_block_impl),
 
 	DEVMETHOD_END
 };

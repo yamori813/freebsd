@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2010 Aleksandr Rybalko.
+ * Copyright (c) 2010-2012 Aleksandr Rybalko.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -98,8 +98,6 @@
 #define OBIO_MEM_START	OBIO_MEM_BASE
 #define OBIO_MEM_END	FLASH_END
 
-
-
 /* System Control */
 #define SYSCTL_CHIPID0_3 	0x00 /* 'R''T''3''0' */
 #define SYSCTL_CHIPID4_7 	0x04 /* '5''2'' '' ' */
@@ -143,6 +141,7 @@
 
 #define SYSCTL_CLKCFG1		0x30
 #define SYSCTL_CLKCFG1_PBUS_DIV_CLK_BY2		(1<<30)
+#define SYSCTL_CLKCFG1_EHCI_CLK_EN		(1<<20)
 #define SYSCTL_CLKCFG1_OTG_CLK_EN		(1<<18)
 #define SYSCTL_CLKCFG1_I2S_CLK_EN		(1<<15)
 #define SYSCTL_CLKCFG1_I2S_CLK_SEL_EXT		(1<<14)
@@ -154,6 +153,7 @@
 #define SYSCTL_CLKCFG1_PCM_CLK_DIV_SHIFT 	0
 
 #define SYSCTL_RSTCTRL		0x34
+#define SYSCTL_RSTCTRL_EHCI		(1<<25)
 #define SYSCTL_RSTCTRL_ETHSW		(1<<23)
 #define SYSCTL_RSTCTRL_OTG		(1<<22)
 #define SYSCTL_RSTCTRL_FRENG		(1<<21)
@@ -281,7 +281,6 @@
 #define IC_INT_MASK		0x000617ff
 
 /* GPIO */
-
 #define GPIO23_00_INT		0x00 /* Programmed I/O Int Status */
 #define GPIO23_00_EDGE		0x04 /* Programmed I/O Edge Status */
 #define GPIO23_00_RENA		0x08 /* Programmed I/O Int on Rising */
@@ -314,9 +313,6 @@
 #define GPIO51_40_SET		0x7C
 #define GPIO51_40_RESET		0x80
 #define GPIO51_40_TOG		0x84
-
-
-
 
 #define GDMA_CHANNEL_REQ0	0
 #define GDMA_CHANNEL_REQ1	1 /* (NAND-flash) */
@@ -362,7 +358,50 @@
 */
 #define GDMACT0_SWMODE			(1<<0)
 
+/* SPI controller interface */
+#define	RT305X_SPISTAT		0x00
+/* SPIBUSY is alias for SPIBUSY, because SPISTAT have only BUSY bit*/
+#define	RT305X_SPIBUSY		RT305X_SPISTAT
 
+#define	RT305X_SPICFG		0x10
+#define		MSBFIRST		(1<<8)
+#define		SPICLKPOL		(1<<6)
+#define		CAPT_ON_CLK_FALL	(1<<5)
+#define		TX_ON_CLK_FALL		(1<<4)
+#define		HIZSPI			(1<<3) /* Set SPI pins to Tri-state */
+#define		SPI_CLK_SHIFT		0	/* SPI clock divide control */
+#define		SPI_CLK_MASK		0x00000007
+#define		SPI_CLK_DIV2		0
+#define		SPI_CLK_DIV4		1
+#define		SPI_CLK_DIV8		2
+#define		SPI_CLK_DIV16		3
+#define		SPI_CLK_DIV32		4
+#define		SPI_CLK_DIV64		5
+#define		SPI_CLK_DIV128		6
+#define		SPI_CLK_DISABLED	7
 
+#define	RT305X_SPICTL		0x14
+#define		HIZSMOSI		(1<<3)
+#define		START_WRITE		(1<<2)
+#define		START_READ		(1<<1)
+#define		CS_HIGH			(1<<0)
+
+#define	RT305X_SPIDATA		0x20
+#define		SPIDATA_MASK		0x000000ff
+
+#define	RT305X_SPI_WRITE	1
+#define	RT305X_SPI_READ		0
+
+enum RT305X_BOOT_SOURCE {
+	BOOT_SOURCE_UNKNOWN = 0,
+	BOOT_SOURCE_NOR,
+	BOOT_SOURCE_NAND,
+	BOOT_SOURCE_SPI
+};
+
+extern int rt305x_chip_id;
+extern int rt305x_boot_source;
+extern int rt305x_cpu_clock;
+extern int rt305x_system_clock;
 
 #endif /* _RT305XREG_H_ */

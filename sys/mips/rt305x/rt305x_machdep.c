@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: head/sys/mips/rt305x/rt305x_machdep.c 273234 2014-10-17 17:34:05Z davide $");
 
 #include "opt_ddb.h"
 
@@ -147,6 +147,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	/* initialize console so that we have printf */
 	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */
 	boothowto |= (RB_VERBOSE);
+//	boothowto |= (RB_SINGLE);
 	cninit();
 
 	init_static_kenv(boot1_env, sizeof(boot1_env));

@@ -31,6 +31,15 @@
 
 INTERFACE spibus;
 
+CODE {
+	static int
+	get_block_unimpl(device_t dev, device_t child, off_t offset,
+		caddr_t data, off_t count)
+	{
+		return (EOPNOTSUPP);
+	}
+};
+
 #
 # Do a spi command
 #
@@ -39,3 +48,16 @@ METHOD int transfer {
 	device_t child;
 	struct spi_command *cmd;
 };
+
+#
+# Do a spibus_get_block if driver able
+# return 0 on success
+#
+METHOD int get_block {
+	device_t dev;
+	device_t child;
+	off_t offset;
+	caddr_t data;
+	off_t count;
+} DEFAULT get_block_unimpl;
+
