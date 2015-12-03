@@ -1,0 +1,112 @@
+/*
+ * Copyright (c) 2011 Jakub Klama <jceel@FreeBSD.org>
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * Embedded Artists LPC3250-Kit Device Tree Source.
+ *
+ * $FreeBSD: head/sys/boot/fdt/dts/arm/ea3250.dts 262614 2014-02-28 18:29:09Z imp $
+ */
+
+/dts-v1/;
+
+/ {
+	model = "WZR2-G300N";
+	compatible = "WZR2-G300N";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	aliases {
+		soc = &soc;
+		serial0 = &serial0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "ARM,926EJ-S";
+			reg = <0x0>;
+			d-cache-line-size = <32>;	// 32 bytes
+			i-cache-line-size = <32>;	// 32 bytes
+			d-cache-size = <0x4000>;	// L1, 16K
+			i-cache-size = <0x4000>;	// L1, 16K
+			timebase-frequency = <0>;
+			bus-frequency = <0>;
+			clock-frequency = <0>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x1000000>;		// 16M at 0x40000000
+	};
+
+	soc: ahb7@19C00000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x19C00000 0xE0000>;
+		bus-frequency = <13000000>;
+
+		PIC: pic@40000 {
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <1>;
+			reg = <0x40000 0x20000>;
+			compatible = "rt,pic";
+		};
+
+	};
+
+	ahb0@1E800000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x1E800000 0x800000>;
+
+		serial0: serial@40000 {
+			compatible = "ns16550";
+//			compatible = "uart";
+			reg = <0x40000 0x20000>;
+			interrupts = <1>;
+			reg-shift = <2>;
+			clock-frequency = <1000000>;
+			current-speed = <38400>;
+			interrupt-parent = <&PIC>;
+//			status = "okay";
+		};
+
+		gpio@A0000 {
+			compatible = "gpio";
+			reg = <0xA0000 0x20000>;
+		};
+	};
+/*
+	chosen {
+		stdin = "serial0";
+		stdout = "serial0";
+	};
+*/
+};
