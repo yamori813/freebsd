@@ -730,6 +730,9 @@ ED_SIC			opt_ed.h
 BCE_DEBUG		opt_bce.h
 BCE_NVRAM_WRITE_SUPPORT	opt_bce.h
 
+# bfe driver
+BFE_PACKET_LIST_CNT	opt_bfe.h
+
 SOCKBUF_DEBUG		opt_global.h
 
 

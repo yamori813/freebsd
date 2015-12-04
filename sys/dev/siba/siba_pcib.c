@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: head/sys/dev/siba/siba_pcib.c 227843 2011-11-22 21:28:20Z marius $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -59,10 +59,6 @@ __FBSDID("$FreeBSD$");
 #include <dev/siba/sibareg.h>
 #include <dev/siba/sibavar.h>
 #include <dev/siba/siba_pcibvar.h>
-
-#ifndef MIPS_MEM_RID
-#define MIPS_MEM_RID 0x20
-#endif
 
 #define SBPCI_SLOTMAX 15
 
@@ -140,8 +136,7 @@ siba_pcib_attach(device_t dev)
 	 * Allocate the resources which the parent bus has already
 	 * determined for us.
 	 */
-	rid = MIPS_MEM_RID;	/* XXX */
-	//rman_debug = 1;
+	rid = 0;
 	sc->sc_mem = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &rid,
 	    RF_ACTIVE);
 	if (sc->sc_mem == NULL) {
