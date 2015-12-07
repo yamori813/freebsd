@@ -68,7 +68,7 @@ static int
 cfi_obio_probe(device_t dev)
 {
 	struct cfi_softc *sc = device_get_softc(dev);
-	sc->sc_width = 1;	/* NB: don't probe interface width */
+	sc->sc_width = 2;	/* NB: don't probe interface width */
 //	sc->sc_shift = 2;
 
 	return (cfi_probe(dev));
