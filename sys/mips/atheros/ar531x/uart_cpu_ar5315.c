@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2010 Adrian Chadd
+ * Copyright (c) 2009 Oleksandr Tymoshenko
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,37 +22,55 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
  */
+#include "opt_uart.h"
 
-/* $FreeBSD$ */
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 
-#ifndef	__AR71XX_SETUP_H__
-#define	__AR71XX_SETUP_H__
+#include <sys/param.h>
+#include <sys/systm.h>
+#include <sys/bus.h>
 
-enum ar71xx_soc_type {
-	AR71XX_SOC_UNKNOWN,
-	AR71XX_SOC_AR7130,
-	AR71XX_SOC_AR7141,
-	AR71XX_SOC_AR7161,
-	AR71XX_SOC_AR7240,
-	AR71XX_SOC_AR7241,
-	AR71XX_SOC_AR7242,
-	AR71XX_SOC_AR9130,
-	AR71XX_SOC_AR9132,
-	AR71XX_SOC_AR9330,
-	AR71XX_SOC_AR9331,
-	AR71XX_SOC_AR9341,
-	AR71XX_SOC_AR9342,
-	AR71XX_SOC_AR9344,
-	AR71XX_SOC_QCA9556,
-	AR71XX_SOC_QCA9558,
-	AR71XX_SOC_QCA9533,
-	AR71XX_SOC_QCA9533_V2,
-	AR71XX_SOC_AR5315,
-};
-extern enum ar71xx_soc_type ar71xx_soc;
+#include <machine/bus.h>
 
-extern void ar71xx_detect_sys_type(void);
-extern const char *ar71xx_get_system_type(void);
+#include <dev/uart/uart.h>
+#include <dev/uart/uart_cpu.h>
 
-#endif
+#include <mips/atheros/ar531x/ar5315reg.h>
+#include <mips/atheros/ar531x/ar5315_cpudef.h>
+#include <mips/atheros/ar71xx_bus_space_reversed.h>
+
+bus_space_tag_t uart_bus_space_io;
+bus_space_tag_t uart_bus_space_mem;
+
+int
+uart_cpu_eqres(struct uart_bas *b1, struct uart_bas *b2)
+{
+	return ((b1->bsh == b2->bsh && b1->bst == b2->bst) ? 1 : 0);
+}
+
+int
+uart_cpu_getdev(int devtype, struct uart_devinfo *di)
+{
+	uint64_t freq;
+
+	freq = ar5315_ahb_freq();
+
+	di->ops = uart_getops(&uart_ns8250_class);
+	di->bas.chan = 0;
+	di->bas.bst = ar71xx_bus_space_reversed;
+	di->bas.regshft = 2;
+	di->bas.rclk = freq;
+	di->baudrate = 115200;
+	di->databits = 8;
+	di->stopbits = 1;
+
+	di->parity = UART_PARITY_NONE;
+
+	uart_bus_space_io = NULL;
+	uart_bus_space_mem = ar71xx_bus_space_reversed;
+	di->bas.bsh = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE);
+	return (0);
+}

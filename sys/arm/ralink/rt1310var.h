@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2010 Adrian Chadd
+ * Copyright (c) 2011 Jakub Wojciech Klama <jceel@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,37 +22,50 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * $FreeBSD: head/sys/arm/lpc/lpcvar.h 265858 2014-05-10 21:30:19Z andrew $
  */
 
-/* $FreeBSD$ */
+#ifndef	_ARM_LPC_LPCVAR_H
+#define	_ARM_LPC_LPCVAR_H
 
-#ifndef	__AR71XX_SETUP_H__
-#define	__AR71XX_SETUP_H__
+#include <sys/types.h>
+#include <sys/bus.h>
+#include <machine/bus.h>
 
-enum ar71xx_soc_type {
-	AR71XX_SOC_UNKNOWN,
-	AR71XX_SOC_AR7130,
-	AR71XX_SOC_AR7141,
-	AR71XX_SOC_AR7161,
-	AR71XX_SOC_AR7240,
-	AR71XX_SOC_AR7241,
-	AR71XX_SOC_AR7242,
-	AR71XX_SOC_AR9130,
-	AR71XX_SOC_AR9132,
-	AR71XX_SOC_AR9330,
-	AR71XX_SOC_AR9331,
-	AR71XX_SOC_AR9341,
-	AR71XX_SOC_AR9342,
-	AR71XX_SOC_AR9344,
-	AR71XX_SOC_QCA9556,
-	AR71XX_SOC_QCA9558,
-	AR71XX_SOC_QCA9533,
-	AR71XX_SOC_QCA9533_V2,
-	AR71XX_SOC_AR5315,
+/* Clocking and power control */
+uint32_t lpc_pwr_read(device_t, int);
+void lpc_pwr_write(device_t, int, uint32_t);
+
+/* GPIO */
+void lpc_gpio_init(void);
+int lpc_gpio_set_flags(device_t, int, int);
+int lpc_gpio_set_state(device_t, int, int);
+int lpc_gpio_get_state(device_t, int, int *);
+
+/* DMA */
+struct lpc_dmac_channel_config
+{
+	int		ldc_fcntl;
+	int		ldc_src_periph;
+	int		ldc_src_width;
+	int		ldc_src_incr;
+	int		ldc_src_burst;
+	int		ldc_dst_periph;
+	int		ldc_dst_width;
+	int		ldc_dst_incr;
+	int		ldc_dst_burst;
+	void		(*ldc_success_handler)(void *);
+	void		(*ldc_error_handler)(void *);
+	void *		ldc_handler_arg;
 };
-extern enum ar71xx_soc_type ar71xx_soc;
 
-extern void ar71xx_detect_sys_type(void);
-extern const char *ar71xx_get_system_type(void);
+int lpc_dmac_config_channel(device_t, int, struct lpc_dmac_channel_config *);
+int lpc_dmac_setup_transfer(device_t, int, bus_addr_t, bus_addr_t, bus_size_t, int);
+int lpc_dmac_enable_channel(device_t, int);
+int lpc_dmac_disable_channel(device_t, int);
+int lpc_dmac_start_burst(device_t, int);
 
-#endif
+extern uint32_t rt1310_master_clock; 
+
+#endif	/* _ARM_LPC_LPCVAR_H */

@@ -24,35 +24,12 @@
  * SUCH DAMAGE.
  */
 
-/* $FreeBSD$ */
+/* $FreeBSD: head/sys/mips/atheros/ar5315_chip.h 234326 2012-04-15 22:34:22Z adrian $ */
 
-#ifndef	__AR71XX_SETUP_H__
-#define	__AR71XX_SETUP_H__
+#ifndef	__AR5315_CHIP_H__
+#define	__AR5315_CHIP_H__
 
-enum ar71xx_soc_type {
-	AR71XX_SOC_UNKNOWN,
-	AR71XX_SOC_AR7130,
-	AR71XX_SOC_AR7141,
-	AR71XX_SOC_AR7161,
-	AR71XX_SOC_AR7240,
-	AR71XX_SOC_AR7241,
-	AR71XX_SOC_AR7242,
-	AR71XX_SOC_AR9130,
-	AR71XX_SOC_AR9132,
-	AR71XX_SOC_AR9330,
-	AR71XX_SOC_AR9331,
-	AR71XX_SOC_AR9341,
-	AR71XX_SOC_AR9342,
-	AR71XX_SOC_AR9344,
-	AR71XX_SOC_QCA9556,
-	AR71XX_SOC_QCA9558,
-	AR71XX_SOC_QCA9533,
-	AR71XX_SOC_QCA9533_V2,
-	AR71XX_SOC_AR5315,
-};
-extern enum ar71xx_soc_type ar71xx_soc;
-
-extern void ar71xx_detect_sys_type(void);
-extern const char *ar71xx_get_system_type(void);
+extern struct ar5315_cpu_def ar5315_chip_def;
+extern void ar5315_chip_set_mii_speed(uint32_t unit, uint32_t speed);
 
 #endif
