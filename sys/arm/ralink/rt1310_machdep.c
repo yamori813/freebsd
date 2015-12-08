@@ -107,6 +107,7 @@ platform_devmap_init(void)
 {
 	arm_devmap_add_entry(0x19C00000, 0xE0000);
 	arm_devmap_add_entry(0x1e800000, 0x800000);
+	arm_devmap_add_entry(0x1f000000, 0x400000);
 	return (0);
 }
 

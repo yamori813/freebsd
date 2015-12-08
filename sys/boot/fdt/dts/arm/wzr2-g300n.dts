@@ -63,6 +63,19 @@
 		reg = <0x40000000 0x1000000>;		// 16M at 0x40000000
 	};
 
+	localbus@1f000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <>;
+		flash@1f000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "cfi-flash";
+			reg = <0x1f000000 0x400000>;
+		};
+	};
+
 	soc: ahb7@19C00000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
