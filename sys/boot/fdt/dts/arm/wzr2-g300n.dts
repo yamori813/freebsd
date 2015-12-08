@@ -73,6 +73,11 @@
 			#size-cells = <1>;
 			compatible = "cfi-flash";
 			reg = <0x1f000000 0x400000>;
+
+			partition@0 {
+				reg = <0x0 0x20000>;
+				label = "config";
+			};
 		};
 	};
 

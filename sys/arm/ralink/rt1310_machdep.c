@@ -95,6 +95,7 @@ platform_gpio_init(void)
 void
 platform_late_init(void)
 {
+	bootverbose = 1;
 }
 
 /*
