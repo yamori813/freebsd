@@ -263,6 +263,13 @@ hunt_mcdi_request_copyin(
 	__in		boolean_t ev_cpl,
 	__in		boolean_t new_epoch);
 
+extern			void
+hunt_mcdi_read_response(
+	__in		efx_nic_t *enp,
+	__out		void *bufferp,
+	__in		size_t offset,
+	__in		size_t length);
+
 extern	__checkReturn	boolean_t
 hunt_mcdi_request_poll(
 	__in		efx_nic_t *enp);
@@ -290,6 +297,12 @@ extern	__checkReturn	efx_rc_t
 hunt_mcdi_link_control_supported(
 	__in		efx_nic_t *enp,
 	__out		boolean_t *supportedp);
+
+extern	__checkReturn	efx_rc_t
+hunt_mcdi_mac_spoofing_supported(
+	__in		efx_nic_t *enp,
+	__out		boolean_t *supportedp);
+
 
 #endif /* EFSYS_OPT_MCDI */
 

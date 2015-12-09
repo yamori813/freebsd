@@ -123,33 +123,22 @@ siena_mcdi_request_copyout(
 	const efx_mcdi_transport_t *emtp = enp->en_mcdi.em_emtp;
 	efx_dword_t hdr;
 #endif
-	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
-	unsigned int pos;
-	unsigned int pdur;
-	efx_dword_t data;
-
-	pdur = SIENA_MCDI_PDU(emip);
+	size_t bytes = MIN(emrp->emr_out_length_used, emrp->emr_out_length);
 
 	/* Copy payload out if caller supplied buffer */
 	if (emrp->emr_out_buf != NULL) {
-		size_t bytes = MIN(emrp->emr_out_length_used,
-				    emrp->emr_out_length);
-		for (pos = 0; pos < bytes; pos += sizeof (efx_dword_t)) {
-			EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM,
-			    pdur + 1 + (pos >> 2), &data, B_FALSE);
-			memcpy(MCDI_OUT(*emrp, efx_dword_t, pos), &data,
-			    MIN(sizeof (data), bytes - pos));
-		}
+		siena_mcdi_read_response(enp, emrp->emr_out_buf,
+		    sizeof (efx_dword_t), bytes);
 	}
 
 #if EFSYS_OPT_MCDI_LOGGING
 	if (emtp->emt_logger != NULL) {
-		EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM, pdur, &hdr, B_FALSE);
+		siena_mcdi_read_response(enp, &hdr, 0, sizeof (hdr));
 
 		emtp->emt_logger(emtp->emt_context,
 		    EFX_LOG_MCDI_RESPONSE,
 		    &hdr, sizeof (hdr),
-		    emrp->emr_out_buf, emrp->emr_out_length_used);
+		    emrp->emr_out_buf, bytes);
 	}
 #endif /* EFSYS_OPT_MCDI_LOGGING */
 }
@@ -191,19 +180,50 @@ siena_mcdi_poll_reboot(
 #endif
 }
 
+static	__checkReturn	boolean_t
+siena_mcdi_poll_response(
+	__in		efx_nic_t *enp)
+{
+	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
+	efx_dword_t hdr;
+	unsigned int pdur;
+
+	EFSYS_ASSERT(emip->emi_port == 1 || emip->emi_port == 2);
+	pdur = SIENA_MCDI_PDU(emip);
+
+	EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM, pdur, &hdr, B_FALSE);
+	return (EFX_DWORD_FIELD(hdr, MCDI_HEADER_RESPONSE) ? B_TRUE : B_FALSE);
+}
+
+			void
+siena_mcdi_read_response(
+	__in		efx_nic_t *enp,
+	__out		void *bufferp,
+	__in		size_t offset,
+	__in		size_t length)
+{
+	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
+	unsigned int pdur;
+	unsigned int pos;
+	efx_dword_t data;
+
+	EFSYS_ASSERT(emip->emi_port == 1 || emip->emi_port == 2);
+	pdur = SIENA_MCDI_PDU(emip);
+
+	for (pos = 0; pos < length; pos += sizeof (efx_dword_t)) {
+		EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM,
+		    pdur + ((offset + pos) >> 2), &data, B_FALSE);
+		memcpy((uint8_t *)bufferp + pos, &data,
+		    MIN(sizeof (data), length - pos));
+	}
+}
+
 	__checkReturn	boolean_t
 siena_mcdi_request_poll(
 	__in		efx_nic_t *enp)
 {
-#if EFSYS_OPT_MCDI_LOGGING
-	const efx_mcdi_transport_t *emtp = enp->en_mcdi.em_emtp;
-#endif
 	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
 	efx_mcdi_req_t *emrp;
-	efx_dword_t hdr;
-	unsigned int pdur;
-	unsigned int seq;
-	unsigned int length;
 	int state;
 	efx_rc_t rc;
 
@@ -226,92 +246,32 @@ siena_mcdi_request_poll(
 		}
 	}
 
-	EFSYS_ASSERT(emip->emi_port == 1 || emip->emi_port == 2);
-	pdur = SIENA_MCDI_PDU(emip);
-
-	/* Read the command header */
-	EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM, pdur, &hdr, B_FALSE);
-	if (EFX_DWORD_FIELD(hdr, MCDI_HEADER_RESPONSE) == 0) {
+	/* Check if a response is available */
+	if (siena_mcdi_poll_response(enp) == B_FALSE) {
 		EFSYS_UNLOCK(enp->en_eslp, state);
 		return (B_FALSE);
 	}
 
+	/* Read the response header */
+	efx_mcdi_read_response_header(enp, emrp);
+
 	/* Request complete */
 	emip->emi_pending_req = NULL;
-	seq = (emip->emi_seq - 1) & EFX_MASK32(MCDI_HEADER_SEQ);
-
-	/* Check for synchronous reboot */
-	if (EFX_DWORD_FIELD(hdr, MCDI_HEADER_ERROR) != 0 &&
-	    EFX_DWORD_FIELD(hdr, MCDI_HEADER_DATALEN) == 0) {
-		/* Consume status word */
-		EFSYS_SPIN(EFX_MCDI_STATUS_SLEEP_US);
-		siena_mcdi_poll_reboot(enp);
-		EFSYS_UNLOCK(enp->en_eslp, state);
-		rc = EIO;
-		goto fail2;
-	}
 
 	EFSYS_UNLOCK(enp->en_eslp, state);
 
-	/* Check that the returned data is consistent */
-	if (EFX_DWORD_FIELD(hdr, MCDI_HEADER_CODE) != emrp->emr_cmd ||
-	    EFX_DWORD_FIELD(hdr, MCDI_HEADER_SEQ) != seq) {
-		/* Response is for a different request */
-		rc = EIO;
-		goto fail3;
-	}
+	if ((rc = emrp->emr_rc) != 0)
+		goto fail2;
 
-	length = EFX_DWORD_FIELD(hdr, MCDI_HEADER_DATALEN);
-	if (EFX_DWORD_FIELD(hdr, MCDI_HEADER_ERROR)) {
-		efx_dword_t errdword;
-		int errcode;
-
-		EFSYS_ASSERT3U(length, ==, 4);
-		EFX_BAR_TBL_READD(enp, FR_CZ_MC_TREG_SMEM,
-		    pdur + 1 + (MC_CMD_ERR_CODE_OFST >> 2),
-		    &errdword, B_FALSE);
-		errcode = EFX_DWORD_FIELD(errdword, EFX_DWORD_0);
-
-#if EFSYS_OPT_MCDI_LOGGING
-		if (emtp->emt_logger != NULL) {
-			emtp->emt_logger(emtp->emt_context,
-			    EFX_LOG_MCDI_RESPONSE,
-			    &hdr, sizeof (hdr),
-			    &errdword, sizeof (errdword));
-		}
-#endif /* EFSYS_OPT_MCDI_LOGGING */
-
-		rc = efx_mcdi_request_errcode(errcode);
-		if (!emrp->emr_quiet) {
-			EFSYS_PROBE2(mcdi_err, int, emrp->emr_cmd,
-			    int, errcode);
-		}
-		goto fail4;
-
-	} else {
-		emrp->emr_out_length_used = length;
-		emrp->emr_rc = 0;
-		siena_mcdi_request_copyout(enp, emrp);
-	}
-
+	siena_mcdi_request_copyout(enp, emrp);
 	goto out;
 
-fail4:
-	if (!emrp->emr_quiet)
-		EFSYS_PROBE(fail4);
-fail3:
-	if (!emrp->emr_quiet)
-		EFSYS_PROBE(fail3);
 fail2:
 	if (!emrp->emr_quiet)
 		EFSYS_PROBE(fail2);
 fail1:
 	if (!emrp->emr_quiet)
 		EFSYS_PROBE1(fail1, efx_rc_t, rc);
-
-	/* Fill out error state */
-	emrp->emr_rc = rc;
-	emrp->emr_out_length_used = 0;
 
 	/* Reboot/Assertion */
 	if (rc == EIO || rc == EINTR)
