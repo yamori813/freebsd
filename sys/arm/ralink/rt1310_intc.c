@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2010 Jakub Wojciech Klama <jceel@FreeBSD.org>
+ * Copyright (c) 2015 Hiroki Mori
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/arm/lpc/rt1310_intc.c 276023 2014-12-21 16:59:41Z andrew $");
+__FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/systm.h>
