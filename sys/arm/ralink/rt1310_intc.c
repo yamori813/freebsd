@@ -47,8 +47,6 @@ __FBSDID("$FreeBSD: head/sys/arm/lpc/rt1310_intc.c 276023 2014-12-21 16:59:41Z a
 
 #include <arm/ralink/rt1310reg.h>
 
-void morimoridebug2(int c);
-
 struct rt1310_intc_softc {
 	struct resource *	li_res;
 	bus_space_tag_t		li_bst;
@@ -101,12 +99,8 @@ rt1310_intc_attach(device_t dev)
 	arm_post_filter = rt1310_intc_eoi;
 
 	/* Clear interrupt status registers and disable all interrupts */
-	intc_write_4(sc, LPC_INTC_MIC_ER, 0);
-	intc_write_4(sc, LPC_INTC_SIC1_ER, 0);
-	intc_write_4(sc, LPC_INTC_SIC2_ER, 0);
-	intc_write_4(sc, LPC_INTC_MIC_RSR, ~0);
-	intc_write_4(sc, LPC_INTC_SIC1_RSR, ~0);
-	intc_write_4(sc, LPC_INTC_SIC2_RSR, ~0);
+	intc_write_4(sc, RT_INTC_IMR, 0);
+	intc_write_4(sc, RT_INTC_ICCR, ~0);
 	return (0);
 }
 
@@ -132,27 +126,12 @@ arm_get_next_irq(int last)
 	struct rt1310_intc_softc *sc = intc_softc;
 	uint32_t value;
 	int i;
-	morimoridebug2((int)'n');
 
 	/* IRQs 0-31 are mapped to LPC_INTC_MIC_SR */
-	value = intc_read_4(sc, LPC_INTC_MIC_SR);
+	value = intc_read_4(sc, RT_INTC_ISR);
 	for (i = 0; i < 32; i++) {
 		if (value & (1 << i))
 			return (i);
-	}
-
-	/* IRQs 32-63 are mapped to LPC_INTC_SIC1_SR */
-	value = intc_read_4(sc, LPC_INTC_SIC1_SR);
-	for (i = 0; i < 32; i++) {
-		if (value & (1 << i))
-			return (i + 32);
-	}
-
-	/* IRQs 64-95 are mapped to LPC_INTC_SIC2_SR */
-	value = intc_read_4(sc, LPC_INTC_SIC2_SR);
-	for (i = 0; i < 32; i++) {
-		if (value & (1 << i))
-			return (i + 64);
 	}
 
 	return (-1);
@@ -162,74 +141,41 @@ void
 arm_mask_irq(uintptr_t nb)
 {
 	struct rt1310_intc_softc *sc = intc_softc;
-	int reg;
 	uint32_t value;
-	morimoridebug2((int)'m');
 	
 	/* Make sure that interrupt isn't active already */
 	rt1310_intc_eoi((void *)nb);
 
-	if (nb > 63) {
-		nb -= 64;
-		reg = LPC_INTC_SIC2_ER;
-	} else if (nb > 31) {
-		nb -= 32;
-		reg = LPC_INTC_SIC1_ER;
-	} else
-		reg = LPC_INTC_MIC_ER;
-
 	/* Clear bit in ER register */
-	value = intc_read_4(sc, reg);
+	value = intc_read_4(sc, RT_INTC_IECR);
 	value &= ~(1 << nb);
-	intc_write_4(sc, reg, value);
+	intc_write_4(sc, RT_INTC_IECR, value);
+	intc_write_4(sc, RT_INTC_IMR, value);
+
+	intc_write_4(sc, RT_INTC_ICCR, 1 << nb);
 }
 
 void
 arm_unmask_irq(uintptr_t nb)
 {
 	struct rt1310_intc_softc *sc = intc_softc;
-	int reg;
 	uint32_t value;
-	morimoridebug2((int)'u');
 
-	if (nb > 63) {
-		nb -= 64;
-		reg = LPC_INTC_SIC2_ER;
-	} else if (nb > 31) {
-		nb -= 32;
-		reg = LPC_INTC_SIC1_ER;
-	} else
-		reg = LPC_INTC_MIC_ER;
+	value = intc_read_4(sc, RT_INTC_IECR);
 
-	/* Set bit in ER register */
-	value = intc_read_4(sc, reg);
 	value |= (1 << nb);
-	intc_write_4(sc, reg, value);
+
+	intc_write_4(sc, RT_INTC_IMR, value);
+	intc_write_4(sc, RT_INTC_IECR, value);
 }
 
 static void
 rt1310_intc_eoi(void *data)
 {
 	struct rt1310_intc_softc *sc = intc_softc;
-	int reg;
 	int nb = (int)data;
-	uint32_t value;
 
-	morimoridebug2((int)'e');
-	if (nb > 63) {
-		nb -= 64;
-		reg = LPC_INTC_SIC2_RSR;
-	} else if (nb > 31) {
-		nb -= 32;
-		reg = LPC_INTC_SIC1_RSR;
-	} else
-		reg = LPC_INTC_MIC_RSR;
-
-	/* Set bit in RSR register */
-	value = intc_read_4(sc, reg);
-	value |= (1 << nb);
-	intc_write_4(sc, reg, value);
-
+	intc_write_4(sc, RT_INTC_ICCR, 1 << nb);
 }
 
 struct fdt_fixup_entry fdt_fixup_table[] = {
@@ -240,7 +186,6 @@ static int
 fdt_pic_decode_ic(phandle_t node, pcell_t *intr, int *interrupt, int *trig,
     int *pol)
 {
-	morimoridebug2((int)'i');
 	if (!fdt_is_compatible(node, "lpc,pic"))
 		return (ENXIO);
 
