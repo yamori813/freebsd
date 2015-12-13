@@ -83,7 +83,7 @@
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x120000 0x0028ba00>;
+				reg = <0x120000 0x00245600>;
 				label = "rootfs";
 			};
 		};
@@ -119,13 +119,6 @@
 			reg-shift = <2>;
 			clock-frequency = <1000000>;
 			current-speed = <38400>;
-			interrupt-parent = <&PIC>;
-		};
-
-		spi0@80000 {
-			compatible = "spi";
-			reg = <0x80000 0x20000>;
-			interrupts = <0>;
 			interrupt-parent = <&PIC>;
 		};
 
