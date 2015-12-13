@@ -35,14 +35,23 @@
 #define	LPC_DEV_SIZE			0x10000000
 
 /*
- * Interrupt controller (from UM10326: LPC32x0 User manual, page 87)
-
+ * Interrupt controller
  */
+
+#define RT_INTC_SCR0			0x00
+#define RT_INTC_SVR0			0x80
 #define RT_INTC_ISR			0x104
+#define RT_INTC_IPR			0x108
 #define	RT_INTC_IMR			0x10c
 #define RT_INTC_IECR			0x114
 #define RT_INTC_ICCR			0x118
 
+#define RT_INTC_TRIG_LOW_LVL		(0)
+#define RT_INTC_TRIG_HIGH_LVL		(1)
+#define RT_INTC_TRIG_NEG_EDGE		(2)
+#define RT_INTC_TRIG_POS_EDGE		(3)
+
+#define RT_INTC_TRIG_SHIF		6
 
 /*
  * Timer 0|1|2|3|4|5. (from UM10326: LPC32x0 User manual, page 540)

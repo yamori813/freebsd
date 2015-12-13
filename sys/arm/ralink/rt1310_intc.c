@@ -65,6 +65,8 @@ static struct rt1310_intc_softc *intc_softc = NULL;
 #define	intc_write_4(_sc, _reg, _val)		\
     bus_space_write_4((_sc)->li_bst, (_sc)->li_bsh, (_reg), (_val))
 
+int irqprio[] = {3, 3, 3, 4, 4, 4, 2, 2, 2, 2};
+
 static int
 rt1310_intc_probe(device_t dev)
 {
@@ -83,6 +85,7 @@ rt1310_intc_attach(device_t dev)
 {
 	struct rt1310_intc_softc *sc = device_get_softc(dev);
 	int rid = 0;
+	int i;
 
 	if (intc_softc)
 		return (ENXIO);
@@ -99,9 +102,19 @@ rt1310_intc_attach(device_t dev)
 	intc_softc = sc;
 	arm_post_filter = rt1310_intc_eoi;
 
-	/* Clear interrupt status registers and disable all interrupts */
-	intc_write_4(sc, RT_INTC_IMR, 0);
+	intc_write_4(sc, RT_INTC_IECR, 0);
 	intc_write_4(sc, RT_INTC_ICCR, ~0);
+
+	for(i = 0; i <= 9; ++i) {
+		intc_write_4(sc, RT_INTC_SCR0+i*4, 
+			(RT_INTC_TRIG_HIGH_LVL << RT_INTC_TRIG_SHIF) | 
+			irqprio[i]);
+		intc_write_4(sc, RT_INTC_SVR0+i*4, i);
+	}
+
+	/* Clear interrupt status registers and disable all interrupts */
+	intc_write_4(sc, RT_INTC_ICCR, ~0);
+	intc_write_4(sc, RT_INTC_IMR, 0);
 	return (0);
 }
 
@@ -127,9 +140,7 @@ arm_get_next_irq(int last)
 	struct rt1310_intc_softc *sc = intc_softc;
 	uint32_t value;
 	int i;
-
-	/* IRQs 0-31 are mapped to LPC_INTC_MIC_SR */
-	value = intc_read_4(sc, RT_INTC_ISR);
+	value = intc_read_4(sc, RT_INTC_IPR);
 	for (i = 0; i < 32; i++) {
 		if (value & (1 << i))
 			return (i);
@@ -177,6 +188,13 @@ rt1310_intc_eoi(void *data)
 	int nb = (int)data;
 
 	intc_write_4(sc, RT_INTC_ICCR, 1 << nb);
+	if(nb == 0) {
+	uint32_t value;
+	value = intc_read_4(sc, RT_INTC_IECR);
+	value &= ~(1 << nb);
+	intc_write_4(sc, RT_INTC_IECR, value);
+	intc_write_4(sc, RT_INTC_IMR, value);
+	}
 }
 
 struct fdt_fixup_entry fdt_fixup_table[] = {

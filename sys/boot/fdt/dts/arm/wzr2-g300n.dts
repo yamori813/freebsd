@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011 Jakub Klama <jceel@FreeBSD.org>
+ * Copyright (c) 2015 Hiroki Mori
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,9 +23,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * Embedded Artists LPC3250-Kit Device Tree Source.
+ * Buffalo WZR2-G300N Device Tree Source.
  *
- * $FreeBSD: head/sys/boot/fdt/dts/arm/ea3250.dts 262614 2014-02-28 18:29:09Z imp $
+ * $FreeBSD$
  */
 
 /dts-v1/;
@@ -36,7 +37,6 @@
 	#size-cells = <1>;
 
 	aliases {
-		soc = &soc;
 		serial0 = &serial0;
 	};
 
@@ -67,21 +67,29 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
-		ranges = <>;
+		ranges = <0x0 0x1f000000 0x400000>;
 		flash@1f000000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "cfi-flash";
-			reg = <0x1f000000 0x400000>;
+			reg = <0x0 0x400000>;		// 4M at 0x1f000000
 
 			partition@0 {
-				reg = <0x0 0x20000>;
-				label = "config";
+				reg = <0x0 0x10000>;
+				label = "boot";
+			};
+			partition@1 {
+				reg = <0x10000 0x110000>;
+				label = "kernel";
+			};
+			partition@2 {
+				reg = <0x120000 0x0028ba00>;
+				label = "rootfs";
 			};
 		};
 	};
 
-	soc: ahb7@19C00000 {
+	ahb@19C00000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
@@ -98,7 +106,7 @@
 
 	};
 
-	ahb0@1E800000 {
+	apb@1E800000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
@@ -106,14 +114,19 @@
 
 		serial0: serial@40000 {
 			compatible = "ns16550";
-//			compatible = "uart";
 			reg = <0x40000 0x20000>;
 			interrupts = <1>;
 			reg-shift = <2>;
 			clock-frequency = <1000000>;
 			current-speed = <38400>;
 			interrupt-parent = <&PIC>;
-//			status = "okay";
+		};
+
+		spi0@80000 {
+			compatible = "spi";
+			reg = <0x80000 0x20000>;
+			interrupts = <0>;
+			interrupt-parent = <&PIC>;
 		};
 
 		gpio@A0000 {

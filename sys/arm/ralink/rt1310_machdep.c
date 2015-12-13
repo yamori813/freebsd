@@ -45,6 +45,7 @@ __FBSDID("$FreeBSD: head/sys/arm/lpc/lpc_machdep.c 266301 2014-05-17 11:27:36Z a
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
+#include <sys/reboot.h>
 
 #include <vm/vm.h>
 #include <vm/pmap.h>
@@ -60,8 +61,6 @@ __FBSDID("$FreeBSD: head/sys/arm/lpc/lpc_machdep.c 266301 2014-05-17 11:27:36Z a
 #include <arm/ralink/rt1310var.h>
 
 #include <dev/fdt/fdt_common.h>
-
-void morimoridebug2(int c);
 
 #ifdef  EARLY_PRINTF
 early_putc_t *early_putc;
@@ -96,6 +95,7 @@ void
 platform_late_init(void)
 {
 	bootverbose = 1;
+	boothowto |= (RB_SINGLE);
 }
 
 /*
@@ -136,17 +136,11 @@ cpu_reset(void)
 	bst = fdtbus_bs_tag;
 
 	/* Enable WDT */
-/*
-	bus_space_map(bst, LPC_CLKPWR_PHYS_BASE, LPC_CLKPWR_SIZE, 0, &bsh);
-	bus_space_write_4(bst, bsh, LPC_CLKPWR_TIMCLK_CTRL,
-	    LPC_CLKPWR_TIMCLK_CTRL_WATCHDOG);
-	bus_space_unmap(bst, bsh, LPC_CLKPWR_SIZE);
-*/
 	/* Instant assert of RESETOUT_N with pulse length 1ms */
-	bus_space_map(bst, 0x1e8c0000, LPC_WDTIM_SIZE, 0, &bsh);
+	bus_space_map(bst, 0x1e8c0000, 0x20000, 0, &bsh);
 	bus_space_write_4(bst, bsh, 0, 13000);
 	bus_space_write_4(bst, bsh, 8, 0x70);
-	bus_space_unmap(bst, bsh, LPC_WDTIM_SIZE);
+	bus_space_unmap(bst, bsh, 0x20000);
 #else
 // not mmu access
       //  uint32_t* wdt_base_addr=(uint32_t*)0x1e8c0000;
@@ -163,25 +157,34 @@ cpu_reset(void)
 		continue;
 }
 
-void morimoridebug(int c);
-void morimoridebug(int c)
+void bootdebug1(int c);
+void bootdebug1(int c)
+{
+	// direct put uart physical address
+        uint8_t* uart_base_addr=(uint8_t*)0x1e840000;
+	*(uart_base_addr) = c;
+}
+
+void bootdebug2(int c);
+void bootdebug2(int c)
 {
 #if defined(SOCDEV_PA) && defined(SOCDEV_VA)
+	// direct put uart map address at locore-v4.S
         uint8_t* uart_base_addr=(uint8_t*)0xce840000;
 	*(uart_base_addr) = c;
 #endif
 }
-void morimoridebug2(int c)
+
+void bootdebug3(int c);
+void bootdebug3(int c)
 {
-#if 0
 	bus_space_tag_t bst;
 	bus_space_handle_t bsh;
 
 	bst = fdtbus_bs_tag;
-	bus_space_map(bst, 0x1e840000, LPC_WDTIM_SIZE, 0, &bsh);
+	bus_space_map(bst, 0x1e840000, 0x20000, 0, &bsh);
 	bus_space_write_1(bst, bsh, 0, c);
-	bus_space_unmap(bst, bsh, LPC_WDTIM_SIZE);
-#endif
+	bus_space_unmap(bst, bsh, 0x20000);
 }
 
 /* Physical and virtual addresses for some global pages */
