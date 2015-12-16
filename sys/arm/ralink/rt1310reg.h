@@ -530,51 +530,16 @@
 #define	LPC_SSP_DMACR			0x24
 
 /*
- * GPIO (from UM10326: LPC32x0 User manual, page 606)
+ * GPIO
  */
-#define	LPC_GPIO_PHYS_BASE		(LPC_DEV_PHYS_BASE + 0x28000)
-#define	LPC_GPIO_P0_COUNT		8
-#define	LPC_GPIO_P1_COUNT		24
-#define	LPC_GPIO_P2_COUNT		13
-#define	LPC_GPIO_P3_COUNT		52
-#define	LPC_GPIO_P0_INP_STATE		0x40
-#define	LPC_GPIO_P0_OUTP_SET		0x44
-#define	LPC_GPIO_P0_OUTP_CLR		0x48
-#define	LPC_GPIO_P0_OUTP_STATE		0x4c
-#define	LPC_GPIO_P0_DIR_SET		0x50
-#define	LPC_GPIO_P0_DIR_CLR		0x54
-#define	LPC_GPIO_P0_DIR_STATE		0x58
-#define	LPC_GPIO_P1_INP_STATE		0x60
-#define	LPC_GPIO_P1_OUTP_SET		0x64
-#define	LPC_GPIO_P1_OUTP_CLR		0x68
-#define	LPC_GPIO_P1_OUTP_STATE		0x6c
-#define	LPC_GPIO_P1_DIR_SET		0x70
-#define	LPC_GPIO_P1_DIR_CLR		0x74
-#define	LPC_GPIO_P1_DIR_STATE		0x78
-#define	LPC_GPIO_P2_INP_STATE		0x1c
-#define	LPC_GPIO_P2_OUTP_SET		0x20
-#define	LPC_GPIO_P2_OUTP_CLR		0x24
-#define	LPC_GPIO_P2_DIR_SET		0x10
-#define	LPC_GPIO_P2_DIR_CLR		0x14
-#define	LPC_GPIO_P2_DIR_STATE		0x14
-#define	LPC_GPIO_P3_INP_STATE		0x00
-#define	LPC_GPIO_P3_OUTP_SET		0x04
-#define	LPC_GPIO_P3_OUTP_CLR		0x08
-#define	LPC_GPIO_P3_OUTP_STATE		0x0c
-#define	LPC_GPIO_SIZE			0x80
 
-/* Aliases for logical pin numbers: */
-#define	LPC_GPIO_GPI_00(_n)		(0 + _n)
-#define	LPC_GPIO_GPI_15(_n)		(10 + _n)
-#define	LPC_GPIO_GPI_25			(19)
-#define	LPC_GPIO_GPI_27(_n)		(20 + _n)
-#define	LPC_GPIO_GPO_00(_n)		(22 + _n)
-#define	LPC_GPIO_GPIO_00(_n)		(46 + _n)
-/* SPI devices chip selects: */
-#define	SSD1289_CS_PIN			LPC_GPIO_GPO_00(4)
-#define	SSD1289_DC_PIN			LPC_GPIO_GPO_00(5)
-#define	ADS7846_CS_PIN			LPC_GPIO_GPO_00(11)
-#define	ADS7846_INTR_PIN		LPC_GPIO_GPIO_00(0)
+#define RT_GPIO_PORTA	(0)
+#define RT_GPIO_PORTB	(1)
+
+#define RT_GPIO_OFF_PADR	(0x0)
+#define RT_GPIO_OFF_PADIR	(0x4)
+#define RT_GPIO_OFF_PBDR	(0x8)
+#define RT_GPIO_OFF_PBDIR	(0xC)
 
 /*
  * GPDMA controller (from UM10326: LPC32x0 User manual, page 106)

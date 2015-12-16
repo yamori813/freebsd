@@ -38,10 +38,10 @@ uint32_t lpc_pwr_read(device_t, int);
 void lpc_pwr_write(device_t, int, uint32_t);
 
 /* GPIO */
-void lpc_gpio_init(void);
-int lpc_gpio_set_flags(device_t, int, int);
-int lpc_gpio_set_state(device_t, int, int);
-int lpc_gpio_get_state(device_t, int, int *);
+void rt1310_gpio_init(void);
+int rt1310_gpio_set_flags(device_t, int, int);
+int rt1310_gpio_set_state(device_t, int, int);
+int rt1310_gpio_get_state(device_t, int, int *);
 
 /* DMA */
 struct lpc_dmac_channel_config
