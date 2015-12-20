@@ -130,7 +130,7 @@ CFLAGS+=	-mlongcall -fno-omit-frame-pointer
 .endif
 
 .if ${MACHINE_CPUARCH} == mips
-CFLAGS+=	-G0 -fno-pic -mno-abicalls -mlong-calls
+CFLAGS+=	-mlong-calls
 .endif
 
 .if defined(DEBUG) || defined(DEBUG_FLAGS)
@@ -225,7 +225,7 @@ ${FULLPROG}: ${OBJS}
 .else
 	grep -v '^#' < ${EXPORT_SYMS} > export_syms
 .endif
-	awk -f ${SYSDIR}/conf/kmod_syms.awk ${.TARGET} \
+	${AWK} -f ${SYSDIR}/conf/kmod_syms.awk ${.TARGET} \
 	    export_syms | xargs -J% ${OBJCOPY} % ${.TARGET}
 .endif
 .endif
