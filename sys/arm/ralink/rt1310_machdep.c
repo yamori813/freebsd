@@ -139,12 +139,12 @@ cpu_reset(void)
 	/* Instant assert of RESETOUT_N with pulse length 1ms */
 	bus_space_map(bst, 0x1e8c0000, 0x20000, 0, &bsh);
 	bus_space_write_4(bst, bsh, 0, 13000);
-	bus_space_write_4(bst, bsh, 8, 0x70);
+	bus_space_write_4(bst, bsh, 8, (1<<3) | (1<<4) | 7);
 	bus_space_unmap(bst, bsh, 0x20000);
 #else
 // not mmu access
-      //  uint32_t* wdt_base_addr=(uint32_t*)0x1e8c0000;
-        uint32_t* wdt_base_addr=(uint32_t*)0xce8c0000;
+        uint32_t* wdt_base_addr=(uint32_t*)0x1e8c0000;
+//        uint32_t* wdt_base_addr=(uint32_t*)0xce8c0000;
         unsigned char prescale = 8;
 
 //        disable_interrupts ();

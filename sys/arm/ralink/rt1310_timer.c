@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2011 Jakub Wojciech Klama <jceel@FreeBSD.org>
+ * Copyright (c) 2015 Hiroki Mori
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,11 +51,15 @@ __FBSDID("$FreeBSD: head/sys/arm/lpc/rt1310_timer.c 262534 2014-02-26 22:06:10Z 
 struct rt1310_timer_softc {
 	device_t		lt_dev;
 	struct eventtimer	lt_et;
-	struct resource	*	lt_res[5];
+	struct resource	*	lt_res[8];
 	bus_space_tag_t		lt_bst0;
 	bus_space_handle_t	lt_bsh0;
 	bus_space_tag_t		lt_bst1;
 	bus_space_handle_t	lt_bsh1;
+	bus_space_tag_t		lt_bst2;
+	bus_space_handle_t	lt_bsh2;
+	bus_space_tag_t		lt_bst3;
+	bus_space_handle_t	lt_bsh3;
 	int			lt_oneshot;
 	uint32_t		lt_period;
 };
@@ -62,8 +67,11 @@ struct rt1310_timer_softc {
 static struct resource_spec rt1310_timer_spec[] = {
 	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },
 	{ SYS_RES_MEMORY,	1,	RF_ACTIVE },
+	{ SYS_RES_MEMORY,	2,	RF_ACTIVE },
+	{ SYS_RES_MEMORY,	3,	RF_ACTIVE },
 	{ SYS_RES_IRQ,		0,	RF_ACTIVE },
 	{ SYS_RES_IRQ,		1,	RF_ACTIVE },
+	{ SYS_RES_IRQ,		2,	RF_ACTIVE },
 	{ -1, 0 }
 };
 
@@ -83,9 +91,8 @@ static int rt1310_hardclock(void *);
     bus_space_write_4(sc->lt_bst0, sc->lt_bsh0, reg, val)
 #define	timer0_clear(sc)			\
     do {					\
-	    timer0_write_4(sc, LPC_TIMER_TC, 0);	\
-	    timer0_write_4(sc, LPC_TIMER_PR, 0);	\
-	    timer0_write_4(sc, LPC_TIMER_PC, 0);	\
+	    timer0_write_4(sc, RT_TIMER_LOAD, 0);	\
+	    timer0_write_4(sc, RT_TIMER_VALUE, 0);	\
     } while(0)
 
 #define	timer1_read_4(sc, reg)			\
@@ -94,14 +101,19 @@ static int rt1310_hardclock(void *);
     bus_space_write_4(sc->lt_bst1, sc->lt_bsh1, reg, val)
 #define	timer1_clear(sc)			\
     do {					\
-	    timer1_write_4(sc, LPC_TIMER_TC, 0);	\
-	    timer1_write_4(sc, LPC_TIMER_PR, 0);	\
-	    timer1_write_4(sc, LPC_TIMER_PC, 0);	\
+	    timer1_write_4(sc, RT_TIMER_LOAD, 0);	\
+	    timer1_write_4(sc, RT_TIMER_VALUE, 0);	\
     } while(0)
+
+#define	timer2_write_4(sc, reg, val)		\
+    bus_space_write_4(sc->lt_bst2, sc->lt_bsh2, reg, val)
+#define	timer3_write_4(sc, reg, val)		\
+    bus_space_write_4(sc->lt_bst3, sc->lt_bsh3, reg, val)
+
 
 static struct timecounter rt1310_timecounter = {
 	.tc_get_timecount = rt1310_get_timecount,
-	.tc_name = "LPC32x0 Timer1",
+	.tc_name = "RT1310ATimer1",
 	.tc_frequency = 0, /* will be filled later */
 	.tc_counter_mask = ~0u,
 	.tc_quality = 1000,
@@ -126,7 +138,7 @@ rt1310_timer_attach(device_t dev)
 {
 	void *intrcookie;
 	struct rt1310_timer_softc *sc = device_get_softc(dev);
-//	phandle_t node;
+	phandle_t node;
 	uint32_t freq;
 
 	if (timer_softc)
@@ -143,8 +155,13 @@ rt1310_timer_attach(device_t dev)
 	sc->lt_bsh0 = rman_get_bushandle(sc->lt_res[0]);
 	sc->lt_bst1 = rman_get_bustag(sc->lt_res[1]);
 	sc->lt_bsh1 = rman_get_bushandle(sc->lt_res[1]);
+	sc->lt_bst2 = rman_get_bustag(sc->lt_res[2]);
+	sc->lt_bsh2 = rman_get_bushandle(sc->lt_res[2]);
+	sc->lt_bst3 = rman_get_bustag(sc->lt_res[3]);
+	sc->lt_bsh3 = rman_get_bushandle(sc->lt_res[3]);
 
-	if (bus_setup_intr(dev, sc->lt_res[2], INTR_TYPE_CLK,
+//	if (bus_setup_intr(dev, sc->lt_res[4], INTR_TYPE_CLK,
+	if (bus_setup_intr(dev, sc->lt_res[6], INTR_TYPE_CLK,
 	    rt1310_hardclock, NULL, sc, &intrcookie)) {
 		device_printf(dev, "could not setup interrupt handler\n");
 		bus_release_resources(dev, rt1310_timer_spec, sc->lt_res);
@@ -159,7 +176,7 @@ rt1310_timer_attach(device_t dev)
 */
 
 	/* Get PERIPH_CLK encoded in parent bus 'bus-frequency' property */
-/*
+
 	node = ofw_bus_get_node(dev);
 	if (OF_getprop(OF_parent(node), "bus-frequency", &freq,
 	    sizeof(pcell_t)) <= 0) {
@@ -170,13 +187,12 @@ rt1310_timer_attach(device_t dev)
 	}
 
 	freq = fdt32_to_cpu(freq);
-*/
 
 	/* Set desired frequency in event timer and timecounter */
 	sc->lt_et.et_frequency = (uint64_t)freq;
-	rt1310_timecounter.tc_frequency = (uint64_t)freq;	
+	rt1310_timecounter.tc_frequency = (uint64_t)freq;
 
-	sc->lt_et.et_name = "LPC32x0 Timer0";
+	sc->lt_et.et_name = "RT1310ATimer0";
 	sc->lt_et.et_flags = ET_FLAGS_PERIODIC | ET_FLAGS_ONESHOT;
 	sc->lt_et.et_quality = 1000;
 	sc->lt_et.et_min_period = (0x00000002LLU << 32) / sc->lt_et.et_frequency;
@@ -189,10 +205,16 @@ rt1310_timer_attach(device_t dev)
 	tc_init(&rt1310_timecounter);
 
 	/* Reset and enable timecounter */
-	timer1_write_4(sc, LPC_TIMER_TCR, LPC_TIMER_TCR_RESET);
-	timer1_write_4(sc, LPC_TIMER_TCR, 0);
-	timer1_clear(sc);
-	timer1_write_4(sc, LPC_TIMER_TCR, LPC_TIMER_TCR_ENABLE);
+
+	timer0_write_4(sc, RT_TIMER_CONTROL, 0);
+	timer1_write_4(sc, RT_TIMER_CONTROL, 0);
+	timer2_write_4(sc, RT_TIMER_CONTROL, 0);
+	timer3_write_4(sc, RT_TIMER_CONTROL, 0);
+
+	timer1_write_4(sc, RT_TIMER_LOAD, ~0);
+	timer1_write_4(sc, RT_TIMER_VALUE, ~0);
+	timer1_write_4(sc, RT_TIMER_CONTROL, 
+		0x100);
 
 	/* DELAY() now can work properly */
 	rt1310_timer_initialized = 1;
@@ -220,14 +242,13 @@ rt1310_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
 		ticks = ((uint32_t)et->et_frequency * first) >> 32;
 
 	/* Reset timer */
-	timer0_write_4(sc, LPC_TIMER_TCR, LPC_TIMER_TCR_RESET);
-	timer0_write_4(sc, LPC_TIMER_TCR, 0);
-	
+	timer2_write_4(sc, RT_TIMER_CONTROL, 0);
+
 	/* Start timer */
-	timer0_clear(sc);
-	timer0_write_4(sc, LPC_TIMER_MR0, ticks);
-	timer0_write_4(sc, LPC_TIMER_MCR, LPC_TIMER_MCR_MR0I | LPC_TIMER_MCR_MR0S);
-	timer0_write_4(sc, LPC_TIMER_TCR, LPC_TIMER_TCR_ENABLE);
+	timer2_write_4(sc, RT_TIMER_LOAD, ticks);
+	timer2_write_4(sc, RT_TIMER_VALUE, ticks);
+	timer2_write_4(sc, RT_TIMER_CONTROL, 0x180);
+
 	return (0);
 }
 
@@ -236,7 +257,8 @@ rt1310_timer_stop(struct eventtimer *et)
 {
 	struct rt1310_timer_softc *sc = (struct rt1310_timer_softc *)et->et_priv;
 
-	timer0_write_4(sc, LPC_TIMER_TCR, 0);
+	timer2_write_4(sc, RT_TIMER_CONTROL, 0);
+
 	return (0);
 }
 
@@ -262,13 +284,11 @@ rt1310_hardclock(void *arg)
 	struct rt1310_timer_softc *sc = (struct rt1310_timer_softc *)arg;
 
 	/* Reset pending interrupt */
-	timer0_write_4(sc, LPC_TIMER_IR, 0xffffffff);
+//	timer0_write_4(sc, LPC_TIMER_IR, 0xffffffff);
 
 	/* Start timer again */
 	if (!sc->lt_oneshot) {
-		timer0_clear(sc);
-		timer0_write_4(sc, LPC_TIMER_MR0, sc->lt_period);
-		timer0_write_4(sc, LPC_TIMER_TCR, LPC_TIMER_TCR_ENABLE);
+		timer2_write_4(sc, RT_TIMER_CONTROL, 0x180 );
 	}
 
 	if (sc->lt_et.et_active)
@@ -280,7 +300,7 @@ rt1310_hardclock(void *arg)
 static unsigned
 rt1310_get_timecount(struct timecounter *tc)
 {
-	return timer1_read_4(timer_softc, LPC_TIMER_TC);
+	return ~timer1_read_4(timer_softc, RT_TIMER_VALUE);
 }
 
 void

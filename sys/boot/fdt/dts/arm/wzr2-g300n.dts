@@ -111,6 +111,23 @@
 		#size-cells = <1>;
 		compatible = "simple-bus";
 		ranges = <0x0 0x1E800000 0x800000>;
+		bus-frequency = <75000000>;
+
+		timer@000000 {
+			compatible = "rt,timer";
+			reg = <0x0 0x10
+				0x10 0x10
+				0x20 0x10
+				0x30 0x10>;
+			interrupts = <3 4 5>;
+			interrupt-parent = <&PIC>;
+		};
+
+		rtc@20000 {
+			compatible = "rt,rtc";
+			interrupts = <6>;
+			reg = <0x20000 0x20000>;
+		};
 
 		serial0: serial@40000 {
 			compatible = "ns16550";

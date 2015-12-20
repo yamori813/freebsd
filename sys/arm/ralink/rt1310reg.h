@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2011 Jakub Wojciech Klama <jceel@FreeBSD.org>
+ * Copyright (c) 2015 Hiroki Mori
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +57,19 @@
 /*
  * Timer 0|1|2|3|4|5. (from UM10326: LPC32x0 User manual, page 540)
  */
+
+#define	RT_TIMER_LOAD			0x00
+#define	RT_TIMER_VALUE			0x04
+#define	RT_TIMER_CONTROL		0x08
+
+#define RT_TIMER_CTRL_DIV16		(1 << 2)
+#define RT_TIMER_CTRL_DIV256		(2 << 2)
+#define RT_TIMER_CTRL_PERIODIC		(1 << 6)
+#define RT_TIMER_CTRL_ENABLE		(1 << 7)
+
+
+#define	RT_TIMER_INTERVAL		(5000*150)
+
 #define	LPC_TIMER_IR			0x00
 #define	LPC_TIMER_TCR			0x04
 #define	LPC_TIMER_TCR_ENABLE		(1 << 0)
