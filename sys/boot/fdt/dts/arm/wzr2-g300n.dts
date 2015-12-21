@@ -83,7 +83,7 @@
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x120000 0x00244e00>;
+				reg = <0x120000 0x00244c00>;
 				label = "rootfs";
 			};
 		};

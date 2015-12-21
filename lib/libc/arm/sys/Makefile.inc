@@ -1,6 +1,13 @@
 # $FreeBSD$
 
-SRCS+=	__vdso_gettc.c
+.if ${MACHINE_ARCH} == "arm"
+#SRCS+=  trivial-vdso_tc.c
+CFLAGS+=-march=armv5te
+SRCS+=  __vdso_gettc.c
+.else
+SRCS+=  __vdso_gettc.c
+.endif
+
 
 MDASM= Ovfork.S brk.S cerror.S pipe.S ptrace.S sbrk.S shmat.S sigreturn.S syscall.S
 
