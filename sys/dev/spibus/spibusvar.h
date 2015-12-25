@@ -34,20 +34,13 @@ struct spibus_softc
 	device_t	dev;
 };
 
-#define        MODE_NONE       0
-#define        MODE_CPHA       1
-#define        MODE_CPOL       2
-#define        MODE_CPOL_CPHA  3
-
 struct spibus_ivar
 {
 	uint32_t	cs;
-	uint32_t	mode;
 };
 
 enum {
-	SPIBUS_IVAR_CS,		/* chip select that we're on */
-	SPIBUS_IVAR_MODE	/* SPI mode (0-3) */
+	SPIBUS_IVAR_CS		/* chip select that we're on */
 };
 
 #define SPIBUS_ACCESSOR(A, B, T)					\
@@ -59,4 +52,6 @@ spibus_get_ ## A(device_t dev, T *t)					\
 }
 	
 SPIBUS_ACCESSOR(cs,		CS,		uint32_t)
-SPIBUS_ACCESSOR(mode,		MODE,		uint32_t)
+
+extern driver_t spibus_driver;
+extern devclass_t spibus_devclass;

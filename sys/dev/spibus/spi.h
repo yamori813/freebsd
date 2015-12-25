@@ -27,7 +27,6 @@
  */
 
 struct spi_command {
-	int	cs;
 	void	*tx_cmd;
 	uint32_t tx_cmd_sz;
 	void	*rx_cmd;

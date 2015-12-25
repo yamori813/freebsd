@@ -24,7 +24,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/dev/flash/mx25l.c 239794 2012-08-28 22:17:22Z adrian $");
+__FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -38,20 +38,16 @@ __FBSDID("$FreeBSD: head/sys/dev/flash/mx25l.c 239794 2012-08-28 22:17:22Z adria
 #include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mutex.h>
-#include <sys/sysctl.h>
 #include <geom/geom_disk.h>
 
 #include <dev/spibus/spi.h>
 #include "spibus_if.h"
-
-#define MX25L_DEBUG
 
 #include <dev/flash/mx25lreg.h>
 
 #define	FL_NONE			0x00
 #define	FL_ERASE_4K		0x01
 #define	FL_ERASE_32K		0x02
-#define	FL_2BYTE_ADDR		0x04
 
 /*
  * Define the sectorsize to be a smaller size rather than the flash
@@ -67,7 +63,6 @@ struct mx25l_flash_ident
 	uint16_t	device_id;
 	unsigned int	sectorsize;
 	unsigned int	sectorcount;
-	unsigned int	pagesize;
 	unsigned int	flags;
 };
 
@@ -75,9 +70,7 @@ struct mx25l_softc
 {
 	device_t	sc_dev;
 	uint8_t		sc_manufacturer_id;
-	uint32_t	sc_pagesize;
 	uint16_t	sc_device_id;
-	uint32_t	sc_debug;
 	unsigned int	sc_sectorsize;
 	struct mtx	sc_mtx;
 	struct disk	*sc_disk;
@@ -85,24 +78,6 @@ struct mx25l_softc
 	struct bio_queue_head sc_bio_queue;
 	unsigned int	sc_flags;
 };
-
-typedef enum {
-	MX25L_DBG_READ 	=	0x00000001,
-	MX25L_DBG_WRITE	=	0x00000002,
-	MX25L_DBG_ERASE	=	0x00000004,
-	MX25L_DBG_EACHWRITE=	0x00000008,
-	MX25L_DBG_INFO	=	0x00000010,
-} mx25l_debug_flags;
-
-#ifdef MX25L_DEBUG
-#define	MX25LDEBUG(_sc, _m, ...) 					\
-	do {								\
-		if ((_m) & (_sc)->sc_debug)				\
-			device_printf((_sc)->sc_dev, __VA_ARGS__);	\
-	} while (0)
-#else
-#define	MX25LDEBUG(_sc, _m, ...)
-#endif
 
 #define M25PXX_LOCK(_sc)		mtx_lock(&(_sc)->sc_mtx)
 #define	M25PXX_UNLOCK(_sc)		mtx_unlock(&(_sc)->sc_mtx)
@@ -121,38 +96,35 @@ static void mx25l_strategy(struct bio *bp);
 static void mx25l_task(void *arg);
 
 struct mx25l_flash_ident flash_devices[] = {
-	{ "mx25ll32",    0xc2, 0x2016, 64 * 1024,  64, 256, FL_NONE },
-	{ "m25p64",      0x20, 0x2017, 64 * 1024, 128, 256, FL_NONE },
-	{ "mx25ll64",    0xc2, 0x2017, 64 * 1024, 128, 256, FL_NONE },
-	{ "mx25ll128",   0xc2, 0x2018, 64 * 1024, 256, 256, FL_ERASE_4K | FL_ERASE_32K },
-	{ "s25fl128",    0x01, 0x2018, 64 * 1024, 256, 256, FL_NONE },
-	{ "s25s1032",    0x01, 0x0215, 64 * 1024, 64,  256, FL_NONE },
-	{ "s25sl064a",   0x01, 0x0216, 64 * 1024, 128, 256, FL_NONE },
-	/* EON -- en25pxx */
-	{ "en25p32",     0x1c, 0x2016, 64 * 1024,  64, 256, FL_NONE },
-	{ "en25f32",     0x1c, 0x3116, 64 * 1024,  64, 256, FL_NONE },
-	{ "en25p64",     0x1c, 0x2017, 64 * 1024, 128, 256, FL_NONE },
-	{ "en25q64",     0x1c, 0x3017, 64 * 1024, 128, 256, FL_ERASE_4K },
-	/* EEPROMs, ID cmd not supported, can only be hinted */
-	{ "at25128",        0,      0,        64, 256,  64, FL_NONE },
-	{ "at25256",        0,      0,        64, 512,  64, FL_NONE },
-	{ "w25q64", 	 0xef, 0x4017, 64 * 1024, 128, 256, FL_ERASE_4K },
-	{ "w25q64bv",    0xef, 0x4017, 64 * 1024, 128, 256, FL_ERASE_4K },
-	{ "SST25VF032B", 0xbf, 0x254a, 64 * 1024,  64, 256, FL_ERASE_4K | FL_ERASE_32K },
-	{ "w25x32",      0xef, 0x3016, 64 * 1024,  64, 256, FL_ERASE_4K },
-};
+	{ "en25f32",	0x1c, 0x3116, 64 * 1024, 64, FL_NONE },
+	{ "en25p32",	0x1c, 0x2016, 64 * 1024, 64, FL_NONE },
+	{ "en25p64",	0x1c, 0x2017, 64 * 1024, 128, FL_NONE },
+	{ "en25q64",	0x1c, 0x3017, 64 * 1024, 128, FL_ERASE_4K },
+	{ "m25p64",	0x20, 0x2017, 64 * 1024, 128, FL_NONE },
+	{ "mx25ll32",	0xc2, 0x2016, 64 * 1024, 64, FL_NONE },
+	{ "mx25ll64",	0xc2, 0x2017, 64 * 1024, 128, FL_NONE },
+	{ "mx25ll128",	0xc2, 0x2018, 64 * 1024, 256, FL_ERASE_4K | FL_ERASE_32K },
+	{ "s25fl032",	0x01, 0x0215, 64 * 1024, 64, FL_NONE },
+	{ "s25fl064",	0x01, 0x0216, 64 * 1024, 128, FL_NONE },
+	{ "s25fl128",	0x01, 0x2018, 64 * 1024, 256, FL_NONE },
+	{ "s25fl256s",	0x01, 0x0219, 64 * 1024, 512, FL_NONE },
+	{ "SST25VF032B", 0xbf, 0x254a, 64 * 1024, 64, FL_ERASE_4K | FL_ERASE_32K },
 
-#define MX25L_IDENT_SIZE (sizeof(flash_devices)/sizeof(struct mx25l_flash_ident))
+	/* Winbond -- w25x "blocks" are 64K, "sectors" are 4KiB */
+	{ "w25x32",	0xef, 0x3016, 64 * 1024, 64, FL_ERASE_4K },
+	{ "w25q32",	0xef, 0x4016, 64 * 1024, 64, FL_ERASE_4K },
+	{ "w25q64",	0xef, 0x4017, 64 * 1024, 128, FL_ERASE_4K },
+	{ "w25q64bv",	0xef, 0x4017, 64 * 1024, 128, FL_ERASE_4K },
+	{ "w25q128",	0xef, 0x4018, 64 * 1024, 256, FL_ERASE_4K },
+	{ "w25q256",	0xef, 0x4019, 64 * 1024, 512, FL_ERASE_4K },
+};
 
 static uint8_t
 mx25l_get_status(device_t dev)
 {
-	struct mx25l_softc *sc;
-	uint8_t txBuf[4], rxBuf[4];
+	uint8_t txBuf[2], rxBuf[2];
 	struct spi_command cmd;
 	int err;
-
-	sc = device_get_softc(dev);
 
 	memset(&cmd, 0, sizeof(cmd));
 	memset(txBuf, 0, sizeof(txBuf));
@@ -160,17 +132,11 @@ mx25l_get_status(device_t dev)
 
 	txBuf[0] = CMD_READ_STATUS;
 	cmd.tx_cmd = txBuf;
-	cmd.tx_cmd_sz = 1;
-	cmd.rx_data = rxBuf;
-	cmd.rx_data_sz = 1;
-
+	cmd.rx_cmd = rxBuf;
+	cmd.rx_cmd_sz = 2;
+	cmd.tx_cmd_sz = 2;
 	err = SPIBUS_TRANSFER(device_get_parent(dev), dev, &cmd);
-	if (err)
-		return (0);
-
-	MX25LDEBUG(sc, MX25L_DBG_INFO, "STATUS=%02x\n", rxBuf[0]);
-
-	return (rxBuf[0]);
+	return (rxBuf[1]);
 }
 
 static void
@@ -196,24 +162,22 @@ mx25l_get_device_ident(struct mx25l_softc *sc)
 
 	txBuf[0] = CMD_READ_IDENT;
 	cmd.tx_cmd = &txBuf;
-	cmd.tx_cmd_sz = 1;
-	cmd.rx_data = &rxBuf;
-	cmd.rx_data_sz = 5;
+	cmd.rx_cmd = &rxBuf;
 	/*
 	 * Some compatible devices has extended two-bytes ID
 	 * We'll use only manufacturer/deviceid atm
 	 */
+	cmd.tx_cmd_sz = 4;
+	cmd.rx_cmd_sz = 4;
 	err = SPIBUS_TRANSFER(device_get_parent(dev), dev, &cmd);
 	if (err)
 		return (NULL);
 
-	MX25LDEBUG(sc, MX25L_DBG_INFO, "DEVID=%02x %02x %02x %02x %02x\n",
-	    rxBuf[0], rxBuf[1], rxBuf[2], rxBuf[3], rxBuf[4]);
+	manufacturer_id = rxBuf[1];
+	dev_id = (rxBuf[2] << 8) | (rxBuf[3]);
 
-	manufacturer_id = rxBuf[0];
-	dev_id = (rxBuf[1] << 8) | (rxBuf[2]);
-
-	for (i = 0; i < MX25L_IDENT_SIZE; i++) {
+	for (i = 0; 
+	    i < sizeof(flash_devices)/sizeof(struct mx25l_flash_ident); i++) {
 		if ((flash_devices[i].manufacturer_id == manufacturer_id) &&
 		    (flash_devices[i].device_id == dev_id))
 			return &flash_devices[i];
@@ -227,44 +191,28 @@ mx25l_get_device_ident(struct mx25l_softc *sc)
 static void
 mx25l_set_writable(device_t dev, int writable)
 {
-	struct mx25l_softc *sc;
-	uint8_t txBuf[4];//, rxBuf[4];
-	uint8_t status;
+	uint8_t txBuf[1], rxBuf[1];
 	struct spi_command cmd;
 	int err;
 
-	sc = device_get_softc(dev);
-
-	MX25LDEBUG(sc, MX25L_DBG_WRITE, "%s(dev, writable=%d)\n", __func__,
-	    writable);
-
 	memset(&cmd, 0, sizeof(cmd));
 	memset(txBuf, 0, sizeof(txBuf));
+	memset(rxBuf, 0, sizeof(rxBuf));
 
 	txBuf[0] = writable ? CMD_WRITE_ENABLE : CMD_WRITE_DISABLE;
 	cmd.tx_cmd = txBuf;
+	cmd.rx_cmd = rxBuf;
+	cmd.rx_cmd_sz = 1;
 	cmd.tx_cmd_sz = 1;
 	err = SPIBUS_TRANSFER(device_get_parent(dev), dev, &cmd);
-
-	status = mx25l_get_status(dev);
-
-	if (writable && !(status & STATUS_WEL))
-		device_printf(dev, "%s - fail\n", __func__);
 }
 
 static void
 mx25l_erase_cmd(device_t dev, off_t sector, uint8_t ecmd)
 {
-	struct mx25l_softc *sc;
 	uint8_t txBuf[4], rxBuf[4];
 	struct spi_command cmd;
 	int err;
-
-	sc = device_get_softc(dev);
-
-	MX25LDEBUG(sc, MX25L_DBG_ERASE,
-	    "%s(dev, sector=0x%08x, ecmd=0x%08x)\n",
-	    __func__, (uint32_t)sector, (uint8_t)ecmd);
 
 	mx25l_wait_for_device_ready(dev);
 	mx25l_set_writable(dev, 1);
@@ -274,13 +222,13 @@ mx25l_erase_cmd(device_t dev, off_t sector, uint8_t ecmd)
 	memset(rxBuf, 0, sizeof(rxBuf));
 
 	txBuf[0] = ecmd;
+	cmd.tx_cmd = txBuf;
+	cmd.rx_cmd = rxBuf;
+	cmd.rx_cmd_sz = 4;
+	cmd.tx_cmd_sz = 4;
 	txBuf[1] = ((sector >> 16) & 0xff);
 	txBuf[2] = ((sector >> 8) & 0xff);
 	txBuf[3] = (sector & 0xff);
-	cmd.tx_cmd = txBuf;
-	cmd.tx_cmd_sz = 4;
-	cmd.rx_cmd = rxBuf; /* XXX check it */
-	cmd.rx_cmd_sz = 4;  /* XXX check it */
 	err = SPIBUS_TRANSFER(device_get_parent(dev), dev, &cmd);
 }
 
@@ -288,7 +236,7 @@ static int
 mx25l_write(device_t dev, off_t offset, caddr_t data, off_t count)
 {
 	struct mx25l_softc *sc;
-	uint8_t txBuf[8];
+	uint8_t txBuf[8], rxBuf[8];
 	struct spi_command cmd;
 	off_t write_offset;
 	long bytes_to_write, bytes_writen;
@@ -298,9 +246,8 @@ mx25l_write(device_t dev, off_t offset, caddr_t data, off_t count)
 	pdev = device_get_parent(dev);
 	sc = device_get_softc(dev);
 
-	MX25LDEBUG(sc, MX25L_DBG_WRITE,
-	    "%s(dev, offset=0x%08x, data, count=0x%08x)\n",
-	    __func__, (uint32_t)offset, (uint32_t)count);
+	cmd.tx_cmd_sz = 4;
+	cmd.rx_cmd_sz = 4;
 
 	bytes_writen = 0;
 	write_offset = offset;
@@ -316,14 +263,14 @@ mx25l_write(device_t dev, off_t offset, caddr_t data, off_t count)
 	 * Assume here that we write per-sector only 
 	 * and sector size should be 256 bytes aligned
 	 */
-	KASSERT(write_offset % sc->sc_pagesize == 0,
+	KASSERT(write_offset % FLASH_PAGE_SIZE == 0,
 	    ("offset for BIO_WRITE is not page size (%d bytes) aligned",
-		sc->sc_pagesize));
+		FLASH_PAGE_SIZE));
 
 	/*
 	 * Maximum write size for CMD_PAGE_PROGRAM is 
-	 * sc->sc_pagesize, so split data to chunks 
-	 * sc->sc_pagesize bytes eash and write them
+	 * FLASH_PAGE_SIZE, so split data to chunks 
+	 * FLASH_PAGE_SIZE bytes eash and write them
 	 * one by one
 	 */
 	while (bytes_writen < count) {
@@ -334,24 +281,18 @@ mx25l_write(device_t dev, off_t offset, caddr_t data, off_t count)
 			mx25l_erase_cmd(dev, offset + bytes_writen, CMD_SECTOR_ERASE);
 
 		txBuf[0] = CMD_PAGE_PROGRAM;
-		if (sc->sc_flags & FL_2BYTE_ADDR) {
-			txBuf[1] = ((write_offset >> 8) & 0xff);
-			txBuf[2] = (write_offset & 0xff);
-			cmd.tx_cmd_sz = 3;
-		} else {
-			txBuf[1] = ((write_offset >> 16) & 0xff);
-			txBuf[2] = ((write_offset >> 8) & 0xff);
-			txBuf[3] = (write_offset & 0xff);
-			cmd.tx_cmd_sz = 4;
-		}
+		txBuf[1] = ((write_offset >> 16) & 0xff);
+		txBuf[2] = ((write_offset >> 8) & 0xff);
+		txBuf[3] = (write_offset & 0xff);
 
-		bytes_to_write = MIN(sc->sc_pagesize,
+		bytes_to_write = MIN(FLASH_PAGE_SIZE,
 		    count - bytes_writen);
 		cmd.tx_cmd = txBuf;
-		cmd.rx_cmd_sz = 0;
+		cmd.rx_cmd = rxBuf;
 		cmd.tx_data = data + bytes_writen;
 		cmd.tx_data_sz = bytes_to_write;
-		cmd.rx_data_sz = 0;
+		cmd.rx_data = data + bytes_writen;
+		cmd.rx_data_sz = bytes_to_write;
 
 		/*
 		 * Eash completed write operation resets WEL 
@@ -362,16 +303,8 @@ mx25l_write(device_t dev, off_t offset, caddr_t data, off_t count)
 		mx25l_set_writable(dev, 1);
 
 		err = SPIBUS_TRANSFER(pdev, dev, &cmd);
-		if (err) {
-			MX25LDEBUG(sc, MX25L_DBG_EACHWRITE,
-			    "%s: error writing %ld bytes\n",
-			    __func__, bytes_to_write);
-
+		if (err)
 			break;
-		}
-		MX25LDEBUG(sc, MX25L_DBG_EACHWRITE,
-		    "%s: write %ld bytes - successful\n",
-		    __func__, bytes_to_write);
 
 		bytes_writen += bytes_to_write;
 		write_offset += bytes_to_write;
@@ -384,21 +317,13 @@ static int
 mx25l_read(device_t dev, off_t offset, caddr_t data, off_t count)
 {
 	struct mx25l_softc *sc;
-	uint8_t txBuf[8];
+	uint8_t txBuf[8], rxBuf[8];
 	struct spi_command cmd;
 	device_t pdev;
 	int err = 0;
 
 	pdev = device_get_parent(dev);
 	sc = device_get_softc(dev);
-
-	MX25LDEBUG(sc, MX25L_DBG_READ,
-	    "%s(dev, offset=0x%08x, data, count=0x%08x)\n",
-	    __func__, (uint32_t)offset, (uint32_t)count);
-
-	err = SPIBUS_GET_BLOCK(pdev, dev, offset, data, count);
-	if (!err)
-		return (0);
 
 	/*
 	 * Enforce the disk read sectorsize not the erase sectorsize.
@@ -410,49 +335,26 @@ mx25l_read(device_t dev, off_t offset, caddr_t data, off_t count)
 		return (EIO);
 
 	txBuf[0] = CMD_FAST_READ;
-	if (sc->sc_flags & FL_2BYTE_ADDR) {
-		txBuf[1] = ((offset >> 8) & 0xff);
-		txBuf[2] = (offset & 0xff);
-		cmd.tx_cmd_sz = 3;
-	} else {
-		txBuf[1] = ((offset >> 16) & 0xff);
-		txBuf[2] = ((offset >> 8) & 0xff);
-		txBuf[3] = (offset & 0xff);
-		/* Dummy byte */
-		txBuf[4] = 0;
-		cmd.tx_cmd_sz = 5;
-	}
+	cmd.tx_cmd_sz = 5;
+	cmd.rx_cmd_sz = 5;
+
+	txBuf[1] = ((offset >> 16) & 0xff);
+	txBuf[2] = ((offset >> 8) & 0xff);
+	txBuf[3] = (offset & 0xff);
+	/* Dummy byte */
+	txBuf[4] = 0;
 
 	cmd.tx_cmd = txBuf;
-	cmd.rx_cmd_sz = 0;
-
+	cmd.rx_cmd = rxBuf;
+	cmd.tx_data = data;
+	cmd.tx_data_sz = count;
 	cmd.rx_data = data;
 	cmd.rx_data_sz = count;
-	cmd.tx_data_sz = 0;
 
 	err = SPIBUS_TRANSFER(pdev, dev, &cmd);
 
 	return (err);
 }
-
-#ifdef	MX25L_DEBUG
-#include <sys/sysctl.h>
-static void
-mx25l_attach_sysctl(device_t dev)
-{
-	struct mx25l_softc *sc;
-	struct sysctl_ctx_list *ctx;
-	struct sysctl_oid *tree;
-
-	sc = device_get_softc(dev);
-	ctx = device_get_sysctl_ctx(dev);
-	tree = device_get_sysctl_tree(dev);
-
-	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
-		"debug", CTLFLAG_RW, &sc->sc_debug, 0,
-		"mx25l debugging flags");
-}
-#endif
 
 static int
 mx25l_probe(device_t dev)
@@ -464,34 +366,14 @@ mx25l_probe(device_t dev)
 static int
 mx25l_attach(device_t dev)
 {
-	int i;
-	const char *chipname;
 	struct mx25l_softc *sc;
-	struct mx25l_flash_ident *ident = NULL;
+	struct mx25l_flash_ident *ident;
 
 	sc = device_get_softc(dev);
 	sc->sc_dev = dev;
-	sc->sc_debug = 0;
 	M25PXX_LOCK_INIT(sc);
 
-	if (resource_string_value(device_get_name(dev),
-	    device_get_unit(dev), "chipname", &chipname))
-		 chipname = NULL;
-
-	/* If chip name hinted */
-	if (chipname) {
-		for (i = 0; i < MX25L_IDENT_SIZE; i++) {
-			if (strcmp(flash_devices[i].name, chipname) == 0) {
-				ident = &flash_devices[i];
-				break;
-			}
-		}
-	}
-
-	/* if not hinted or if hinted not found */
-	if (ident == NULL)
-		ident = mx25l_get_device_ident(sc);
-
+	ident = mx25l_get_device_ident(sc);
 	if (ident == NULL)
 		return (ENXIO);
 
@@ -504,17 +386,14 @@ mx25l_attach(device_t dev)
 	sc->sc_disk->d_ioctl = mx25l_ioctl;
 	sc->sc_disk->d_name = "flash/spi";
 	sc->sc_disk->d_drv1 = sc;
-	sc->sc_disk->d_maxsize = ident->sectorsize;
-	sc->sc_disk->d_sectorsize = 4;
+	sc->sc_disk->d_maxsize = DFLTPHYS;
+	sc->sc_disk->d_sectorsize = MX25L_SECTORSIZE;
 	sc->sc_disk->d_mediasize = ident->sectorsize * ident->sectorcount;
 	sc->sc_disk->d_unit = device_get_unit(sc->sc_dev);
 	sc->sc_disk->d_dump = NULL;		/* NB: no dumps */
 	/* Sectorsize for erase operations */
 	sc->sc_sectorsize =  ident->sectorsize;
 	sc->sc_flags = ident->flags;
-	sc->sc_flags |= (sc->sc_disk->d_mediasize <= (64 * 1024)) ?
-	    FL_2BYTE_ADDR : 0;
-	sc->sc_pagesize =  ident->pagesize;
 
         /* NB: use stripesize to hold the erase/region size for RedBoot */
 	sc->sc_disk->d_stripesize = ident->sectorsize;
@@ -525,11 +404,6 @@ mx25l_attach(device_t dev)
 	kproc_create(&mx25l_task, sc, &sc->sc_p, 0, 0, "task: mx25l flash");
 	device_printf(sc->sc_dev, "%s, sector %d bytes, %d sectors\n", 
 	    ident->name, ident->sectorsize, ident->sectorcount);
-
-#ifdef	MX25L_DEBUG
-	/* setup sysctl variables */
-	mx25l_attach_sysctl(dev);
-#endif
 
 	return (0);
 }
