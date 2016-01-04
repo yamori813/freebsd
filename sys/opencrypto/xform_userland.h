@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2011-2012 Stefan Bethke.
+ * Copyright (c) 2015 Allan Jude <allanjude@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -11,10 +11,10 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHORS AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -26,10 +26,23 @@
  * $FreeBSD$
  */
 
-#ifndef	__DEV_ETHERSWITCH_MDIO_H__
-#define	__DEV_ETHERSWITCH_MDIO_H__
+#ifndef _CRYPTO_XFORM_USERLAND_H_
+#define _CRYPTO_XFORM_USERLAND_H_
 
-extern driver_t mdio_driver;
-extern devclass_t mdio_devclass;
+#ifdef _KERNEL
+#include <sys/systm.h>
+#define KMALLOC(size, type, flags)	malloc(size, type, flags)
+#define KFREE(ptr, type)		free(ptr, type)
+#else /* not _KERNEL */
+#ifdef _STAND
+#include <stand.h>
+#else /* !_STAND */
+#include <stdlib.h>
+#include <string.h>
+#endif /* _STAND */
+#define KMALLOC(size, type, flags)	malloc(size)
+#define KFREE(ptr, type)		free(ptr)
+#endif /* _KERNEL */
 
-#endif	/* __DEV_ETHERSWITCH_MDIO_H__ */
+
+#endif /* _CRYPTO_XFORM_USERLAND_H_ */

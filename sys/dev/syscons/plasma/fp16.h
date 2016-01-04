@@ -1,5 +1,5 @@
 /*-
- * Copyright 2005 Colin Percival
+ * Copyright (c) 2015 Dag-Erling Smørgrav
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,57 +26,60 @@
  * $FreeBSD$
  */
 
-#ifndef _SHA512_H_
-#define _SHA512_H_
+#ifndef FP16_H_INCLUDED
+#define FP16_H_INCLUDED
 
-#include <sys/types.h>
+typedef signed long long fp16_t;
 
-typedef struct SHA512Context {
-	uint64_t state[8];
-	uint64_t count[2];
-	unsigned char buf[128];
-} SHA512_CTX;
+#define ItoFP16(n)	((signed long long)(n) << 16)
+#define FP16toI(n)	((signed long long)(n) >> 16)
 
-__BEGIN_DECLS
-
-/* Ensure libmd symbols do not clash with libcrypto */
-
-#ifndef SHA512_Init
-#define SHA512_Init		_libmd_SHA512_Init
-#endif
-#ifndef SHA512_Update
-#define SHA512_Update		_libmd_SHA512_Update
-#endif
-#ifndef SHA512_Final
-#define SHA512_Final		_libmd_SHA512_Final
-#endif
-#ifndef SHA512_End
-#define SHA512_End		_libmd_SHA512_End
-#endif
-#ifndef SHA512_File
-#define SHA512_File		_libmd_SHA512_File
-#endif
-#ifndef SHA512_FileChunk
-#define SHA512_FileChunk	_libmd_SHA512_FileChunk
-#endif
-#ifndef SHA512_Data
-#define SHA512_Data		_libmd_SHA512_Data
+#ifndef _KERNEL
+#define FP16toF(n)	((n) / 65536.0)
 #endif
 
-#ifndef SHA512_Transform
-#define SHA512_Transform	_libmd_SHA512_Transform
-#endif
-#ifndef SHA512_version
-#define SHA512_version		_libmd_SHA512_version
-#endif
+/* add a and b */
+static inline fp16_t
+fp16_add(fp16_t a, fp16_t b)
+{
 
-void	SHA512_Init(SHA512_CTX *);
-void	SHA512_Update(SHA512_CTX *, const void *, size_t);
-void	SHA512_Final(unsigned char [64], SHA512_CTX *);
-char   *SHA512_End(SHA512_CTX *, char *);
-char   *SHA512_File(const char *, char *);
-char   *SHA512_FileChunk(const char *, char *, off_t, off_t);
-char   *SHA512_Data(const void *, unsigned int, char *);
-__END_DECLS
+	return (a + b);
+}
 
-#endif /* !_SHA512_H_ */
+/* subtract b from a */
+static inline fp16_t
+fp16_sub(fp16_t a, fp16_t b)
+{
+
+	return (a - b);
+}
+
+/* multiply a by b */
+static inline fp16_t
+fp16_mul(fp16_t a, fp16_t b)
+{
+
+	return (a * b >> 16);
+}
+
+/* divide a by b */
+static inline fp16_t
+fp16_div(fp16_t a, fp16_t b)
+{
+
+	return ((a << 16) / b);
+}
+
+/* square root */
+fp16_t fp16_sqrt(fp16_t);
+
+#define FP16_2PI	 411774
+#define FP16_PI		 205887
+#define FP16_PI_2	 102943
+#define FP16_PI_4	  51471
+
+/* sine and cosine */
+fp16_t fp16_sin(fp16_t);
+fp16_t fp16_cos(fp16_t);
+
+#endif

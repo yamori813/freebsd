@@ -220,6 +220,7 @@ SUBDIR=	\
 	malo \
 	mcd \
 	md \
+	mdio \
 	mem \
 	mfi \
 	mii \
@@ -310,6 +311,8 @@ SUBDIR=	\
 	re \
 	reiserfs \
 	rl \
+	rtwn \
+	rtwnfw \
 	${_s3} \
 	${_safe} \
 	${_sbni} \
