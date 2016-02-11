@@ -1,6 +1,7 @@
 /*-
  * Copyright (C) 2007 
  *	Oleksandr Tymoshenko <gonzo@freebsd.org>. All rights reserved.
+ * Copyright (c) 2016 Hiroki Mori. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1279,7 +1280,9 @@ are_newbuf(struct are_softc *sc, int idx)
 	if (m == NULL)
 		return (ENOBUFS);
 	m->m_len = m->m_pkthdr.len = MCLBYTES;
-	m_adj(m, sizeof(uint64_t));
+
+	// tcp header boundary margin
+	m_adj(m, 4);
 
 	if (bus_dmamap_load_mbuf_sg(sc->are_cdata.are_rx_tag,
 	    sc->are_cdata.are_rx_sparemap, m, segs, &nsegs, 0) != 0) {
@@ -1290,6 +1293,7 @@ are_newbuf(struct are_softc *sc, int idx)
 
 	rxd = &sc->are_cdata.are_rxdesc[idx];
 	if (rxd->rx_m != NULL) {
+// This code make bug. Make scranble on buffer data.
 //		bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
 //		    BUS_DMASYNC_POSTREAD);
 		bus_dmamap_unload(sc->are_cdata.are_rx_tag, rxd->rx_dmamap);
@@ -1433,10 +1437,10 @@ are_rx(struct are_softc *sc)
 			bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
 			    BUS_DMASYNC_POSTREAD | BUS_DMASYNC_POSTWRITE);
 			m = rxd->rx_m;
-			are_fixup_rx(m);
-			m->m_pkthdr.rcvif = ifp;
 			/* Skip 4 bytes of CRC */
 			m->m_pkthdr.len = m->m_len = packet_len - ETHER_CRC_LEN;
+			are_fixup_rx(m);
+			m->m_pkthdr.rcvif = ifp;
 			if_inc_counter(ifp, IFCOUNTER_IPACKETS, 1);
 
 			ARE_UNLOCK(sc);
