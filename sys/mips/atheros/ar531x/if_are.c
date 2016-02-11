@@ -913,6 +913,8 @@ are_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 	ifmr->ifm_active = mii->mii_media_active;
 	ifmr->ifm_status = mii->mii_media_status;
 	ARE_UNLOCK(sc);
+#else
+	ifmr->ifm_status = IFM_AVALID | IFM_ACTIVE;
 #endif
 }
 
@@ -1288,8 +1290,8 @@ are_newbuf(struct are_softc *sc, int idx)
 
 	rxd = &sc->are_cdata.are_rxdesc[idx];
 	if (rxd->rx_m != NULL) {
-		bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
-		    BUS_DMASYNC_POSTREAD);
+//		bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
+//		    BUS_DMASYNC_POSTREAD);
 		bus_dmamap_unload(sc->are_cdata.are_rx_tag, rxd->rx_dmamap);
 	}
 	map = rxd->rx_dmamap;
@@ -1316,8 +1318,12 @@ are_fixup_rx(struct mbuf *m)
 	src = mtod(m, uint16_t *);
 	dst = src - 1;
 
-	for (i = 0; i < (m->m_len / sizeof(uint16_t) + 1); i++)
+	for (i = 0; i < m->m_len / sizeof(uint16_t); i++) {
 		*dst++ = *src++;
+	}
+
+	if (m->m_len % sizeof(uint16_t))
+		*(uint8_t *)dst = *(uint8_t *)src;
 
 	m->m_data -= ETHER_ALIGN;
 }
@@ -1425,7 +1431,7 @@ are_rx(struct are_softc *sc)
 		else if ((cur_rx->are_stat & ADSTAT_Rx_DE) == 0) {
 			error = 0;
 			bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
-			    BUS_DMASYNC_PREREAD);
+			    BUS_DMASYNC_POSTREAD | BUS_DMASYNC_POSTWRITE);
 			m = rxd->rx_m;
 			are_fixup_rx(m);
 			m->m_pkthdr.rcvif = ifp;
@@ -1478,6 +1484,7 @@ are_intr(void *arg)
 {
 	struct are_softc		*sc = arg;
 	uint32_t		status;
+	struct ifnet		*ifp = sc->are_ifp;
 
 	ARE_LOCK(sc);
 
@@ -1489,9 +1496,13 @@ are_intr(void *arg)
 	}
 	if (status & sc->sc_rxint_mask) {
 		are_rx(sc);
-	} else if (status & sc->sc_txint_mask) {
+	}
+	if (status & sc->sc_txint_mask) {
 		are_tx(sc);
 	}
+
+	/* Try to get more packets going. */
+	are_start(ifp);
 
 	ARE_UNLOCK(sc);
 }
