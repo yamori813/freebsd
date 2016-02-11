@@ -98,8 +98,8 @@ static int	siba_activate_resource(device_t, device_t, int, int,
 		    struct resource *);
 static device_t	siba_add_child(device_t, u_int, const char *, int);
 static struct resource *
-		siba_alloc_resource(device_t, device_t, int, int *, u_long,
-		    u_long, u_long, u_int);
+		siba_alloc_resource(device_t, device_t, int, int *, rman_res_t,
+		    rman_res_t, rman_res_t, u_int);
 static int	siba_attach(device_t);
 static int	siba_detach(device_t);
 static void	siba_destroy_devinfo(device_t);
@@ -492,7 +492,7 @@ siba_print_child(device_t bus, device_t child)
 
 static struct resource *
 siba_alloc_resource(device_t bus, device_t child, int type, int *rid,
-    u_long start, u_long end, u_long count, u_int flags)
+    rman_res_t start, rman_res_t end, rman_res_t count, u_int flags)
 {
 	struct resource			*rv;
 	struct resource_list		*rl;
