@@ -82,8 +82,8 @@ static void bfe_discard_buf		(struct bfe_softc *, int);
 static int  bfe_list_newbuf		(struct bfe_softc *, int);
 static void bfe_rx_ring_free		(struct bfe_softc *);
 
-static int  bfe_ifmedia_upd		(struct ifnet *);
-static void bfe_ifmedia_sts		(struct ifnet *, struct ifmediareq *);
+//static int  bfe_ifmedia_upd		(struct ifnet *);
+//static void bfe_ifmedia_sts		(struct ifnet *, struct ifmediareq *);
 static int  bfe_wait_bit		(struct bfe_softc *, u_int32_t, u_int32_t,
 		u_long, const int);
 static void bfe_get_config		(struct bfe_softc *sc);
@@ -345,7 +345,8 @@ printf("MORI MORI Debug 1\n");
 	ifp->if_snd.ifq_drv_maxlen = BFE_TX_QLEN;
 	IFQ_SET_READY(&ifp->if_snd);
 
-printf("MORI MORI Debug 2\n");
+int val = CSR_READ_4(sc, BFE_DEVCTRL);
+printf("MORI MORI Debug 2 %08x\n", val);
 	bfe_get_config(sc);
 
 	/* Reset the chip and turn on the PHY */
@@ -354,6 +355,7 @@ printf("MORI MORI Debug 2\n");
 	BFE_UNLOCK(sc);
 
 printf("MORI MORI Debug 2.5\n");
+#if 0
 	error = mii_attach(dev, &sc->bfe_miibus, ifp, bfe_ifmedia_upd,
 	    bfe_ifmedia_sts, BMSR_DEFCAPMASK, MII_PHY_ANY, MII_OFFSET_ANY,
 	    0);
@@ -361,6 +363,7 @@ printf("MORI MORI Debug 2.5\n");
 		device_printf(dev, "attaching PHYs failed\n");
 		goto fail;
 	}
+#endif
 
 printf("MORI MORI Debug 3\n");
 	ether_ifattach(ifp, sc->bfe_enaddr);
@@ -1683,6 +1686,7 @@ bfe_init_locked(void *xsc)
 	callout_reset(&sc->bfe_stat_co, hz, bfe_tick, sc);
 }
 
+#if 0
 /*
  * Set media options.
  */
@@ -1722,6 +1726,7 @@ bfe_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 	ifmr->ifm_status = mii->mii_media_status;
 	BFE_UNLOCK(sc);
 }
+#endif
 
 static int
 bfe_ioctl(struct ifnet *ifp, u_long command, caddr_t data)

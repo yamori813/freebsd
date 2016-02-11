@@ -63,7 +63,8 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 	di->bas.bst = ar71xx_bus_space_reversed;
 	di->bas.regshft = 2;
 	di->bas.rclk = freq;
-	di->baudrate = 115200;
+//	di->baudrate = 115200;
+	di->baudrate = 9600;
 	di->databits = 8;
 	di->stopbits = 1;
 

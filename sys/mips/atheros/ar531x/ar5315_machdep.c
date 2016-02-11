@@ -267,6 +267,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	init_param1();
 	boothowto |= (RB_SERIAL | RB_MULTIPLE); /* Use multiple consoles */
 //	boothowto |= RB_VERBOSE;
+	boothowto |= (RB_SINGLE);
 
 	/* Detect the system type - this is needed for subsequent chipset-specific calls */
 	ar5315_detect_sys_type();
@@ -338,14 +339,28 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	mips_proc0_init();
 	mutex_init();
 
-	/*
-	 * Reset USB devices 
-	 */
-//	ar71xx_init_usb_peripheral();
+	// set Ethernet AHB master arbitration control
+	// Maybe RedBoot was enabled. But to make sure.
+	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL,
+		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL) |
+		AR5315_ARB_ENET);
+	
+	// set Ethernet controller byteswap control
+/*
+	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN,
+		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN) |
+		AR5315_ENDIAN_ENET);
+*/
+
+	printf("AHB Master Arbitration Control %08x\n",
+		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL));
+	printf("Byteswap Control %08x\n",
+		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN));
 
 	kdb_init();
 #ifdef KDB
 	if (boothowto & RB_KDB)
 		kdb_enter(KDB_WHY_BOOTFLAGS, "Boot flags requested debugger");
 #endif
+
 }

@@ -24,6 +24,8 @@
  * SUCH DAMAGE.
  */
 
+#define BFE_MDIO
+
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -53,6 +55,12 @@
 
 /* "device miibus" required.  See GENERIC if you get errors here. */
 #include "miibus_if.h"
+
+#if defined(BFE_MDIO)
+#include <dev/mdio/mdio.h>
+#include <dev/etherswitch/miiproxy.h>
+#include "mdio_if.h"
+#endif
 
 #include <dev/siba/siba_ids.h>
 #include <dev/siba/sibareg.h>
@@ -142,4 +150,52 @@ MODULE_DEPEND(bfe, miibus, 1, 1, 1);
 
 DRIVER_MODULE(bfe, siba, bfe_driver, bfe_devclass, 0, 0);
 DRIVER_MODULE(miibus, bfe, miibus_driver, miibus_devclass, 0, 0);
+
+#if defined(BFE_MDIO)
+static int bfemdio_probe(device_t);
+static int bfemdio_attach(device_t);
+static int bfemdio_detach(device_t);
+
+/*
+ * Declare an additional, separate driver for accessing the MDIO bus.
+ */
+static device_method_t bfemdio_methods[] = {
+	/* Device interface */
+	DEVMETHOD(device_probe,         bfemdio_probe),
+	DEVMETHOD(device_attach,        bfemdio_attach),
+	DEVMETHOD(device_detach,        bfemdio_detach),
+
+	/* bus interface */
+	DEVMETHOD(bus_add_child,        device_add_child_ordered),
+        
+	/* MDIO access */
+	DEVMETHOD(mdio_readreg,         bfe_miibus_readreg),
+	DEVMETHOD(mdio_writereg,        bfe_miibus_writereg),
+};
+
+DEFINE_CLASS_0(bfemdio, bfemdio_driver, bfemdio_methods,
+    sizeof(struct bfe_softc));
+static devclass_t bfemdio_devclass;
+
+DRIVER_MODULE(miiproxy, bfe, miiproxy_driver, miiproxy_devclass, 0, 0);
+DRIVER_MODULE(bfemdio, nexus, bfemdio_driver, bfemdio_devclass, 0, 0);
+DRIVER_MODULE(mdio, bfemdio, mdio_driver, mdio_devclass, 0, 0);
+
+static int bfemdio_probe(device_t dev)
+{
+	device_set_desc(dev, "Broadcom 44xx Ethernet Chip ethernet interface, MDIO controller");
+	return (0);
+}
+
+static int bfemdio_attach(device_t dev)
+{
+	return (0);
+}
+
+static int bfemdio_detach(device_t dev)
+{
+	return (0);
+}
+#endif
+
 

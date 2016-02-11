@@ -136,8 +136,9 @@ ar5315_chip_device_stop(uint32_t mask)
 {
 	uint32_t reg;
 
-	reg = ATH_READ_REG(AR5315_SYSREG_BASE);
-	ATH_WRITE_REG(AR5315_SYSREG_BASE, reg | mask);
+	reg = ATH_READ_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET);
+	ATH_WRITE_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET,
+		reg | mask);
 }
 
 static void
@@ -145,8 +146,9 @@ ar5315_chip_device_start(uint32_t mask)
 {
 	uint32_t reg;
 
-	reg = ATH_READ_REG(AR5315_SYSREG_BASE);
-	ATH_WRITE_REG(AR5315_SYSREG_BASE, reg & ~mask);
+	reg = ATH_READ_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET);
+	ATH_WRITE_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET,
+		reg & ~mask);
 }
 
 static int
@@ -154,7 +156,7 @@ ar5315_chip_device_stopped(uint32_t mask)
 {
 	uint32_t reg;
 
-	reg = ATH_READ_REG(AR5315_SYSREG_BASE);
+	reg = ATH_READ_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET);
 	return ((reg & mask) == mask);
 }
 

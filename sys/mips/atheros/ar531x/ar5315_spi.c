@@ -139,32 +139,14 @@ ar5315_spi_chip_deactivate(struct ar5315_spi_softc *sc, int cs)
 }
 
 static int
-ar5315_spi_get_block(device_t dev, device_t child, off_t offset, caddr_t data,
-    off_t count)
+ar5315_spi_get_block(off_t offset, caddr_t data, off_t count)
 {
-//	printf("ar5315_spi_get_blockr: %d %d\n", (int)offset, (int)count);
 	int i;
 	for(i = 0; i < count / 4; ++i) {
 		*((uint32_t *)data + i) = ATH_READ_REG(AR5315_MEM1_BASE + offset + i * 4);
 	}
-/*
-	for(i = 0;i < 16; ++i) {
-		printf("%02x ", (uint8_t)*(data + i));
-	}
-	printf("\n");
-*/
-/*
-	struct ar5315_spi_softc *sc;
-
-	sc = device_get_softc(dev);
-
-	if ((offset + count) > rman_get_size(sc->sc_mem_res))
-		return (EINVAL);
-
-	bus_read_region_4(sc->sc_mem_res, offset, (uint32_t *)data,
-	    (bus_size_t)(count/4));
-*/
-
+//	printf("ar5315_spi_get_blockr: %x %x %x\n", 
+//		(int)offset, (int)count, *(uint32_t *)data);
 	return (0);
 }
 
@@ -195,6 +177,11 @@ ar5315_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
 	 */
 	buf_out = (uint8_t *)cmd->tx_cmd;
 	op = buf_out[0];
+	if(op == 0x0b) {
+		int offset = buf_out[1] << 16 | buf_out[2] << 8 | buf_out[3];
+		ar5315_spi_get_block(offset, cmd->rx_data, cmd->rx_data_sz);
+		return (0);
+	}
 	do {
 		ctl = SPI_READ(sc, ARSPI_REG_CTL);
 	} while (ctl & ARSPI_CTL_BUSY);
@@ -214,14 +201,13 @@ ar5315_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
 
 	/* now set txcnt */
 	cnt = 1;
-	if(op == 0x0b)
-		cnt += 4;
+
 	ctl |= (cnt << ARSPI_CTL_TXCNT_SHIFT);
 
 	cnt = 24;
 	/* now set txcnt */
-	if(cmd->rx_data_sz < 24)
-		cnt = cmd->rx_data_sz;
+	if(cmd->rx_cmd_sz < 24)
+		cnt = cmd->rx_cmd_sz;
 	ctl |= (cnt << ARSPI_CTL_RXCNT_SHIFT);
 
 	ctl |= ARSPI_CTL_START;
@@ -235,10 +221,10 @@ ar5315_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
 	/*
 	 * Receive/transmit data (depends on  command)
 	 */
-	buf_out = (uint8_t *)cmd->tx_data;
-	buf_in = (uint8_t *)cmd->rx_data;
-	lout = cmd->tx_data_sz;
-	lin = cmd->rx_data_sz;
+//	buf_out = (uint8_t *)cmd->tx_data;
+	buf_in = (uint8_t *)cmd->rx_cmd;
+//	lout = cmd->tx_data_sz;
+	lin = cmd->rx_cmd_sz;
 	if (sc->sc_debug & 0x8000)
 		printf("t%d r%d ", lout, lin);
 	for(i = 0; i <= (cnt - 1) / 4; ++i) {
@@ -251,8 +237,8 @@ ar5315_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
 			printf("I%08x ", rdat);
 
 		for(j = 0; j < 4; ++j) {
-			buf_in[i * 4 + j] = 0xff & (rdat >> (8 * j));
-			if(i * 4 + j  + 1 == cnt)
+			buf_in[i * 4 + j + 1] = 0xff & (rdat >> (8 * j));
+			if(i * 4 + j  + 2 == cnt)
 				break;
 		}
 	}
@@ -285,7 +271,7 @@ static device_method_t ar5315_spi_methods[] = {
 	DEVMETHOD(device_detach,	ar5315_spi_detach),
 
 	DEVMETHOD(spibus_transfer,	ar5315_spi_transfer),
-	DEVMETHOD(spibus_get_block,	ar5315_spi_get_block),
+//	DEVMETHOD(spibus_get_block,	ar5315_spi_get_block),
 
 	DEVMETHOD_END
 };
