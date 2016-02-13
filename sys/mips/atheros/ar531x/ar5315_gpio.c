@@ -175,6 +175,7 @@ ar5315_gpio_pin_getflags(device_t dev, uint32_t pin, uint32_t *flags)
 {
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	int i;
+	int dir;
 
 	for (i = 0; i < sc->gpio_npins; i++) {
 		if (sc->gpio_pins[i].gp_pin == pin)
@@ -184,9 +185,15 @@ ar5315_gpio_pin_getflags(device_t dev, uint32_t pin, uint32_t *flags)
 	if (i >= sc->gpio_npins)
 		return (EINVAL);
 
+	dir = GPIO_READ(sc, AR5315_SYSREG_GPIO_CR) & (1 << pin);
+
+	*flags = dir ? GPIO_PIN_OUTPUT : GPIO_PIN_INPUT;
+
+/*
 	GPIO_LOCK(sc);
 	*flags = sc->gpio_pins[i].gp_flags;
 	GPIO_UNLOCK(sc);
+*/
 
 	return (0);
 }
@@ -237,7 +244,7 @@ ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value)
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	uint32_t state;
 
-	state = (GPIO_READ(sc, AR5315_SYSREG_GPIO_DO) & (1 << pin)) ? 1 : 0;
+	state = GPIO_READ(sc, AR5315_SYSREG_GPIO_DO);
 
 	if(value == 1) {
 		state |= (1 << pin);
@@ -374,7 +381,7 @@ ar5315_gpio_attach(device_t dev)
 	}
 
 	/* Disable interrupts for all pins. */
-//	GPIO_WRITE(sc, AR5315_SYSREG_GPIO_DIT_MASK, 0);
+	GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 0);
 
 	/* Initialise all pins specified in the mask, up to the pin count */
 	(void) ar5315_gpio_pin_max(dev, &maxpin);
@@ -390,9 +397,10 @@ ar5315_gpio_attach(device_t dev)
 			continue;
 		sc->gpio_npins++;
 	}
+
 	/* Iniatilize the GPIO pins, keep the loader settings. */
 	oe = GPIO_READ(sc, AR5315_SYSREG_GPIO_CR);
-	sc->gpio_pins = malloc(sizeof(*sc->gpio_pins) * sc->gpio_npins,
+	sc->gpio_pins = malloc(sizeof(struct gpio_pin) * sc->gpio_npins,
 	    M_DEVBUF, M_WAITOK | M_ZERO);
 	for (i = 0, j = 0; j <= maxpin; j++) {
 		if ((mask & (1 << j)) == 0)
@@ -408,6 +416,7 @@ ar5315_gpio_attach(device_t dev)
 		i++;
 	}
 
+#if 0
 	/* Turn on the hinted pins. */
 	for (i = 0; i < sc->gpio_npins; i++) {
 		j = sc->gpio_pins[i].gp_pin;
@@ -465,6 +474,7 @@ ar5315_gpio_attach(device_t dev)
 		/* Finally: Set the output config */
 //		ar5315_gpio_ouput_configure(i, gpiofunc);
 	}
+#endif
 
 	sc->busdev = gpiobus_attach_bus(dev);
 	if (sc->busdev == NULL) {
