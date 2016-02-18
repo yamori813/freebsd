@@ -102,6 +102,15 @@ ar5315_detect_sys_type(void)
 	case 0x86:
 		chip = "2315";
 		break;
+	case 0x87:
+		chip = "2316";
+		break;
+	case 0x90:
+		chip = "2317";
+		break;
+	case 0x91:
+		chip = "2318";
+		break;
 	}
 
 
