@@ -315,6 +315,7 @@ ar5315_gpio_intr(void *arg)
 	struct ar5315_gpio_softc *sc = arg;
 	GPIO_LOCK(sc);
 	/* TODO: something useful */
+printf("MORI MORI GPIO intr\n");
 	GPIO_UNLOCK(sc);
 }
 

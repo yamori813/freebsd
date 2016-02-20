@@ -273,7 +273,6 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	ar5315_detect_sys_type();
 	ar5315_detect_sys_frequency();
 
-
 	platform_counter_freq = ar5315_cpu_freq();
 	mips_timer_init_params(platform_counter_freq, 1);
 	cninit();
@@ -338,6 +337,12 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	pmap_bootstrap();
 	mips_proc0_init();
 	mutex_init();
+
+	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ERR0,
+		AR5315_AHB_ERROR_DET);
+	ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ERR1);
+	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_WDOG_CTL, 
+		AR5315_WDOG_CTL_IGNORE);
 
 	// set Ethernet AHB master arbitration control
 	// Maybe RedBoot was enabled. But to make sure.

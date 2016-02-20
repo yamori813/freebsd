@@ -77,6 +77,7 @@ ar5315_detect_sys_type(void)
 	char *chip = "????";
 	uint32_t ver = 0;
 	uint32_t rev = 0;
+#if 0
 	const uint8_t *ptr, *end;
 	static const struct ar531x_boarddata *board = NULL;
 
@@ -92,6 +93,7 @@ ar5315_detect_sys_type(void)
 			break;
 		}
 	}
+#endif
 
 	ar5315_cpu_ops = &ar5315_chip_def;
 
