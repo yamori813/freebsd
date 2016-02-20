@@ -202,10 +202,43 @@ are_attach(device_t dev)
 	struct are_softc		*sc;
 	int			error = 0, rid;
 	int			unit;
+	char *			local_macstr;
+	int			count;
+	int			i;
 
 	sc = device_get_softc(dev);
 	unit = device_get_unit(dev);
 	sc->are_dev = dev;
+
+	// hardcode macaddress
+	sc->are_eaddr[0] = 0x00;
+	sc->are_eaddr[1] = 0x0C;
+	sc->are_eaddr[2] = 0x42;
+	sc->are_eaddr[3] = 0x09;
+	sc->are_eaddr[4] = 0x5E;
+	sc->are_eaddr[5] = 0x6B;
+
+	// try to get from hints
+	if (!resource_string_value(device_get_name(dev),
+		device_get_unit(dev), "macaddr", (const char **)&local_macstr)) {
+		uint32_t tmpmac[ETHER_ADDR_LEN];
+
+		/* Have a MAC address; should use it */
+		device_printf(dev, "Overriding MAC address from environment: '%s'\n",
+		    local_macstr);
+
+		/* Extract out the MAC address */
+		/* XXX this should all be a generic method */
+		count = sscanf(local_macstr, "%x%*c%x%*c%x%*c%x%*c%x%*c%x",
+		    &tmpmac[0], &tmpmac[1],
+		    &tmpmac[2], &tmpmac[3],
+		    &tmpmac[4], &tmpmac[5]);
+		if (count == 6) {
+			/* Valid! */
+			for (i = 0; i < ETHER_ADDR_LEN; i++)
+				sc->are_eaddr[i] = tmpmac[i];
+		}
+	}
 
 	mtx_init(&sc->are_mtx, device_get_nameunit(dev), MTX_NETWORK_LOCK,
 	    MTX_DEF);
@@ -258,13 +291,6 @@ are_attach(device_t dev)
 	IFQ_SET_READY(&ifp->if_snd);
 
 	ifp->if_capenable = ifp->if_capabilities;
-
-	sc->are_eaddr[0] = 0x00;
-	sc->are_eaddr[1] = 0x0C;
-	sc->are_eaddr[2] = 0x42;
-	sc->are_eaddr[3] = 0x09;
-	sc->are_eaddr[4] = 0x5E;
-	sc->are_eaddr[5] = 0x6B;
 
 	if (are_dma_alloc(sc) != 0) {
 		error = ENXIO;
