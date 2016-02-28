@@ -43,6 +43,20 @@
 #ifndef	_MIPS_ATHEROS_AR5312REG_H_
 #define	_MIPS_ATHEROS_AR5312REG_H_
 
+/* Helpers from NetBSD cdefs.h */
+/* __BIT(n): nth bit, where __BIT(0) == 0x1. */
+#define __BIT(__n)      \
+        (((__n) >= NBBY * sizeof(uintmax_t)) ? 0 : ((uintmax_t)1 << (__n)))
+
+/* __BITS(m, n): bits m through n, m < n. */
+#define __BITS(__m, __n)        \
+        ((__BIT(MAX((__m), (__n)) + 1) - 1) ^ (__BIT(MIN((__m), (__n))) - 1))
+
+/* find least significant bit that is set */
+#define	__LOWEST_SET_BIT(__mask) ((((__mask) - 1) & (__mask)) ^ (__mask))
+
+#define	__SHIFTOUT(__x, __mask)	(((__x) & (__mask)) / __LOWEST_SET_BIT(__mask))
+
 #define	AR5312_MEM0_BASE		0x00000000	/* sdram */
 #define	AR5312_MEM1_BASE		0x08000000	/* sdram/flash */
 #define	AR5312_MEM3_BASE		0x10000000	/* flash */
@@ -196,7 +210,7 @@
  * Board data.  This is located in flash somewhere, ar531x_board_info
  * locates it.
  */
-#include <ah_soc.h>	/* XXX really doesn't belong in hal */
+#include <dev/ath/ath_hal/ah_soc.h>	/* XXX really doesn't belong in hal */
 
 /* XXX write-around for now */
 #define	AR5312_BOARD_MAGIC		AR531X_BD_MAGIC

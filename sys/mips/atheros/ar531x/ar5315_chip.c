@@ -60,9 +60,11 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_chip.c 234326 2012-04-15 22:34:
 
 /* XXX these shouldn't be in here - this file is a per-chip file */
 /* XXX these should be in the top-level ar5315 type, not ar5315 -chip */
-uint32_t u_ar5315_cpu_freq;
-uint32_t u_ar5315_ahb_freq;
-uint32_t u_ar5315_ddr_freq;
+uint32_t u_ar531x_cpu_freq;
+uint32_t u_ar531x_ahb_freq;
+uint32_t u_ar531x_ddr_freq;
+
+uint32_t u_ar531x_uart_addr;
 
 static void
 ar5315_chip_detect_mem_size(void)
@@ -72,6 +74,7 @@ ar5315_chip_detect_mem_size(void)
 static void
 ar5315_chip_detect_sys_frequency(void)
 {
+	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE);
 	uint32_t freq_ref, freq_pll;
 	static const uint8_t pll_divide_table[] = {
 		2, 3, 4, 6, 3,
@@ -113,32 +116,25 @@ ar5315_chip_detect_sys_frequency(void)
 		AR5315_SYSREG_AMBACLK);
 	uint32_t ambadiv = AR5315_CLOCKCTL_DIV(amba_clkctl);
 	ambadiv = ambadiv ? (ambadiv * 2) : 1;
-	u_ar5315_ahb_freq = pllout[AR5315_CLOCKCTL_SELECT(amba_clkctl)] / ambadiv;
+	u_ar531x_ahb_freq = pllout[AR5315_CLOCKCTL_SELECT(amba_clkctl)] / ambadiv;
 
 	const uint32_t cpu_clkctl = ATH_READ_REG(AR5315_SYSREG_BASE +
 		AR5315_SYSREG_CPUCLK);
 	uint32_t cpudiv = AR5315_CLOCKCTL_DIV(cpu_clkctl);
 	cpudiv = cpudiv ? (cpudiv * 2) : 1;
-	u_ar5315_cpu_freq = pllout[AR5315_CLOCKCTL_SELECT(cpu_clkctl)] / cpudiv;
+	u_ar531x_cpu_freq = pllout[AR5315_CLOCKCTL_SELECT(cpu_clkctl)] / cpudiv;
 
-	u_ar5315_ddr_freq = 0;
-
-//	u_ar5315_cpu_freq = 180 * 1000 * 1000;
-//	u_ar5315_ddr_freq = 180 * 1000 * 1000;
-//	u_ar5315_ahb_freq = 92 * 1000 * 1000;
+	u_ar531x_ddr_freq = 0;
 }
 
 /*
  * This does not lock the CPU whilst doing the work!
  */
 static void
-ar5315_chip_device_stop(uint32_t mask)
+ar5315_chip_device_reset(void)
 {
-	uint32_t reg;
-
-	reg = ATH_READ_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET);
 	ATH_WRITE_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_COLDRESET,
-		reg | mask);
+		AR5315_COLD_AHB | AR5315_COLD_APB | AR5315_COLD_CPU);
 }
 
 static void
@@ -160,7 +156,7 @@ ar5315_chip_device_stopped(uint32_t mask)
 	return ((reg & mask) == mask);
 }
 
-void
+static void
 ar5315_chip_set_mii_speed(uint32_t unit, uint32_t speed)
 {
 }
@@ -187,15 +183,10 @@ ar5315_chip_get_eth_pll(unsigned int mac, int speed)
 	return 0;
 }
 
-static void
-ar5315_chip_init_usb_peripheral(void)
-{
-}
-
 struct ar5315_cpu_def ar5315_chip_def = {
 	&ar5315_chip_detect_mem_size,
 	&ar5315_chip_detect_sys_frequency,
-	&ar5315_chip_device_stop,
+	&ar5315_chip_device_reset,
 	&ar5315_chip_device_start,
 	&ar5315_chip_device_stopped,
 	&ar5315_chip_set_pll_ge,
@@ -203,5 +194,4 @@ struct ar5315_cpu_def ar5315_chip_def = {
 	&ar5315_chip_ddr_flush_ge,
 	&ar5315_chip_get_eth_pll,
 	&ar5315_chip_ddr_flush_ip2,
-	&ar5315_chip_init_usb_peripheral,
 };

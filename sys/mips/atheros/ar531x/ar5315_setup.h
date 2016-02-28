@@ -29,7 +29,12 @@
 #ifndef	__AR5315_SETUP_H__
 #define	__AR5315_SETUP_H__
 
-//extern enum ar5315_soc_type ar5315_soc;   
+enum ar531x_soc_type {
+        AR531X_SOC_UNKNOWN,
+        AR531X_SOC_AR5312,	// 2311 - 2314 or 5311 - 5314
+        AR531X_SOC_AR5315	// 2315 - 2318 of 5315 - 5318
+};
+extern enum ar531x_soc_type ar531x_soc;
 
 extern void ar5315_detect_sys_type(void);
 extern const char *ar5315_get_system_type(void);

@@ -32,7 +32,7 @@
 struct ar5315_cpu_def {
 	void (* detect_mem_size) (void);
 	void (* detect_sys_frequency) (void);
-	void (* ar5315_chip_device_stop) (uint32_t);
+	void (* ar5315_chip_device_reset) (void);
 	void (* ar5315_chip_device_start) (uint32_t);
 	int (* ar5315_chip_device_stopped) (uint32_t);
 	void (* ar5315_chip_set_pll_ge) (int, int);
@@ -51,11 +51,6 @@ struct ar5315_cpu_def {
 	 * sure the driver correctly sees any memory updates.
 	 */
 	void (* ar5315_chip_ddr_flush_ip2) (void);
-	/*
-	 * The USB peripheral init code is subtly different for
-	 * each chip.
-	 */
-	void (* ar5315_chip_init_usb_peripheral) (void);
 	/*
 	 * Allow to change MII bus mode:
 	 * AR5315_ARGE_MII_MODE_MII
@@ -78,9 +73,9 @@ static inline void ar5315_detect_sys_frequency(void)
 	ar5315_cpu_ops->detect_sys_frequency();
 }
 
-static inline void ar5315_device_stop(uint32_t mask)
+static inline void ar5315_device_reset(void)
 {
-	ar5315_cpu_ops->ar5315_chip_device_stop(mask);
+	ar5315_cpu_ops->ar5315_chip_device_reset();
 }
 
 static inline void ar5315_device_start(uint32_t mask)
@@ -108,11 +103,6 @@ static inline void ar5315_device_flush_ddr_ge(int unit)
 	ar5315_cpu_ops->ar5315_chip_ddr_flush_ge(unit);
 }
 
-static inline void ar5315_init_usb_peripheral(void)
-{
-	ar5315_cpu_ops->ar5315_chip_init_usb_peripheral();
-}
-
 static inline void ar5315_device_ddr_flush_ip2(void)
 {
 	ar5315_cpu_ops->ar5315_chip_ddr_flush_ip2();
@@ -124,12 +114,16 @@ static inline void ar5315_device_set_mii_mode(int unit, int mode, int speed)
 }
 
 /* XXX shouldn't be here! */
-extern uint32_t u_ar5315_cpu_freq;
-extern uint32_t u_ar5315_ahb_freq;
-extern uint32_t u_ar5315_ddr_freq;
+extern uint32_t u_ar531x_cpu_freq;
+extern uint32_t u_ar531x_ahb_freq;
+extern uint32_t u_ar531x_ddr_freq;
 
-static inline uint64_t ar5315_cpu_freq(void) { return u_ar5315_cpu_freq; }
-static inline uint64_t ar5315_ahb_freq(void) { return u_ar5315_ahb_freq; }
-static inline uint64_t ar5315_ddr_freq(void) { return u_ar5315_ddr_freq; }
+extern uint32_t u_ar531x_uart_addr;
+
+static inline uint32_t ar5315_cpu_freq(void) { return u_ar531x_cpu_freq; }
+static inline uint32_t ar5315_ahb_freq(void) { return u_ar531x_ahb_freq; }
+static inline uint32_t ar5315_ddr_freq(void) { return u_ar531x_ddr_freq; }
+
+static inline uint32_t ar5315_uart_addr(void) { return u_ar531x_uart_addr; }
  
 #endif

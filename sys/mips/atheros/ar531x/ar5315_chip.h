@@ -30,6 +30,5 @@
 #define	__AR5315_CHIP_H__
 
 extern struct ar5315_cpu_def ar5315_chip_def;
-extern void ar5315_chip_set_mii_speed(uint32_t unit, uint32_t speed);
 
 #endif

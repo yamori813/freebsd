@@ -72,6 +72,6 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 
 	uart_bus_space_io = NULL;
 	uart_bus_space_mem = ar71xx_bus_space_reversed;
-	di->bas.bsh = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE);
+	di->bas.bsh = ar5315_uart_addr();
 	return (0);
 }

@@ -111,7 +111,7 @@ platform_cpu_init()
 void
 platform_reset(void)
 {
-	ar5315_device_stop(AR5315_COLD_AHB | AR5315_COLD_APB | AR5315_COLD_CPU);
+	ar5315_device_reset();
 	/* Wait for reset */
 	while(1)
 		;
@@ -279,9 +279,9 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 //	init_static_kenv(boot1_env, sizeof(boot1_env));
 
 	printf("CPU platform: %s\n", ar5315_get_system_type());
-	printf("CPU Frequency=%d MHz\n", u_ar5315_cpu_freq / 1000000);
-	printf("CPU DDR Frequency=%d MHz\n", u_ar5315_ddr_freq / 1000000);
-	printf("CPU AHB Frequency=%d MHz\n", u_ar5315_ahb_freq / 1000000); 
+	printf("CPU Frequency=%d MHz\n", ar5315_cpu_freq() / 1000000);
+	printf("CPU DDR Frequency=%d MHz\n", ar5315_ddr_freq() / 1000000);
+	printf("CPU AHB Frequency=%d MHz\n", ar5315_ahb_freq() / 1000000); 
 
 	printf("platform frequency: %lld\n", platform_counter_freq);
 	printf("arguments: \n");

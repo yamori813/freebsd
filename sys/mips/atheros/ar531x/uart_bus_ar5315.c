@@ -78,10 +78,10 @@ uart_ar5315_probe(device_t dev)
 	bcopy(&sc->sc_sysdev->bas, &sc->sc_bas, sizeof(sc->sc_bas));
 	sc->sc_sysdev->bas.regshft = 2;
 	sc->sc_sysdev->bas.bst = mips_bus_space_generic;
-	sc->sc_sysdev->bas.bsh = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE) + 3;
+	sc->sc_sysdev->bas.bsh = ar5315_uart_addr() + 3;
 	sc->sc_bas.regshft = 2;
 	sc->sc_bas.bst = mips_bus_space_generic;
-	sc->sc_bas.bsh = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE) + 3;
+	sc->sc_bas.bsh = ar5315_uart_addr() + 3;
 
 	return (uart_bus_probe(dev, 2, freq, 0, 0));
 }

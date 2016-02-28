@@ -52,12 +52,13 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_setup.c 223562 2011-06-26 10:07
 #include <machine/vmparam.h>
  
 #include <mips/atheros/ar531x/ar5315reg.h>
+#include <mips/atheros/ar531x/ar5312reg.h>
 #include <mips/atheros/ar531x/ar5315_setup.h>
-#include <mips/atheros/ar71xx_setup.h>
 
 #include <mips/atheros/ar531x/ar5315_cpudef.h>
 
 #include <mips/atheros/ar531x/ar5315_chip.h>
+#include <mips/atheros/ar531x/ar5312_chip.h>
 #include <mips/atheros/ar724x_chip.h>
 #include <mips/atheros/ar91xx_chip.h>
 
@@ -68,7 +69,7 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_setup.c 223562 2011-06-26 10:07
 #define	AR5315_SYS_TYPE_LEN		128
 
 static char ar5315_sys_type[AR5315_SYS_TYPE_LEN];
-enum ar71xx_soc_type ar71xx_soc;
+enum ar531x_soc_type ar531x_soc;
 struct ar5315_cpu_def * ar5315_cpu_ops = NULL;
 
 void
@@ -94,29 +95,49 @@ ar5315_detect_sys_type(void)
 		}
 	}
 #endif
+//	ar531x_soc = AR531X_SOC_AR5315;
+	ar531x_soc = AR531X_SOC_AR5312;
 
-	ar5315_cpu_ops = &ar5315_chip_def;
+	if(ar531x_soc == AR531X_SOC_AR5312) {
+		ar5315_cpu_ops = &ar5312_chip_def;
 
-	ver = ATH_READ_REG(AR5315_SYSREG_BASE +
-		AR5315_SYSREG_SREV);
+		ver = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_REVISION);
+		rev = AR5312_REVISION_WMAC_MINOR(ver);
 
-	switch (ver) {
-	case 0x86:
-		chip = "2315";
-		break;
-	case 0x87:
-		chip = "2316";
-		break;
-	case 0x90:
-		chip = "2317";
-		break;
-	case 0x91:
-		chip = "2318";
-		break;
+		switch (AR5312_REVISION_MAJOR(ver)) {
+		case AR5312_REVISION_MAJ_AR5311:
+			chip = "5311";
+			break;
+		case AR5312_REVISION_MAJ_AR5312:
+			chip = "5312";
+			break;
+		case AR5312_REVISION_MAJ_AR2313:
+			chip = "2313";
+			break;
+		}
+	} else {
+		ar5315_cpu_ops = &ar5315_chip_def;
+
+		ver = ATH_READ_REG(AR5315_SYSREG_BASE +
+			AR5315_SYSREG_SREV);
+
+		switch (ver) {
+		case 0x86:
+			chip = "2315";
+			break;
+		case 0x87:
+			chip = "2316";
+			break;
+		case 0x90:
+			chip = "2317";
+			break;
+		case 0x91:
+			chip = "2318";
+			break;
+		}
+
 	}
-
-
-	ar71xx_soc = AR71XX_SOC_AR5315;
 
 	sprintf(ar5315_sys_type, "Atheros AR%s rev %u", chip, rev);
 }

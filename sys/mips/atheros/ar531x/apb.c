@@ -86,14 +86,12 @@ apb_mask_irq(void *source)
 	unsigned int irq = (unsigned int)source;
 	uint32_t reg;
 
-	if(ar71xx_soc == AR71XX_SOC_AR5315) {
+	if(ar531x_soc == AR531X_SOC_AR5315) {
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK);
 		ATH_WRITE_REG(AR5315_SYSREG_BASE
 			+ AR5315_SYSREG_MISC_INTMASK, reg & ~(1 << irq));
 	} else {
-		reg = ATH_READ_REG(AR71XX_MISC_INTR_MASK);
-		ATH_WRITE_REG(AR71XX_MISC_INTR_MASK, reg & ~(1 << irq));
 	}
 }
 
@@ -103,14 +101,12 @@ apb_unmask_irq(void *source)
 	uint32_t reg;
 	unsigned int irq = (unsigned int)source;
 
-	if(ar71xx_soc == AR71XX_SOC_AR5315) {
+	if(ar531x_soc == AR531X_SOC_AR5315) {
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK);
 		ATH_WRITE_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK, reg | (1 << irq));
 	} else {
-		reg = ATH_READ_REG(AR71XX_MISC_INTR_MASK);
-		ATH_WRITE_REG(AR71XX_MISC_INTR_MASK, reg | (1 << irq));
 	}
 }
 
@@ -132,20 +128,14 @@ apb_attach(device_t dev)
 	sc->apb_mem_rman.rm_type = RMAN_ARRAY;
 	sc->apb_mem_rman.rm_descr = "APB memory window";
 
-	if(ar71xx_soc == AR71XX_SOC_AR5315) {
+	if(ar531x_soc == AR531X_SOC_AR5315) {
 	if (rman_init(&sc->apb_mem_rman) != 0 ||
 	    rman_manage_region(&sc->apb_mem_rman, 
 			AR5315_APB_BASE, 
 			AR5315_APB_BASE + AR5315_APB_SIZE - 1) != 0)
 		panic("apb_attach: failed to set up memory rman");
 	} else {
-	if (rman_init(&sc->apb_mem_rman) != 0 ||
-	    rman_manage_region(&sc->apb_mem_rman, 
-			AR71XX_APB_BASE, 
-			AR71XX_APB_BASE + AR71XX_APB_SIZE - 1) != 0)
-		panic("apb_attach: failed to set up memory rman");
 	}
-
 
 	sc->apb_irq_rman.rm_type = RMAN_ARRAY;
 	sc->apb_irq_rman.rm_descr = "APB IRQ";
@@ -171,14 +161,6 @@ apb_attach(device_t dev)
 	bus_generic_probe(dev);
 	bus_enumerate_hinted_children(dev);
 	bus_generic_attach(dev);
-
-	/*
-	 * Unmask performance counter IRQ
-	 */
-	if(ar71xx_soc != AR71XX_SOC_AR5315) {
-	  apb_unmask_irq((void*)APB_INTR_PMC);
-	  sc->sc_intr_counter[APB_INTR_PMC] = mips_intrcnt_create("apb irq5: pmc");
-	}
 
 	return (0);
 }
@@ -375,24 +357,15 @@ apb_filter(void *arg)
 	struct thread *td;
 	struct trapframe *tf;
 
-	if(ar71xx_soc == AR71XX_SOC_AR5315)
+	if(ar531x_soc == AR531X_SOC_AR5315)
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTSTAT);
-	else
-		reg = ATH_READ_REG(AR71XX_MISC_INTR_STATUS);
 	for (irq = 0; irq < APB_NIRQS; irq++) {
 		if (reg & (1 << irq)) {
 
 
-			switch (ar71xx_soc) {
-			case AR71XX_SOC_AR7240:
-			case AR71XX_SOC_AR7241:
-			case AR71XX_SOC_AR7242:
-				/* Ack/clear the irq on status register for AR724x */
-				ATH_WRITE_REG(AR71XX_MISC_INTR_STATUS,
-				    reg & ~(1 << irq));
-				break;
-			case AR71XX_SOC_AR5315:
+			switch (ar531x_soc) {
+			case AR531X_SOC_AR5315:
 				ATH_WRITE_REG(AR5315_SYSREG_BASE +
 				    AR5315_SYSREG_MISC_INTSTAT,
 				    reg & ~(1 << irq));
@@ -416,7 +389,7 @@ apb_filter(void *arg)
 					continue;
 				}
 				/* Ignore timer interrupts */
-				if (ar71xx_soc == AR71XX_SOC_AR5315) {
+				if (ar531x_soc == AR531X_SOC_AR5315) {
 
 				} else if (irq != 0) {
 					/* Ignore timer interrupts */

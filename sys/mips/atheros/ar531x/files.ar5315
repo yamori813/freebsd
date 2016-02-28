@@ -11,6 +11,8 @@ mips/atheros/ar531x/ar5315_setup.c		standard
 mips/atheros/ar531x/uart_bus_ar5315.c		optional uart_ar5315
 mips/atheros/ar531x/uart_cpu_ar5315.c		optional uart_ar5315
 
+mips/atheros/ar531x/ar5312_chip.c		standard
+
 mips/atheros/ar71xx_bus_space_reversed.c	standard
 mips/mips/intr_machdep.c			standard
 mips/mips/tick.c				standard
