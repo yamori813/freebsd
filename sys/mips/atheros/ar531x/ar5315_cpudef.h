@@ -33,7 +33,7 @@ struct ar5315_cpu_def {
 	void (* detect_mem_size) (void);
 	void (* detect_sys_frequency) (void);
 	void (* ar5315_chip_device_reset) (void);
-	void (* ar5315_chip_device_start) (uint32_t);
+	void (* ar5315_chip_device_start) (void);
 	int (* ar5315_chip_device_stopped) (uint32_t);
 	void (* ar5315_chip_set_pll_ge) (int, int);
 	void (* ar5315_chip_set_mii_speed) (uint32_t, uint32_t);
@@ -78,9 +78,9 @@ static inline void ar5315_device_reset(void)
 	ar5315_cpu_ops->ar5315_chip_device_reset();
 }
 
-static inline void ar5315_device_start(uint32_t mask)
+static inline void ar5315_device_start(void)
 {
-	ar5315_cpu_ops->ar5315_chip_device_start(mask);
+	ar5315_cpu_ops->ar5315_chip_device_start();
 }
 
 static inline int ar5315_device_stopped(uint32_t mask)

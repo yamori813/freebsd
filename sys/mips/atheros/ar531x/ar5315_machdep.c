@@ -233,7 +233,6 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	 * memory size
 	 */
 	if (realmem == 0)
-//		realmem = btoc(32*1024*1024);
 		realmem = btoc(16*1024*1024);
 
 	/*
@@ -338,29 +337,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	mips_proc0_init();
 	mutex_init();
 
-	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ERR0,
-		AR5315_AHB_ERROR_DET);
-	ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ERR1);
-	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_WDOG_CTL, 
-		AR5315_WDOG_CTL_IGNORE);
-
-	// set Ethernet AHB master arbitration control
-	// Maybe RedBoot was enabled. But to make sure.
-	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL,
-		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL) |
-		AR5315_ARB_ENET);
-	
-	// set Ethernet controller byteswap control
-/*
-	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN,
-		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN) |
-		AR5315_ENDIAN_ENET);
-*/
-
-	printf("AHB Master Arbitration Control %08x\n",
-		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL));
-	printf("Byteswap Control %08x\n",
-		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN));
+	ar5315_device_start();
 
 	kdb_init();
 #ifdef KDB

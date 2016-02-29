@@ -95,10 +95,33 @@ ar5315_detect_sys_type(void)
 		}
 	}
 #endif
-//	ar531x_soc = AR531X_SOC_AR5315;
-	ar531x_soc = AR531X_SOC_AR5312;
+	int soctype = AR_FIRST_GEN;
 
-	if(ar531x_soc == AR531X_SOC_AR5312) {
+	if(soctype == AR_SECOND_GEN) {
+		ar5315_cpu_ops = &ar5315_chip_def;
+
+		ver = ATH_READ_REG(AR5315_SYSREG_BASE +
+			AR5315_SYSREG_SREV);
+
+		switch (ver) {
+		case 0x86:
+			ar531x_soc = AR531X_SOC_AR5315;
+			chip = "2315";
+			break;
+		case 0x87:
+			ar531x_soc = AR531X_SOC_AR5316;
+			chip = "2316";
+			break;
+		case 0x90:
+			ar531x_soc = AR531X_SOC_AR5317;
+			chip = "2317";
+			break;
+		case 0x91:
+			ar531x_soc = AR531X_SOC_AR5318;
+			chip = "2318";
+			break;
+		}
+	} else {
 		ar5315_cpu_ops = &ar5312_chip_def;
 
 		ver = ATH_READ_REG(AR5312_SYSREG_BASE +
@@ -107,36 +130,18 @@ ar5315_detect_sys_type(void)
 
 		switch (AR5312_REVISION_MAJOR(ver)) {
 		case AR5312_REVISION_MAJ_AR5311:
+			ar531x_soc = AR531X_SOC_AR5311;
 			chip = "5311";
 			break;
 		case AR5312_REVISION_MAJ_AR5312:
+			ar531x_soc = AR531X_SOC_AR5312;
 			chip = "5312";
 			break;
 		case AR5312_REVISION_MAJ_AR2313:
+			ar531x_soc = AR531X_SOC_AR5313;
 			chip = "2313";
 			break;
 		}
-	} else {
-		ar5315_cpu_ops = &ar5315_chip_def;
-
-		ver = ATH_READ_REG(AR5315_SYSREG_BASE +
-			AR5315_SYSREG_SREV);
-
-		switch (ver) {
-		case 0x86:
-			chip = "2315";
-			break;
-		case 0x87:
-			chip = "2316";
-			break;
-		case 0x90:
-			chip = "2317";
-			break;
-		case 0x91:
-			chip = "2318";
-			break;
-		}
-
 	}
 
 	sprintf(ar5315_sys_type, "Atheros AR%s rev %u", chip, rev);

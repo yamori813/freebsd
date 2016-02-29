@@ -46,6 +46,7 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonz
 
 #include <mips/atheros/apbvar.h>
 #include <mips/atheros/ar531x/ar5315reg.h>
+#include <mips/atheros/ar531x/ar5312reg.h>
 #include <mips/atheros/ar531x/ar5315_setup.h>
 #include <mips/atheros/ar71xxreg.h>
 #include <mips/atheros/ar71xx_setup.h>
@@ -86,12 +87,16 @@ apb_mask_irq(void *source)
 	unsigned int irq = (unsigned int)source;
 	uint32_t reg;
 
-	if(ar531x_soc == AR531X_SOC_AR5315) {
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK);
 		ATH_WRITE_REG(AR5315_SYSREG_BASE
 			+ AR5315_SYSREG_MISC_INTMASK, reg & ~(1 << irq));
 	} else {
+		reg = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTMASK);
+		ATH_WRITE_REG(AR5312_SYSREG_BASE
+			+ AR5312_SYSREG_MISC_INTMASK, reg & ~(1 << irq));
 	}
 }
 
@@ -101,12 +106,16 @@ apb_unmask_irq(void *source)
 	uint32_t reg;
 	unsigned int irq = (unsigned int)source;
 
-	if(ar531x_soc == AR531X_SOC_AR5315) {
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK);
 		ATH_WRITE_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTMASK, reg | (1 << irq));
 	} else {
+		reg = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTMASK);
+		ATH_WRITE_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTMASK, reg | (1 << irq));
 	}
 }
 
@@ -128,13 +137,18 @@ apb_attach(device_t dev)
 	sc->apb_mem_rman.rm_type = RMAN_ARRAY;
 	sc->apb_mem_rman.rm_descr = "APB memory window";
 
-	if(ar531x_soc == AR531X_SOC_AR5315) {
-	if (rman_init(&sc->apb_mem_rman) != 0 ||
-	    rman_manage_region(&sc->apb_mem_rman, 
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
+		if (rman_init(&sc->apb_mem_rman) != 0 ||
+		    rman_manage_region(&sc->apb_mem_rman, 
 			AR5315_APB_BASE, 
 			AR5315_APB_BASE + AR5315_APB_SIZE - 1) != 0)
-		panic("apb_attach: failed to set up memory rman");
+			panic("apb_attach: failed to set up memory rman");
 	} else {
+		if (rman_init(&sc->apb_mem_rman) != 0 ||
+		    rman_manage_region(&sc->apb_mem_rman, 
+			AR5312_APB_BASE, 
+			AR5312_APB_BASE + AR5312_APB_SIZE - 1) != 0)
+			panic("apb_attach: failed to set up memory rman");
 	}
 
 	sc->apb_irq_rman.rm_type = RMAN_ARRAY;
@@ -230,7 +244,7 @@ apb_alloc_resource(device_t bus, device_t child, int type, int *rid,
 
 	rv = rman_reserve_resource(rm, start, end, count, flags, child);
 	if (rv == 0) {
-		printf("%s: could not reserve resource\n", __func__);
+		printf("%s: could not reserve resource %d\n", __func__, type);
 		return (0);
 	}
 
@@ -357,22 +371,24 @@ apb_filter(void *arg)
 	struct thread *td;
 	struct trapframe *tf;
 
-	if(ar531x_soc == AR531X_SOC_AR5315)
+	if(ar531x_soc >= AR531X_SOC_AR5315)
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
 			AR5315_SYSREG_MISC_INTSTAT);
+	else
+		reg = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTSTAT);
+
 	for (irq = 0; irq < APB_NIRQS; irq++) {
 		if (reg & (1 << irq)) {
 
-
-			switch (ar531x_soc) {
-			case AR531X_SOC_AR5315:
+			if(ar531x_soc >= AR531X_SOC_AR5315) {
 				ATH_WRITE_REG(AR5315_SYSREG_BASE +
 				    AR5315_SYSREG_MISC_INTSTAT,
 				    reg & ~(1 << irq));
-				break;
-			default:
-				/* fallthrough */
-				break;
+			} else {
+				ATH_WRITE_REG(AR5312_SYSREG_BASE +
+				    AR5312_SYSREG_MISC_INTSTAT,
+				    reg & ~(1 << irq));
 			}
 
 			event = sc->sc_eventstab[irq];
@@ -389,7 +405,7 @@ apb_filter(void *arg)
 					continue;
 				}
 				/* Ignore timer interrupts */
-				if (ar531x_soc == AR531X_SOC_AR5315) {
+				if (ar531x_soc >= AR531X_SOC_AR5315) {
 
 				} else if (irq != 0) {
 					/* Ignore timer interrupts */

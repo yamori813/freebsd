@@ -24,28 +24,11 @@
  * SUCH DAMAGE.
  */
 
-/* $FreeBSD$ */
+/* $FreeBSD: head/sys/mips/atheros/ar5315_chip.h 234326 2012-04-15 22:34:22Z adrian $ */
 
-#ifndef	__AR5315_SETUP_H__
-#define	__AR5315_SETUP_H__
+#ifndef	__AR5312_CHIP_H__
+#define	__AR5312_CHIP_H__
 
-enum ar531x_soc_type {
-        AR531X_SOC_UNKNOWN,
-        AR531X_SOC_AR5311,
-        AR531X_SOC_AR5312,
-        AR531X_SOC_AR5313,
-        AR531X_SOC_AR5314,
-        AR531X_SOC_AR5315,
-        AR531X_SOC_AR5316,
-        AR531X_SOC_AR5317,
-        AR531X_SOC_AR5318,
-};
-extern enum ar531x_soc_type ar531x_soc;
-
-extern void ar5315_detect_sys_type(void);
-extern const char *ar5315_get_system_type(void);
-
-#define AR_FIRST_GEN	1
-#define AR_SECOND_GEN	2
+extern struct ar5315_cpu_def ar5312_chip_def;
 
 #endif
