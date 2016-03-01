@@ -68,14 +68,6 @@ ar5315_wdog_watchdog_fn(void *private, u_int cmd, int *error)
 		 * Load timer with large enough value to prevent spurious
 		 * reset
 		 */
-/*
-		ATH_WRITE_REG(AR71XX_RST_WDOG_TIMER, 
-		    ar5315_ahb_freq() * 10);
-		ATH_WRITE_REG(AR71XX_RST_WDOG_CONTROL, 
-		    RST_WDOG_ACTION_RESET);
-		ATH_WRITE_REG(AR71XX_RST_WDOG_TIMER, 
-		    (timer_val & 0xffffffff));
-*/
 		ATH_WRITE_REG(AR5315_SYSREG_WDOG_TIMER, 
 		    ar5315_ahb_freq() * 10);
 		ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL, 
@@ -88,10 +80,6 @@ ar5315_wdog_watchdog_fn(void *private, u_int cmd, int *error)
 		if (sc->debug)
 			device_printf(sc->dev, "ar5315_wdog_watchdog_fn: disarming\n");
 		if (sc->armed) {
-/*
-			ATH_WRITE_REG(AR71XX_RST_WDOG_CONTROL, 
-			    RST_WDOG_ACTION_NOACTION);
-*/
 			ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL,
 			    AR5315_WDOG_CTL_IGNORE);
 			sc->armed = 0;
@@ -136,15 +124,6 @@ ar5315_wdog_attach(device_t dev)
 	sc->reboot_from_watchdog = 0;
 	sc->armed = 0;
 	sc->debug = 0;
-/*
-	if (ATH_READ_REG(AR71XX_RST_WDOG_CONTROL) & RST_WDOG_LAST) {
-		device_printf (dev, 
-		    "Previous reset was due to watchdog timeout\n");
-		sc->reboot_from_watchdog = 1;
-	}
-
-	ATH_WRITE_REG(AR71XX_RST_WDOG_CONTROL, RST_WDOG_ACTION_NOACTION);
-*/
 	ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL, AR5315_WDOG_CTL_IGNORE);
 
 	sc->dev = dev;

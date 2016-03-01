@@ -103,6 +103,13 @@
 #define AR5312_FLASHCTL_AT		__BITS(31,30)	/* access type */
 
 /*
+ * GPIO registers  -- offset relative to AR531X_GPIO_BASE
+ */
+#define AR5312_GPIO_DO			0
+#define AR5312_GPIO_DI			4
+#define AR5312_GPIO_CR			8
+
+/*
  * SYSREG registers  -- offset relative to AR531X_SYSREG_BASE
  */
 #define	AR5312_SYSREG_TIMER		0x0000

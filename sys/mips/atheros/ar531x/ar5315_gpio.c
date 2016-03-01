@@ -44,6 +44,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/mutex.h>
+#include <sys/sysctl.h>
 #include <sys/gpio.h>
 
 #include <machine/bus.h>
@@ -72,8 +73,11 @@ static void ar5315_gpio_pin_configure(struct ar5315_gpio_softc *sc,
 static int ar5315_gpio_probe(device_t dev);
 static int ar5315_gpio_attach(device_t dev);
 static int ar5315_gpio_detach(device_t dev);
+#ifdef NOTUSE
 static int ar5315_gpio_filter(void *arg);
+#endif
 static void ar5315_gpio_intr(void *arg);
+static void ar5315_gpio_attach_sysctl(device_t dev);
 
 /*
  * GPIO interface
@@ -88,6 +92,22 @@ static int ar5315_gpio_pin_setflags(device_t dev, uint32_t pin, uint32_t flags);
 static int ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value);
 static int ar5315_gpio_pin_get(device_t dev, uint32_t pin, unsigned int *val);
 static int ar5315_gpio_pin_toggle(device_t dev, uint32_t pin);
+
+static void
+ar5315_gpio_attach_sysctl(device_t dev)
+{
+	struct ar5315_gpio_softc *sc;
+	struct sysctl_ctx_list *ctx;
+	struct sysctl_oid *tree;
+
+	sc = device_get_softc(dev);
+	ctx = device_get_sysctl_ctx(dev);
+	tree = device_get_sysctl_tree(dev);
+
+	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
+		"ppsenable", CTLFLAG_RW, &sc->gpio_ppsenable, 0,
+		"ar5315_gpio pps enable flags");
+}
 
 /*
  * Enable/disable the GPIO function control space.
@@ -299,6 +319,7 @@ ar5315_gpio_pin_toggle(device_t dev, uint32_t pin)
 	return (0);
 }
 
+#ifdef NOTUSE
 static int
 ar5315_gpio_filter(void *arg)
 {
@@ -306,16 +327,19 @@ ar5315_gpio_filter(void *arg)
 	/* TODO: something useful */
 	return (FILTER_STRAY);
 }
-
-
+#endif
 
 static void
 ar5315_gpio_intr(void *arg)
 {
+	int val;
 	struct ar5315_gpio_softc *sc = arg;
 	GPIO_LOCK(sc);
-	/* TODO: something useful */
-printf("MORI MORI GPIO intr\n");
+	val = (GPIO_READ(sc, AR5315_SYSREG_GPIO_DI) & (1 << sc->gpio_ppspin))
+		? 1 : 0;
+	if(val == 1) {
+		pps_event(&sc->gpio_pps, PPS_CAPTUREASSERT);
+	}
 	GPIO_UNLOCK(sc);
 }
 
@@ -333,6 +357,7 @@ ar5315_gpio_attach(device_t dev)
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	int i, j, maxpin;
 	int mask, pinon;
+	int ppspin;
 	uint32_t oe;
 
 	KASSERT((device_get_unit(dev) == 0),
@@ -359,7 +384,8 @@ ar5315_gpio_attach(device_t dev)
 	}
 
 	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_MISC, 
-	    ar5315_gpio_filter, ar5315_gpio_intr, sc, &sc->gpio_ih))) {
+//	    ar5315_gpio_filter, ar5315_gpio_intr, sc, &sc->gpio_ih))) {
+	    NULL, ar5315_gpio_intr, sc, &sc->gpio_ih))) {
 		device_printf(dev,
 		    "WARNING: unable to register interrupt handler\n");
 		ar5315_gpio_detach(dev);
@@ -381,8 +407,20 @@ ar5315_gpio_attach(device_t dev)
 		ar5315_gpio_function_disable(sc, mask);
 	}
 
+	if (resource_int_value(device_get_name(dev), device_get_unit(dev),
+	    "ppspin", &ppspin) != 0)
+		ppspin = -1;
+
 	/* Disable interrupts for all pins. */
-	GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 0);
+	if(ppspin != -1) {
+		sc->gpio_ppspin = ppspin;
+		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 3 << 6 | ppspin);
+		device_printf(dev, "gpio ppspin=0x%x\n", ppspin);
+		sc->gpio_pps.ppscap = PPS_CAPTUREASSERT | PPS_ECHOASSERT;
+		pps_init(&sc->gpio_pps);
+	} else {
+		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 0);
+	}
 
 	/* Initialise all pins specified in the mask, up to the pin count */
 	(void) ar5315_gpio_pin_max(dev, &maxpin);
@@ -482,6 +520,8 @@ ar5315_gpio_attach(device_t dev)
 		ar5315_gpio_detach(dev);
 		return (ENXIO);
 	}
+
+	ar5315_gpio_attach_sysctl(dev);
 
 	return (0);
 }

@@ -86,7 +86,7 @@ struct ar5315_spi_softc {
 static void
 ar5315_spi_attach_sysctl(device_t dev)
 {
-	struct ar5315_spi_softc *sc = device_get_softc(dev);
+	struct ar5315_spi_softc *sc;
 	struct sysctl_ctx_list *ctx;
 	struct sysctl_oid *tree;
 
@@ -97,7 +97,6 @@ ar5315_spi_attach_sysctl(device_t dev)
 	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
 		"debug", CTLFLAG_RW, &sc->sc_debug, 0,
 		"ar5315_spi debugging flags");
-//	sc->sc_debug = 0x8000;
 }
 
 static int
