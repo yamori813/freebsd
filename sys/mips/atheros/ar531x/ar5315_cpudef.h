@@ -39,18 +39,8 @@ struct ar5315_cpu_def {
 	void (* ar5315_chip_set_mii_speed) (uint32_t, uint32_t);
 	void (* ar5315_chip_ddr_flush_ge) (int);
 	uint32_t (* ar5315_chip_get_eth_pll) (unsigned int, int);
-
-	/*
-	 * From Linux - Handling this IRQ is a bit special.
-	 * AR71xx - AR5315_DDR_REG_FLUSH_PCI
-	 * AR724x - AR724X_DDR_REG_FLUSH_PCIE
-	 * AR91xx - AR91XX_DDR_REG_FLUSH_WMAC
-	 *
-	 * These are set when STATUSF_IP2 is set in regiser c0.
-	 * This flush is done before the IRQ is handled to make
-	 * sure the driver correctly sees any memory updates.
-	 */
 	void (* ar5315_chip_soc_init) (void);
+
 	/*
 	 * Allow to change MII bus mode:
 	 * AR5315_ARGE_MII_MODE_MII
