@@ -70,7 +70,7 @@ uart_ar5315_probe(device_t dev)
 	struct uart_softc *sc;
 	uint64_t freq;
 
-	freq = ar5315_ahb_freq();
+	freq = ar531x_ahb_freq();
 
 	sc = device_get_softc(dev);
 	sc->sc_sysdev = SLIST_FIRST(&uart_sysdevs);
@@ -78,10 +78,10 @@ uart_ar5315_probe(device_t dev)
 	bcopy(&sc->sc_sysdev->bas, &sc->sc_bas, sizeof(sc->sc_bas));
 	sc->sc_sysdev->bas.regshft = 2;
 	sc->sc_sysdev->bas.bst = mips_bus_space_generic;
-	sc->sc_sysdev->bas.bsh = ar5315_uart_addr() + 3;
+	sc->sc_sysdev->bas.bsh = ar531x_uart_addr() + 3;
 	sc->sc_bas.regshft = 2;
 	sc->sc_bas.bst = mips_bus_space_generic;
-	sc->sc_bas.bsh = ar5315_uart_addr() + 3;
+	sc->sc_bas.bsh = ar531x_uart_addr() + 3;
 
 	return (uart_bus_probe(dev, 2, freq, 0, 0));
 }

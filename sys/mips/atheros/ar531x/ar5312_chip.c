@@ -69,7 +69,6 @@ ar5312_chip_detect_sys_frequency(void)
 	uint32_t	predivisor;
 	uint32_t	multiplier;
 
-	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5312_UART0_BASE);
 
 	const uint32_t clockctl = ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_CLOCKCTL);
 	predivisor = __SHIFTOUT(clockctl, AR2313_CLOCKCTL_PREDIVIDE);
@@ -125,8 +124,17 @@ ar5312_chip_ddr_flush_ge(int unit)
 }
 
 static void
-ar5312_chip_ddr_flush_ip2(void)
+ar5312_chip_soc_init(void)
 {
+	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5312_UART0_BASE);
+
+	u_ar531x_gpio_di = AR5312_GPIO_DI;
+	u_ar531x_gpio_do = AR5312_GPIO_DO;
+	u_ar531x_gpio_cr = AR5312_GPIO_CR;
+	u_ar531x_gpio_pins = AR5312_GPIO_PINS;
+
+	u_ar531x_wdog_ctl = AR5312_SYSREG_WDOG_CTL;
+	u_ar531x_wdog_timer = AR5312_SYSREG_WDOG_TIMER;
 }
 
 static uint32_t
@@ -145,5 +153,5 @@ struct ar5315_cpu_def ar5312_chip_def = {
 	&ar5312_chip_set_mii_speed,
 	&ar5312_chip_ddr_flush_ge,
 	&ar5312_chip_get_eth_pll,
-	&ar5312_chip_ddr_flush_ip2,
+	&ar5312_chip_soc_init,
 };

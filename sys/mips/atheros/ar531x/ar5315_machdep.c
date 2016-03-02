@@ -111,7 +111,7 @@ platform_cpu_init()
 void
 platform_reset(void)
 {
-	ar5315_device_reset();
+	ar531x_device_reset();
 	/* Wait for reset */
 	while(1)
 		;
@@ -269,18 +269,21 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 //	boothowto |= (RB_SINGLE);
 
 	/* Detect the system type - this is needed for subsequent chipset-specific calls */
-	ar5315_detect_sys_type();
-	ar5315_detect_sys_frequency();
 
-	platform_counter_freq = ar5315_cpu_freq();
+	ar5315_detect_sys_type();
+
+	ar531x_device_soc_init();
+	ar531x_detect_sys_frequency();
+
+	platform_counter_freq = ar531x_cpu_freq();
 	mips_timer_init_params(platform_counter_freq, 1);
 	cninit();
 //	init_static_kenv(boot1_env, sizeof(boot1_env));
 
 	printf("CPU platform: %s\n", ar5315_get_system_type());
-	printf("CPU Frequency=%d MHz\n", ar5315_cpu_freq() / 1000000);
-	printf("CPU DDR Frequency=%d MHz\n", ar5315_ddr_freq() / 1000000);
-	printf("CPU AHB Frequency=%d MHz\n", ar5315_ahb_freq() / 1000000); 
+	printf("CPU Frequency=%d MHz\n", ar531x_cpu_freq() / 1000000);
+	printf("CPU DDR Frequency=%d MHz\n", ar531x_ddr_freq() / 1000000);
+	printf("CPU AHB Frequency=%d MHz\n", ar531x_ahb_freq() / 1000000); 
 
 	printf("platform frequency: %lld\n", platform_counter_freq);
 	printf("arguments: \n");
@@ -337,7 +340,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	mips_proc0_init();
 	mutex_init();
 
-	ar5315_device_start();
+	ar531x_device_start();
 
 	kdb_init();
 #ifdef KDB

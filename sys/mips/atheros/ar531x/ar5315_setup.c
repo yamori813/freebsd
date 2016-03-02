@@ -95,8 +95,8 @@ ar5315_detect_sys_type(void)
 		}
 	}
 #endif
-//	int soctype = AR_FIRST_GEN;
-	int soctype = AR_SECOND_GEN;
+	int soctype = AR_FIRST_GEN;
+//	int soctype = AR_SECOND_GEN;
 
 	if(soctype == AR_SECOND_GEN) {
 		ar5315_cpu_ops = &ar5315_chip_def;

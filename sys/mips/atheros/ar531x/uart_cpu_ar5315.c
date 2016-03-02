@@ -56,7 +56,7 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 {
 	uint64_t freq;
 
-	freq = ar5315_ahb_freq();
+	freq = ar531x_ahb_freq();
 
 	di->ops = uart_getops(&uart_ns8250_class);
 	di->bas.chan = 0;
@@ -71,6 +71,6 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 
 	uart_bus_space_io = NULL;
 	uart_bus_space_mem = ar71xx_bus_space_reversed;
-	di->bas.bsh = ar5315_uart_addr();
+	di->bas.bsh = ar531x_uart_addr();
 	return (0);
 }

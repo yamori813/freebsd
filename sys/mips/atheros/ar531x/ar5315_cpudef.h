@@ -50,7 +50,7 @@ struct ar5315_cpu_def {
 	 * This flush is done before the IRQ is handled to make
 	 * sure the driver correctly sees any memory updates.
 	 */
-	void (* ar5315_chip_ddr_flush_ip2) (void);
+	void (* ar5315_chip_soc_init) (void);
 	/*
 	 * Allow to change MII bus mode:
 	 * AR5315_ARGE_MII_MODE_MII
@@ -68,47 +68,47 @@ struct ar5315_cpu_def {
 
 extern struct ar5315_cpu_def * ar5315_cpu_ops;
 
-static inline void ar5315_detect_sys_frequency(void)
+static inline void ar531x_detect_sys_frequency(void)
 {
 	ar5315_cpu_ops->detect_sys_frequency();
 }
 
-static inline void ar5315_device_reset(void)
+static inline void ar531x_device_reset(void)
 {
 	ar5315_cpu_ops->ar5315_chip_device_reset();
 }
 
-static inline void ar5315_device_start(void)
+static inline void ar531x_device_start(void)
 {
 	ar5315_cpu_ops->ar5315_chip_device_start();
 }
 
-static inline int ar5315_device_stopped(uint32_t mask)
+static inline int ar531x_device_stopped(uint32_t mask)
 {
 	return ar5315_cpu_ops->ar5315_chip_device_stopped(mask);
 }
 
-static inline void ar5315_device_set_pll_ge(int unit, int speed)
+static inline void ar531x_device_set_pll_ge(int unit, int speed)
 {
 	ar5315_cpu_ops->ar5315_chip_set_pll_ge(unit, speed);
 }
 
-static inline void ar5315_device_set_mii_speed(int unit, int speed)
+static inline void ar531x_device_set_mii_speed(int unit, int speed)
 {
 	ar5315_cpu_ops->ar5315_chip_set_mii_speed(unit, speed);
 }
 
-static inline void ar5315_device_flush_ddr_ge(int unit)
+static inline void ar531x_device_flush_ddr_ge(int unit)
 {
 	ar5315_cpu_ops->ar5315_chip_ddr_flush_ge(unit);
 }
 
-static inline void ar5315_device_ddr_flush_ip2(void)
+static inline void ar531x_device_soc_init(void)
 {
-	ar5315_cpu_ops->ar5315_chip_ddr_flush_ip2();
+	ar5315_cpu_ops->ar5315_chip_soc_init();
 }
 
-static inline void ar5315_device_set_mii_mode(int unit, int mode, int speed)
+static inline void ar531x_device_set_mii_mode(int unit, int mode, int speed)
 {
 	ar5315_cpu_ops->ar5315_chip_set_mii_mode(unit, mode, speed);
 }
@@ -120,10 +120,25 @@ extern uint32_t u_ar531x_ddr_freq;
 
 extern uint32_t u_ar531x_uart_addr;
 
-static inline uint32_t ar5315_cpu_freq(void) { return u_ar531x_cpu_freq; }
-static inline uint32_t ar5315_ahb_freq(void) { return u_ar531x_ahb_freq; }
-static inline uint32_t ar5315_ddr_freq(void) { return u_ar531x_ddr_freq; }
+extern uint32_t u_ar531x_gpio_di;
+extern uint32_t u_ar531x_gpio_do;
+extern uint32_t u_ar531x_gpio_cr;
+extern uint32_t u_ar531x_gpio_pins;
 
-static inline uint32_t ar5315_uart_addr(void) { return u_ar531x_uart_addr; }
+extern uint32_t u_ar531x_wdog_ctl;
+extern uint32_t u_ar531x_wdog_timer;
+
+static inline uint32_t ar531x_cpu_freq(void) { return u_ar531x_cpu_freq; }
+static inline uint32_t ar531x_ahb_freq(void) { return u_ar531x_ahb_freq; }
+static inline uint32_t ar531x_ddr_freq(void) { return u_ar531x_ddr_freq; }
+
+static inline uint32_t ar531x_uart_addr(void) { return u_ar531x_uart_addr; }
+
+static inline uint32_t ar531x_gpio_di(void) { return u_ar531x_gpio_di; }
+static inline uint32_t ar531x_gpio_cr(void) { return u_ar531x_gpio_do; }
+static inline uint32_t ar531x_gpio_do(void) { return u_ar531x_gpio_cr; }
+static inline uint32_t ar531x_gpio_pins(void) { return u_ar531x_gpio_pins; }
  
+static inline uint32_t ar531x_wdog_ctl(void) { return u_ar531x_wdog_ctl; }
+static inline uint32_t ar531x_wdog_timer(void) { return u_ar531x_wdog_timer; }
 #endif

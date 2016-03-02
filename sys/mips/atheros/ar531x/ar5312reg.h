@@ -109,6 +109,8 @@
 #define AR5312_GPIO_DI			4
 #define AR5312_GPIO_CR			8
 
+#define AR5312_GPIO_PINS		8
+
 /*
  * SYSREG registers  -- offset relative to AR531X_SYSREG_BASE
  */

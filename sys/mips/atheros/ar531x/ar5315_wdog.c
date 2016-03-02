@@ -60,7 +60,7 @@ ar5315_wdog_watchdog_fn(void *private, u_int cmd, int *error)
 	if (sc->debug)
 		device_printf(sc->dev, "ar5315_wdog_watchdog_fn: cmd: %x\n", cmd);
 	if (cmd > 0) {
-		timer_val = (uint64_t)(1ULL << cmd) * ar5315_ahb_freq() /
+		timer_val = (uint64_t)(1ULL << cmd) * ar531x_ahb_freq() /
 		    1000000000;
 		if (sc->debug)
 			device_printf(sc->dev, "ar5315_wdog_watchdog_fn: programming timer: %jx\n", (uintmax_t) timer_val);
@@ -68,11 +68,11 @@ ar5315_wdog_watchdog_fn(void *private, u_int cmd, int *error)
 		 * Load timer with large enough value to prevent spurious
 		 * reset
 		 */
-		ATH_WRITE_REG(AR5315_SYSREG_WDOG_TIMER, 
-		    ar5315_ahb_freq() * 10);
-		ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL, 
+		ATH_WRITE_REG(ar531x_wdog_timer(), 
+		    ar531x_ahb_freq() * 10);
+		ATH_WRITE_REG(ar531x_wdog_ctl(), 
 		    AR5315_WDOG_CTL_RESET);
-		ATH_WRITE_REG(AR5315_SYSREG_WDOG_TIMER, 
+		ATH_WRITE_REG(ar531x_wdog_timer(), 
 		    (timer_val & 0xffffffff));
 		sc->armed = 1;
 		*error = 0;
@@ -80,7 +80,7 @@ ar5315_wdog_watchdog_fn(void *private, u_int cmd, int *error)
 		if (sc->debug)
 			device_printf(sc->dev, "ar5315_wdog_watchdog_fn: disarming\n");
 		if (sc->armed) {
-			ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL,
+			ATH_WRITE_REG(ar531x_wdog_ctl(),
 			    AR5315_WDOG_CTL_IGNORE);
 			sc->armed = 0;
 		}
@@ -124,7 +124,7 @@ ar5315_wdog_attach(device_t dev)
 	sc->reboot_from_watchdog = 0;
 	sc->armed = 0;
 	sc->debug = 0;
-	ATH_WRITE_REG(AR5315_SYSREG_WDOG_CTL, AR5315_WDOG_CTL_IGNORE);
+	ATH_WRITE_REG(ar531x_wdog_ctl(), AR5315_WDOG_CTL_IGNORE);
 
 	sc->dev = dev;
 	EVENTHANDLER_REGISTER(watchdog_list, ar5315_wdog_watchdog_fn, sc, 0);

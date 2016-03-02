@@ -66,6 +66,14 @@ uint32_t u_ar531x_ddr_freq;
 
 uint32_t u_ar531x_uart_addr;
 
+uint32_t u_ar531x_gpio_di;
+uint32_t u_ar531x_gpio_do;
+uint32_t u_ar531x_gpio_cr;  
+uint32_t u_ar531x_gpio_pins;
+
+uint32_t u_ar531x_wdog_ctl;
+uint32_t u_ar531x_wdog_timer;
+
 static void
 ar5315_chip_detect_mem_size(void)
 {
@@ -74,7 +82,6 @@ ar5315_chip_detect_mem_size(void)
 static void
 ar5315_chip_detect_sys_frequency(void)
 {
-	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE);
 	uint32_t freq_ref, freq_pll;
 	static const uint8_t pll_divide_table[] = {
 		2, 3, 4, 6, 3,
@@ -191,8 +198,17 @@ ar5315_chip_ddr_flush_ge(int unit)
 }
 
 static void
-ar5315_chip_ddr_flush_ip2(void)
+ar5315_chip_soc_init(void)
 {
+	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5315_UART_BASE);
+
+	u_ar531x_gpio_di = AR5315_SYSREG_GPIO_DI;
+	u_ar531x_gpio_do = AR5315_SYSREG_GPIO_DO;
+	u_ar531x_gpio_cr = AR5315_SYSREG_GPIO_CR;
+	u_ar531x_gpio_pins = AR5315_GPIO_PINS;
+
+	u_ar531x_wdog_ctl = AR5315_SYSREG_WDOG_CTL;
+	u_ar531x_wdog_timer = AR5315_SYSREG_WDOG_TIMER;
 }
 
 static uint32_t
@@ -211,5 +227,5 @@ struct ar5315_cpu_def ar5315_chip_def = {
 	&ar5315_chip_set_mii_speed,
 	&ar5315_chip_ddr_flush_ge,
 	&ar5315_chip_get_eth_pll,
-	&ar5315_chip_ddr_flush_ip2,
+	&ar5315_chip_soc_init,
 };
