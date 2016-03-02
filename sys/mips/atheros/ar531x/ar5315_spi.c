@@ -55,8 +55,8 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_spi.c 202723 2010-01-21 00:15:5
 #include <mips/atheros/ar531x/arspireg.h>
 #include <mips/atheros/ar531x/ar5315reg.h>
 
-#undef AR71XX_SPI_DEBUG
-#ifdef AR71XX_SPI_DEBUG
+#undef AR531X_SPI_DEBUG
+#ifdef AR531X_SPI_DEBUG
 #define dprintf printf
 #else
 #define dprintf(x, arg...)

@@ -29,6 +29,7 @@
 __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_setup.c 223562 2011-06-26 10:07:48Z kevlo $");
 
 #include "opt_ddb.h"
+#include "opt_ar531x.h"
 
 #include <sys/param.h>
 #include <sys/conf.h>
@@ -96,8 +97,13 @@ ar5315_detect_sys_type(void)
 		}
 	}
 #endif
-	int soctype = AR_FIRST_GEN;
-//	int soctype = AR_SECOND_GEN;
+	int soctype;
+
+#ifdef AR531X_1ST_GENERATION
+	soctype = AR_FIRST_GEN;
+#else
+	soctype = AR_SECOND_GEN;
+#endif
 
 	if(soctype == AR_SECOND_GEN) {
 		ar5315_cpu_ops = &ar5315_chip_def;

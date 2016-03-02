@@ -29,7 +29,7 @@
 __FBSDID("$FreeBSD: head/sys/mips/atheros/ar71xx_machdep.c 232853 2012-03-12 07:34:15Z jmallett $");
 
 #include "opt_ddb.h"
-#include "opt_ar71xx.h"
+#include "opt_ar531x.h"
 
 #include <sys/param.h>
 #include <sys/conf.h>
@@ -190,7 +190,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	uint64_t platform_counter_freq;
 	int argc = 0, i;
 	char **argv = NULL;
-#ifndef	AR71XX_ENV_UBOOT
+#ifndef	AR531X_ENV_UBOOT
 	char **envp = NULL;
 #endif
 	vm_offset_t kernend;
@@ -214,7 +214,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	 * very incorrectly so we should just ignore initialising
 	 * the relevant pointers.
 	 */
-#ifndef	AR71XX_ENV_UBOOT
+#ifndef	AR531X_ENV_UBOOT
 	argc = a0;
 	argv = (char**)a1;
 	envp = (char**)a2;
@@ -246,8 +246,8 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	 * board, where redboot says there's 16mb of RAM
 	 * but in fact there's 32mb.
 	 */
-#if	defined(AR71XX_REALMEM)
-		realmem = btoc(AR71XX_REALMEM);
+#if	defined(AR531X_REALMEM)
+		realmem = btoc(AR531X_REALMEM);
 #endif
 
 	/* phys_avail regions are in bytes */
