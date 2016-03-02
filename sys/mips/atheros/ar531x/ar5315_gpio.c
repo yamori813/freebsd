@@ -101,10 +101,12 @@ ar5315_gpio_attach_sysctl(device_t dev)
 	ctx = device_get_sysctl_ctx(dev);
 	tree = device_get_sysctl_tree(dev);
 
+#ifdef notyet
 	// only support ar5315
 	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
 		"ppsenable", CTLFLAG_RW, &sc->gpio_ppsenable, 0,
 		"ar5315_gpio pps enable flags");
+#endif
 }
 
 static void
@@ -318,7 +320,9 @@ ar5315_gpio_intr(void *arg)
 	val = (GPIO_READ(sc, ar531x_gpio_di()) & (1 << sc->gpio_ppspin))
 		? 1 : 0;
 	if(val == 0) {
-//		pps_event(&sc->gpio_pps, PPS_CAPTUREASSERT);
+#ifdef notyet
+		pps_event(&sc->gpio_pps, PPS_CAPTUREASSERT);
+#endif
 	}
 	GPIO_UNLOCK(sc);
 }
@@ -380,11 +384,13 @@ ar5315_gpio_attach(device_t dev)
 
 	/* Disable interrupts for all pins. */
 	if(ppspin != -1) {
+#ifdef notyet
 		sc->gpio_ppspin = ppspin;
 		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 3 << 6 | ppspin);
 		device_printf(dev, "gpio ppspin=0x%x\n", ppspin);
 		sc->gpio_pps.ppscap = PPS_CAPTUREASSERT | PPS_ECHOASSERT;
-//		pps_init(&sc->gpio_pps);
+		pps_init(&sc->gpio_pps);
+#endif
 	} else {
 		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 0);
 	}
