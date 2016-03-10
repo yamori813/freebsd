@@ -402,9 +402,13 @@ rt305x_gpio_intr(void *arg)
 	char notify[16];
 	char pinname[6];
 #endif
+	if (sc->gpio_pps.ppsparam.mode & PPS_CAPTUREBOTH) {
 	pps_capture(&sc->gpio_pps);
 	pps_event(&sc->gpio_pps, PPS_CAPTUREASSERT);
+	pps_event(&sc->gpio_pps, PPS_CAPTURECLEAR);
 	++sc->gpio_ppscounter;
+	rt305x_gpio_pin_toggle(sc->dev, 14);
+	}
 
 	/* Read all reported pins */
 	input  = GPIO_READ_ALL(sc, INT);
@@ -537,7 +541,8 @@ rt305x_gpio_attach(device_t dev)
 		return (ENXIO);
 	}
 
-	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_MISC, 
+//	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_MISC, 
+	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_TTY,
 	    /* rt305x_gpio_filter, */
 	    rt305x_gpio_intr, NULL, sc, &sc->gpio_ih))) {
 		device_printf(dev,
@@ -556,8 +561,11 @@ rt305x_gpio_attach(device_t dev)
 	d->si_drv1 = sc;
 	d->si_drv2 = (void*)0;
 
-	sc->gpio_pps.ppscap = PPS_CAPTUREASSERT | PPS_ECHOASSERT;
-	pps_init(&sc->gpio_pps);
+//	sc->gpio_pps.ppscap = PPS_CAPTUREASSERT | PPS_ECHOASSERT;
+	sc->gpio_pps.ppscap = PPS_CAPTUREBOTH;
+	sc->gpio_pps.driver_mtx = &sc->gpio_mtx;
+	sc->gpio_pps.driver_abi = PPS_ABI_VERSION;
+	pps_init_abi(&sc->gpio_pps);
 
 	/* Configure all pins as input */
 	/* disable interrupts for all pins */
