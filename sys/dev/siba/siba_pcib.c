@@ -47,7 +47,6 @@ __FBSDID("$FreeBSD: head/sys/dev/siba/siba_pcib.c 227843 2011-11-22 21:28:20Z ma
 #include <machine/bus.h>
 #include <machine/cpu.h>
 #include <machine/pcb.h>
-#include <machine/pmap.h>
 
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>

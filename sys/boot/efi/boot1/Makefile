@@ -53,7 +53,7 @@ FILES=	boot1.efi boot1.efifat
 FILESMODE_boot1.efi=	${BINMODE}
 
 LDSCRIPT=	${.CURDIR}/../loader/arch/${MACHINE}/ldscript.${MACHINE}
-LDFLAGS=	-Wl,-T${LDSCRIPT} -Wl,-Bsymbolic -shared
+LDFLAGS+=	-Wl,-T${LDSCRIPT} -Wl,-Bsymbolic -shared
 
 .if ${MACHINE_CPUARCH} == "aarch64"
 CFLAGS+=	-msoft-float -mgeneral-regs-only
@@ -113,7 +113,8 @@ boot1.efifat: boot1.efi
 	uudecode ${.CURDIR}/fat-${MACHINE}.tmpl.bz2.uu
 	mv fat-${MACHINE}.tmpl.bz2 ${.TARGET}.bz2
 	bzip2 -f -d ${.TARGET}.bz2
-	dd if=boot1.efi of=${.TARGET} seek=${BOOT1_OFFSET} conv=notrunc
+	dd if=boot1.efi of=${.TARGET} seek=${BOOT1_OFFSET} conv=notrunc \
+	    status=none
 
 CLEANFILES= boot1.efi boot1.efifat
 
@@ -123,13 +124,13 @@ beforedepend ${OBJS}: machine
 
 CLEANFILES+=   machine
 
-machine:
+machine: .NOMETA
 	ln -sf ${.CURDIR}/../../../${MACHINE}/include machine
 
 .if ${MACHINE_CPUARCH} == "amd64" || ${MACHINE_CPUARCH} == "i386"
 beforedepend ${OBJS}: x86
 CLEANFILES+=   x86
 
-x86:
+x86: .NOMETA
 	ln -sf ${.CURDIR}/../../../x86/include x86
 .endif

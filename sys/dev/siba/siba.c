@@ -500,7 +500,7 @@ siba_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	int				 isdefault, needactivate;
 	struct siba_softc		*sc = device_get_softc(bus);
 
-	isdefault = (start == 0UL && end == ~0UL && count == 1);
+	isdefault = (RMAN_IS_DEFAULT_RANGE(start, end) && count == 1);
 	needactivate = flags & RF_ACTIVE;
 	rl = BUS_GET_RESOURCE_LIST(bus, child);
 	rle = NULL;
