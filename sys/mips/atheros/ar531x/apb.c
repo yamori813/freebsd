@@ -52,8 +52,6 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonz
 #include <mips/atheros/ar71xxreg.h>
 #include <mips/atheros/ar71xx_setup.h>
 
-#define	APB_INTR_PMC	5
-
 #undef APB_DEBUG
 #ifdef APB_DEBUG
 #define dprintf printf
@@ -369,8 +367,6 @@ apb_filter(void *arg)
 	struct apb_softc *sc = arg;
 	struct intr_event *event;
 	uint32_t reg, irq;
-	struct thread *td;
-	struct trapframe *tf;
 
 	if(ar531x_soc >= AR531X_SOC_AR5315)
 		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
@@ -394,24 +390,9 @@ apb_filter(void *arg)
 
 			event = sc->sc_eventstab[irq];
 			if (!event || TAILQ_EMPTY(&event->ie_handlers)) {
-				if (irq == APB_INTR_PMC) {
-					td = PCPU_GET(curthread);
-					tf = td->td_intr_frame;
-
-					if (pmc_intr)
-						(*pmc_intr)(PCPU_GET(cpuid), tf);
-
-					mips_intrcnt_inc(sc->sc_intr_counter[irq]);
-
-					continue;
-				}
-				/* Ignore timer interrupts */
-				if (ar531x_soc >= AR531X_SOC_AR5315) {
-
-				} else if (irq != 0) {
-					/* Ignore timer interrupts */
+				/* Ignore non handle interrupts */
+				if (irq != 0)
 					printf("Stray APB IRQ %d\n", irq);
-				}
 
 				continue;
 			}

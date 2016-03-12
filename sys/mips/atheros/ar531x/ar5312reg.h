@@ -56,6 +56,8 @@
 #define	__LOWEST_SET_BIT(__mask) ((((__mask) - 1) & (__mask)) ^ (__mask))
 
 #define	__SHIFTOUT(__x, __mask)	(((__x) & (__mask)) / __LOWEST_SET_BIT(__mask))
+#define	__SHIFTOUT_MASK(__mask) __SHIFTOUT((__mask), (__mask))
+
 
 #define	AR5312_MEM0_BASE		0x00000000	/* sdram */
 #define	AR5312_MEM1_BASE		0x08000000	/* sdram/flash */
@@ -125,6 +127,7 @@
 #define	AR5312_SYSREG_CLOCKCTL		0x0064
 #define	AR5312_SYSREG_SCRATCH		0x006c
 #define	AR5312_SYSREG_AHBPERR		0x0070
+#define	AR5312_SYSREG_PROC		0x0074
 #define	AR5312_SYSREG_AHBDMAE		0x0078
 #define	AR5312_SYSREG_ENABLE		0x0080
 #define	AR5312_SYSREG_REVISION		0x0090
@@ -207,13 +210,13 @@
 #define	AR5312_IRQ_WLAN1		3
 #define	AR5312_IRQ_MISC			4
 
-#define	AR5312_MISC_IRQ_TIMER		0
-#define	AR5312_MISC_IRQ_AHBPERR		1
-#define	AR5312_MISC_IRQ_AHBDMAE		2
-#define	AR5312_MISC_IRQ_GPIO		3
-#define	AR5312_MISC_IRQ_UART0		4
-#define	AR5312_MISC_IRQ_UART0_DMA	5
-#define	AR5312_MISC_IRQ_WDOG		6
+#define	AR5312_MISC_IRQ_TIMER		1
+#define	AR5312_MISC_IRQ_AHBPERR		2
+#define	AR5312_MISC_IRQ_AHBDMAE		3
+#define	AR5312_MISC_IRQ_GPIO		4
+#define	AR5312_MISC_IRQ_UART0		5
+#define	AR5312_MISC_IRQ_UART0_DMA	6
+#define	AR5312_MISC_IRQ_WDOG		7
 
 /*
  * Board data.  This is located in flash somewhere, ar531x_board_info

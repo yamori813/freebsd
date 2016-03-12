@@ -97,6 +97,28 @@ ar5312_chip_device_reset(void)
 static void
 ar5312_chip_device_start(void)
 {
+	uint32_t cfg0, cfg1;
+	uint32_t bank0, bank1;
+	uint32_t size0, size1;
+
+	cfg0 = ATH_READ_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG0);
+	cfg1 = ATH_READ_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1);
+
+	bank0 = __SHIFTOUT(cfg1, AR5312_MEM_CFG1_BANK0);
+	bank1 = __SHIFTOUT(cfg1, AR5312_MEM_CFG1_BANK1);
+
+	size0 = bank0 ? (1 << (bank0 + 1)) : 0;
+	size1 = bank1 ? (1 << (bank1 + 1)) : 0;
+
+	size0 <<= 20;
+	size1 <<= 20;
+
+	printf("SDRMCTL %x %x %x %x\n", cfg0, cfg1, size0, size1);
+
+	ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_AHBPERR);
+	ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_AHBDMAE);
+//	ATH_WRITE_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_WDOG_CTL, 0);
+	ATH_WRITE_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_ENABLE, 0);
 }
 
 static int
@@ -127,6 +149,7 @@ ar5312_chip_ddr_flush_ge(int unit)
 static void
 ar5312_chip_soc_init(void)
 {
+
 	u_ar531x_uart_addr = MIPS_PHYS_TO_KSEG1(AR5312_UART0_BASE);
 
 	u_ar531x_gpio_di = AR5312_GPIO_DI;
@@ -136,6 +159,15 @@ ar5312_chip_soc_init(void)
 
 	u_ar531x_wdog_ctl = AR5312_SYSREG_WDOG_CTL;
 	u_ar531x_wdog_timer = AR5312_SYSREG_WDOG_TIMER;
+
+//#ifdef FIXMEMSIZE
+	uint32_t cfg1;
+	cfg1 = ATH_READ_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1);
+	cfg1 &= ~__SHIFTOUT_MASK(AR5312_MEM_CFG1_BANK0);
+	cfg1 |= (3 * __LOWEST_SET_BIT(AR5312_MEM_CFG1_BANK0));
+	ATH_WRITE_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1,
+		cfg1);
+//#endif
 }
 
 static uint32_t
