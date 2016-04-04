@@ -266,8 +266,8 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	 */
 	init_param1();
 	boothowto |= (RB_SERIAL | RB_MULTIPLE); /* Use multiple consoles */
-	boothowto |= RB_VERBOSE;
-	boothowto |= (RB_SINGLE);
+//	boothowto |= RB_VERBOSE;
+//	boothowto |= (RB_SINGLE);
 
 	/* Detect the system type - this is needed for subsequent chipset-specific calls */
 
