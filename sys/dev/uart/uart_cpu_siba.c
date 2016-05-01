@@ -76,7 +76,6 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 	uart_bus_space_io = 0;
 	uart_bus_space_mem = mips_bus_space_generic;
 
-
 	/*
 	 * Scan the hints. We only try units 0 to 1 (inclusive). This
 	 * covers the most MIPS cores where 2 UARTs had their resources
@@ -106,9 +105,7 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 		di->ops = uart_getops(class);
 		di->bas.chan = 0;
 		di->bas.bst = mips_bus_space_generic;
-		if (bus_space_map(di->bas.bst, MIPS_PHYS_TO_KSEG1(ivar), uart_getrange(class), 0,
-		    &di->bas.bsh) != 0)
-			continue;
+		di->bas.bsh = MIPS_PHYS_TO_KSEG1(ivar);
 		di->bas.regshft = 0;
 
 		di->bas.rclk = 25804800; //1843200;
