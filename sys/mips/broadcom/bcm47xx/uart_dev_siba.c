@@ -38,7 +38,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/uart/uart.h>
 #include <dev/uart/uart_cpu.h>
 #include <dev/uart/uart_bus.h>
-#include <dev/uart/uart_dev_siba.h>
+#include <mips/broadcom/bcm47xx/uart_dev_siba.h>
 
 #include "uart_if.h"
 
