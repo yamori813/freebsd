@@ -1649,11 +1649,11 @@ bfe_init_locked(void *xsc)
 {
 	struct bfe_softc *sc = (struct bfe_softc*)xsc;
 	struct ifnet *ifp = sc->bfe_ifp;
-	struct mii_data *mii;
+//	struct mii_data *mii;
 
 	BFE_LOCK_ASSERT(sc);
 
-	mii = device_get_softc(sc->bfe_miibus);
+//	mii = device_get_softc(sc->bfe_miibus);
 
 	if (ifp->if_drv_flags & IFF_DRV_RUNNING)
 		return;
@@ -1678,7 +1678,7 @@ bfe_init_locked(void *xsc)
 
 	/* Clear link state and change media. */
 	sc->bfe_flags &= ~BFE_FLAG_LINK;
-	mii_mediachg(mii);
+//	mii_mediachg(mii);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
@@ -1732,8 +1732,8 @@ static int
 bfe_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 {
 	struct bfe_softc *sc = ifp->if_softc;
-	struct ifreq *ifr = (struct ifreq *) data;
-	struct mii_data *mii;
+//	struct ifreq *ifr = (struct ifreq *) data;
+//	struct mii_data *mii;
 	int error = 0;
 
 	switch (command) {
@@ -1757,8 +1757,10 @@ bfe_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 		break;
 	case SIOCGIFMEDIA:
 	case SIOCSIFMEDIA:
+#if 0
 		mii = device_get_softc(sc->bfe_miibus);
 		error = ifmedia_ioctl(ifp, ifr, &mii->mii_media, command);
+#endif
 		break;
 	default:
 		error = ether_ioctl(ifp, command, data);
@@ -1812,12 +1814,12 @@ static void
 bfe_tick(void *xsc)
 {
 	struct bfe_softc *sc = xsc;
-	struct mii_data *mii;
+//	struct mii_data *mii;
 
 	BFE_LOCK_ASSERT(sc);
 
-	mii = device_get_softc(sc->bfe_miibus);
-	mii_tick(mii);
+//	mii = device_get_softc(sc->bfe_miibus);
+//	mii_tick(mii);
 	bfe_stats_update(sc);
 	bfe_watchdog(sc);
 	callout_reset(&sc->bfe_stat_co, hz, bfe_tick, sc);

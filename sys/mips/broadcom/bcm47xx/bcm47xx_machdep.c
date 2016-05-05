@@ -244,7 +244,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	/* initialize console so that we have printf */
 	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */
 	boothowto |= (RB_VERBOSE);
-
+	boothowto |= (RB_SINGLE);
 
 #ifdef CFE
 	/*
@@ -263,6 +263,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 		    (unsigned char *)&nvram_info, sizeof(nvram_info), 0, 0);
 	}
 #endif
+
 
 	cninit();
 	mips_init();

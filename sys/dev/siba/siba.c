@@ -519,6 +519,9 @@ siba_alloc_resource(device_t bus, device_t child, int type, int *rid,
 	 */
 	if (type == SYS_RES_MEMORY &&
 	    start >= sc->mem_rman.rm_start && end <= sc->mem_rman.rm_end) {
+// siba_cc0
+if(start == 0x18000000 && end == 0x18000fff) {
+end = start + 0x300 - 1;count = 0x300;}
 
 		rv = rman_reserve_resource(&sc->mem_rman, start, end, count,
 		    flags, child);

@@ -18,6 +18,7 @@ dev/ubsec/ubsec_siba.c			optional ubsec_siba
 
 mips/broadcom/bcm47xx/uart_bus_siba.c		optional siba uart
 mips/broadcom/bcm47xx/uart_cpu_siba.c		optional siba uart
+mips/broadcom/bcm47xx/uart_dev_siba.c		optional siba uart
 dev/siba/siba_cc_uart.c			optional siba uart
 
 dev/gpio/gpioreset.c			optional gpio

@@ -169,8 +169,8 @@ static device_method_t bfemdio_methods[] = {
 	DEVMETHOD(bus_add_child,        device_add_child_ordered),
         
 	/* MDIO access */
-	DEVMETHOD(mdio_readreg,         bfe_miibus_readreg),
-	DEVMETHOD(mdio_writereg,        bfe_miibus_writereg),
+//	DEVMETHOD(mdio_readreg,         bfe_miibus_readreg),
+//	DEVMETHOD(mdio_writereg,        bfe_miibus_writereg),
 };
 
 DEFINE_CLASS_0(bfemdio, bfemdio_driver, bfemdio_methods,
