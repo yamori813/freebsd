@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: head/sys/dev/siba/sibareg.h 183371 2008-09-26 03:57:23Z imp $
+ * $FreeBSD$
  */
 
 /*
@@ -32,7 +32,7 @@
  */
 
 #ifndef _SIBA_SIBAREG_H_
-#define _SIBA_SIBAREG_H_
+#define	_SIBA_SIBAREG_H_
 
 #define	PCI_DEVICE_ID_BCM4401		0x4401
 #define	PCI_DEVICE_ID_BCM4401B0		0x4402
@@ -42,8 +42,194 @@
 #define	SIBA_CCID_BCM4704		0x4704
 #define	SIBA_CCID_SENTRY5		0x5365
 
+/*
+ * ChipCommon registers.
+ */
+#define	SIBA_CC_CHIPID			0x0000
+#define	SIBA_CC_IDMASK			0x0000ffff
+#define	SIBA_CC_ID(id)			(id & SIBA_CC_IDMASK)
+#define	SIBA_CC_REVMASK			0x000f0000
+#define	SIBA_CC_REVSHIFT		16
+#define	SIBA_CC_REV(id)							\
+	((id & SIBA_CC_REVMASK) >> SIBA_CC_REVSHIFT)
+#define	SIBA_CC_PKGMASK			0x00F00000
+#define	SIBA_CC_PKGSHIFT		20
+#define	SIBA_CC_PKG(id)							\
+	((id & SIBA_CC_PKGMASK) >> SIBA_CC_PKGSHIFT)
+#define	SIBA_CC_NCORESMASK		0x0F000000
+#define	SIBA_CC_NCORESSHIFT		24
+#define	SIBA_CC_NCORES(id)						\
+	((id & SIBA_CC_NCORESMASK) >> SIBA_CC_NCORESSHIFT)
+#define	SIBA_CC_CAPS			0x0004
+#define	SIBA_CC_CAPS_PWCTL		0x00040000
+#define	SIBA_CC_CAPS_PMU		0x10000000	/* PMU (rev >= 20) */
+#define	SIBA_CC_CHIPCTL			0x0028		/* rev >= 11 */
+#define	SIBA_CC_CHIPSTAT		0x002C		/* rev >= 11 */
+#define	SIBA_CC_BCAST_ADDR		0x0050		/* Broadcast Address */
+#define	SIBA_CC_BCAST_DATA		0x0054		/* Broadcast Data */
+#define	SIBA_CC_PLLONDELAY		0x00B0		/* Rev >= 4 only */
+#define	SIBA_CC_FREFSELDELAY		0x00B4		/* Rev >= 4 only */
+#define	SIBA_CC_CLKSLOW			0x00b8		/* 6 <= Rev <= 9 only */
+#define	SIBA_CC_CLKSLOW_SRC		0x00000007
+#define	SIBA_CC_CLKSLOW_SRC_CRYSTAL	0x00000001
+#define	SIBA_CC_CLKSLOW_FSLOW		0x00000800
+#define	SIBA_CC_CLKSLOW_IPLL		0x00001000
+#define	SIBA_CC_CLKSLOW_ENXTAL		0x00002000
+#define	SIBA_CC_CLKSYSCTL		0x00C0		/* Rev >= 3 only */
+#define	SIBA_CC_CLKCTLSTATUS		0x01e0
+#define	SIBA_CC_CLKCTLSTATUS_HT		0x00010000
+#define	SIBA_CC_UART0			0x0300		/* offset of UART0 */
+#define	SIBA_CC_UART1			0x0400		/* offset of UART1 */
+#define	SIBA_CC_PMUCTL			0x0600		/* PMU control */
+#define	SIBA_CC_PMUCTL_ILP		0xffff0000	/* mask */
+#define	SIBA_CC_PMUCTL_NOILP		0x00000200
+#define	SIBA_CC_PMUCTL_XF		0x0000007c	/* crystal freq */
+#define	SIBA_CC_PMUCTL_XF_VAL(id)	((id & 0x0000007c) >> 2)
+#define	SIBA_CC_PMUCAPS			0x0604
+#define	SIBA_CC_PMUCAPS_REV		0x000000ff
+#define	SIBA_CC_PMU_MINRES		0x0618
+#define	SIBA_CC_PMU_MAXRES		0x061c
+#define	SIBA_CC_PMU_TABSEL		0x0620
+#define	SIBA_CC_PMU_DEPMSK		0x0624
+#define	SIBA_CC_PMU_UPDNTM		0x0628
+#define	SIBA_CC_REGCTL_ADDR		0x0658
+#define	SIBA_CC_REGCTL_DATA		0x065c
+#define	SIBA_CC_PLLCTL_ADDR		0x0660
+#define	SIBA_CC_PLLCTL_DATA		0x0664
 
-#define SIBA_MAX_WIN_COUNT		4 /* Max count of memmory window per core */
+#define	SIBA_CC_PMU0_PLL0		0
+#define	SIBA_CC_PMU0_PLL0_PDIV_MSK	0x00000001
+#define	SIBA_CC_PMU0_PLL0_PDIV_FREQ	25000
+#define	SIBA_CC_PMU0_PLL1		1
+#define	SIBA_CC_PMU0_PLL1_IMSK		0xf0000000
+#define	SIBA_CC_PMU0_PLL1_FMSK		0x0fffff00
+#define	SIBA_CC_PMU0_PLL1_STOPMOD	0x00000040
+#define	SIBA_CC_PMU0_PLL2		2
+#define	SIBA_CC_PMU0_PLL2_IMSKHI	0x0000000f
+#define	SIBA_CC_PMU1_PLL0		0
+#define	SIBA_CC_PMU1_PLL0_P1DIV		0x00f00000
+#define	SIBA_CC_PMU1_PLL0_P2DIV		0x0f000000
+#define	SIBA_CC_PMU1_PLL2		2
+#define	SIBA_CC_PMU1_PLL2_NDIVMODE	0x000e0000
+#define	SIBA_CC_PMU1_PLL2_NDIVINT	0x1ff00000
+#define	SIBA_CC_PMU1_PLL3		3
+#define	SIBA_CC_PMU1_PLL3_NDIVFRAC	0x00ffffff
+#define	SIBA_CC_PMU1_PLL5		5
+#define	SIBA_CC_PMU1_PLL5_CLKDRV	0xffffff00
+
+#define	SIBA_CC_PMU0_DEFAULT_XTALFREQ	20000
+#define	SIBA_CC_PMU1_DEFAULT_FREQ	15360
+
+#define	SIBA_CC_PMU1_PLLTAB_ENTRY					\
+{									\
+	{ 12000,  1, 3, 22,  0x9, 0xffffef },				\
+	{ 13000,  2, 1,  6,  0xb, 0x483483 },				\
+	{ 14400,  3, 1, 10,  0xa, 0x1c71c7 },				\
+	{ 15360,  4, 1,  5,  0xb, 0x755555 },				\
+	{ 16200,  5, 1, 10,  0x5, 0x6e9e06 },				\
+	{ 16800,  6, 1, 10,  0x5, 0x3cf3cf },				\
+	{ 19200,  7, 1,  9,  0x5, 0x17b425 },				\
+	{ 19800,  8, 1, 11,  0x4, 0xa57eb },				\
+	{ 20000,  9, 1, 11,  0x4, 0 },					\
+	{ 24000, 10, 3, 11,  0xa, 0 },					\
+	{ 25000, 11, 5, 16,  0xb, 0 },					\
+	{ 26000, 12, 1,  2, 0x10, 0xec4ec4 },				\
+	{ 30000, 13, 3,  8,  0xb, 0 },					\
+	{ 38400, 14, 1,  5,  0x4, 0x955555 },				\
+	{ 40000, 15, 1,  2,  0xb, 0 }					\
+}
+
+#define	SIBA_CC_PMU0_PLLTAB_ENTRY					\
+{									\
+	{ 12000,  1, 73, 349525, }, { 13000,  2, 67, 725937, },		\
+	{ 14400,  3, 61, 116508, }, { 15360,  4, 57, 305834, },		\
+	{ 16200,  5, 54, 336579, }, { 16800,  6, 52, 399457, },		\
+	{ 19200,  7, 45, 873813, }, { 19800,  8, 44, 466033, },		\
+	{ 20000,  9, 44, 0,      }, { 25000, 10, 70, 419430, },		\
+	{ 26000, 11, 67, 725937, }, { 30000, 12, 58, 699050, },		\
+	{ 38400, 13, 45, 873813, }, { 40000, 14, 45, 0,      },		\
+}
+
+#define	SIBA_CC_PMU_4312_PA_REF		2
+#define	SIBA_CC_PMU_4325_BURST		1
+#define	SIBA_CC_PMU_4325_CLBURST	3
+#define	SIBA_CC_PMU_4325_LN		10
+#define	SIBA_CC_PMU_4325_CRYSTAL	13
+#define	SIBA_CC_PMU_4325_RX_PWR		15
+#define	SIBA_CC_PMU_4325_TX_PWR		16
+#define	SIBA_CC_PMU_4325_LOGEN_PWR	18
+#define	SIBA_CC_PMU_4325_AFE_PWR	19
+#define	SIBA_CC_PMU_4325_BBPLL_PWR	20
+#define	SIBA_CC_PMU_4325_HT		21
+#define	SIBA_CC_PMU_4328_EXT_SWITCH_PWM	0
+#define	SIBA_CC_PMU_4328_BB_SWITCH_PWM	1
+#define	SIBA_CC_PMU_4328_BB_SWITCH_BURST	2
+#define	SIBA_CC_PMU_4328_BB_EXT_SWITCH_BURST	3
+#define	SIBA_CC_PMU_4328_ILP_REQUEST	4
+#define	SIBA_CC_PMU_4328_RADSWITCH_PWM	5	/* radio switch */
+#define	SIBA_CC_PMU_4328_RADSWITCH_BURST	6
+#define	SIBA_CC_PMU_4328_ROM_SWITCH	7
+#define	SIBA_CC_PMU_4328_PA_REF		8
+#define	SIBA_CC_PMU_4328_RADIO		9
+#define	SIBA_CC_PMU_4328_AFE		10
+#define	SIBA_CC_PMU_4328_PLL		11
+#define	SIBA_CC_PMU_4328_BG_FILTBYP	12
+#define	SIBA_CC_PMU_4328_TX_FILTBYP	13
+#define	SIBA_CC_PMU_4328_RX_FILTBYP	14
+#define	SIBA_CC_PMU_4328_CRYSTAL_PU	15
+#define	SIBA_CC_PMU_4328_CRYSTAL_EN	16
+#define	SIBA_CC_PMU_4328_BB_PLL_FILTBYP	17
+#define	SIBA_CC_PMU_4328_RF_PLL_FILTBYP	18
+#define	SIBA_CC_PMU_4328_BB_PLL_PU	19
+#define	SIBA_CC_PMU_5354_PA_REF		8
+#define	SIBA_CC_PMU_5354_BB_PLL_PU	19
+
+#define	SIBA_CC_PMU_4325_RES_UPDOWN					\
+{									\
+	{ SIBA_CC_PMU_4325_CRYSTAL, 0x1501 }				\
+}
+
+#define	SIBA_CC_PMU_4325_RES_DEPEND					\
+{									\
+	{ SIBA_CC_PMU_4325_HT, SIBA_CC_PMU_DEP_ADD,			\
+	  ((1 << SIBA_CC_PMU_4325_RX_PWR) |				\
+	   (1 << SIBA_CC_PMU_4325_TX_PWR) |				\
+	   (1 << SIBA_CC_PMU_4325_LOGEN_PWR) |				\
+	   (1 << SIBA_CC_PMU_4325_AFE_PWR)) }				\
+}
+
+#define	SIBA_CC_PMU_4328_RES_UPDOWN					\
+{									\
+	{ SIBA_CC_PMU_4328_EXT_SWITCH_PWM, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_BB_SWITCH_PWM, 0x1f01 },			\
+	{ SIBA_CC_PMU_4328_BB_SWITCH_BURST, 0x010f },			\
+	{ SIBA_CC_PMU_4328_BB_EXT_SWITCH_BURST, 0x0101 },		\
+	{ SIBA_CC_PMU_4328_ILP_REQUEST, 0x0202 },			\
+	{ SIBA_CC_PMU_4328_RADSWITCH_PWM, 0x0f01 },			\
+	{ SIBA_CC_PMU_4328_RADSWITCH_BURST, 0x0f01 },			\
+	{ SIBA_CC_PMU_4328_ROM_SWITCH, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_PA_REF, 0x0f01 },				\
+	{ SIBA_CC_PMU_4328_RADIO, 0x0f01 },				\
+	{ SIBA_CC_PMU_4328_AFE, 0x0f01 },				\
+	{ SIBA_CC_PMU_4328_PLL, 0x0f01 },				\
+	{ SIBA_CC_PMU_4328_BG_FILTBYP, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_TX_FILTBYP, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_RX_FILTBYP, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_CRYSTAL_PU, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_CRYSTAL_EN, 0xa001 },			\
+	{ SIBA_CC_PMU_4328_BB_PLL_FILTBYP, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_RF_PLL_FILTBYP, 0x0101 },			\
+	{ SIBA_CC_PMU_4328_BB_PLL_PU, 0x0701 },				\
+}
+
+#define	SIBA_CC_PMU_4328_RES_DEPEND					\
+{									\
+	{ SIBA_CC_PMU_4328_ILP_REQUEST, SIBA_CC_PMU_DEP_SET,		\
+	  ((1 << SIBA_CC_PMU_4328_EXT_SWITCH_PWM) |			\
+	   (1 << SIBA_CC_PMU_4328_BB_SWITCH_PWM)) },			\
+}
+
+#define	SIBA_CC_CHST_4325_PMUTOP_2B	0x00000200
 
 #define	SIBA_BAR0			0x80
 #define	SIBA_IRQMASK			0x94
@@ -53,23 +239,11 @@
 #define	SIBA_GPIO_CRYSTAL		0x40
 #define	SIBA_GPIO_PLL			0x80
 
-#define SIBA_CORE_IDLO		0x00000ff8
-#define SIBA_CORE_IDHI		0x00000ffc
-
-#define  SIBA_IDHIGH_RCLO	0x0000000F /* Revision Code (low part) */
-#define  SIBA_IDHIGH_CC		0x00008FF0 /* Core Code */
-#define  SIBA_IDHIGH_CC_SHIFT	4
-#define  SIBA_IDHIGH_RCHI	0x00007000 /* Revision Code (high part) */
-#define  SIBA_IDHIGH_RCHI_SHIFT	8
-#define  SIBA_IDHIGH_VC		0xFFFF0000 /* Vendor Code */
-#define  SIBA_IDHIGH_VC_SHIFT	16
-
-
 #define	SIBA_REGWIN(x)							\
 	(SIBA_ENUM_START + ((x) * SIBA_CORE_LEN))
-#define SIBA_CORE_LEN		0x00001000	/* Size of cfg per core */
-#define SIBA_CFG_END		0x00010000	/* Upper bound of cfg space */
-#define SIBA_MAX_CORES		(SIBA_CFG_END/SIBA_CORE_LEN)	/* #max cores */
+#define	SIBA_CORE_LEN		0x00001000	/* Size of cfg per core */
+#define	SIBA_CFG_END		0x00010000	/* Upper bound of cfg space */
+#define	SIBA_MAX_CORES		(SIBA_CFG_END/SIBA_CORE_LEN)	/* #max cores */
 #define	SIBA_ENUM_START			0x18000000U
 #define	SIBA_ENUM_END			0x18010000U
 
@@ -103,26 +277,6 @@
 #define	SIBA_IDLOW_SSBREV_25		0x50000000
 #define	SIBA_IDLOW_SSBREV_26		0x60000000
 #define	SIBA_IDLOW_SSBREV_27		0x70000000
-#define	SIBA_IDLOW_CS_MASK		0x3		/* config space */
-#define	SIBA_IDLOW_ADDR_RANGE_MASK	0x38		/* # address ranges supported */
-#define	SIBA_IDLOW_ADDR_RANGE_SHIFT	3
-#define	SIBA_IDLOW_SYNCH		0x40		/* sync */
-#define	SIBA_IDLOW_INIT		0x80		/* initiator */
-#define	SIBA_IDLOW_MINLAT_MASK	0xf00		/* minimum backplane latency */
-#define	SIBA_IDLOW_MINLAT_SHIFT	8
-#define	SIBA_IDLOW_MAXLAT		0xf000		/* maximum backplane latency */
-#define	SIBA_IDLOW_MAXLAT_SHIFT	12
-#define	SIBA_IDLOW_FIRST		0x10000		/* this initiator is first */
-#define	SIBA_IDLOW_CW_MASK		0xc0000		/* cycle counter width */
-#define	SIBA_IDLOW_CW_SHIFT		18
-#define	SIBA_IDLOW_TP_MASK		0xf00000	/* target ports */
-#define	SIBA_IDLOW_TP_SHIFT		20
-#define	SIBA_IDLOW_IP_MASK		0xf000000	/* initiator ports */
-#define	SIBA_IDLOW_IP_SHIFT		24
-#define	SIBA_IDLOW_RV_MASK		0xf0000000	/* sonics backplane revision code */
-#define	SIBA_IDLOW_RV_SHIFT		28
-#define	SIBA_IDLOW_RV_2_2		0x00000000	/* version 2.2 or earlier */
-#define	SIBA_IDLOW_RV_2_3		0x10000000	/* version 2.3 */
 #define	SIBA_IDHIGH			0x0ffc
 #define	SIBA_IDHIGH_CORECODEMASK	0x00008FF0 /* Core Code */
 #define	SIBA_IDHIGH_CORECODE_SHIFT	4
@@ -140,24 +294,6 @@
 #define	SIBA_IDHIGH_VENDOR_SHIFT	16
 #define	SIBA_IDHIGH_VENDOR(id)						\
 	((id & SIBA_IDHIGH_VENDORMASK) >> SIBA_IDHIGH_VENDOR_SHIFT)
-
-
-#define SIBA_IPSFLAG		0xf08
-#define SIBA_IPSFLAGH		0xf0c
-#define SIBA_ADMATCH3		0xf60
-#define SIBA_ADMATCH2		0xf68
-#define SIBA_ADMATCH1		0xf70
-#define SIBA_IMSTATE		0xf90
-#define SIBA_INTVEC		0xf94
-#define SIBA_TMSLOW		0xf98
-#define SIBA_TMSHIGH		0xf9c
-#define SIBA_BWA0		0xfa0
-#define SIBA_IMCONFIGLOW	0xfa8
-#define SIBA_IMCONFIGHIGH	0xfac
-#define SIBA_ADMATCH0		0xfb0
-
-
-
 
 #define	SIBA_SPROMSIZE_R123		64
 #define	SIBA_SPROMSIZE_R4		220
@@ -240,6 +376,9 @@
 #define	SIBA_SPROM5_GPIOB_P3		0xff00
 #define	SIBA_SPROM8_BFLOW		0x1084
 #define	SIBA_SPROM8_BFHIGH		0x1086
+#define	SIBA_SPROM8_BFL2LO		0x1088
+#define	SIBA_SPROM8_BFL2HI		0x108a
+#define	SIBA_SPROM8_MAC_80211BG		0x108c
 #define	SIBA_SPROM8_CCODE		0x1092
 #define	SIBA_SPROM8_ANTAVAIL		0x109c
 #define	SIBA_SPROM8_ANTAVAIL_A		0xff00
@@ -247,21 +386,60 @@
 #define	SIBA_SPROM8_AGAIN01		0x109e
 #define	SIBA_SPROM8_AGAIN0		0x00ff
 #define	SIBA_SPROM8_AGAIN1		0xff00
-#define	SIBA_SPROM8_AGAIN23		0x10a0
-#define	SIBA_SPROM8_AGAIN2		0x00ff
-#define	SIBA_SPROM8_AGAIN3		0xff00
 #define	SIBA_SPROM8_GPIOA		0x1096
 #define	SIBA_SPROM8_GPIOA_P0		0x00ff
 #define	SIBA_SPROM8_GPIOA_P1		0xff00
 #define	SIBA_SPROM8_GPIOB		0x1098
 #define	SIBA_SPROM8_GPIOB_P2		0x00ff
 #define	SIBA_SPROM8_GPIOB_P3		0xff00
+#define	SIBA_SPROM8_AGAIN23		0x10a0
+#define	SIBA_SPROM8_AGAIN2		0x00ff
+#define	SIBA_SPROM8_AGAIN3		0xff00
+#define	SIBA_SPROM8_RSSIPARM2G		0x10a4
+#define	SIBA_SPROM8_RSSISMF2G		0x000f
+#define	SIBA_SPROM8_RSSISMC2G		0x00f0
+#define	SIBA_SPROM8_RSSISAV2G		0x0700	/* BITMASK */
+#define	SIBA_SPROM8_BXA2G		0x1800	/* BITMASK */
+#define	SIBA_SPROM8_RSSIPARM5G		0x10a6
+#define	SIBA_SPROM8_RSSISMF5G		0x000f
+#define	SIBA_SPROM8_RSSISMC5G		0x00f0
+#define	SIBA_SPROM8_RSSISAV5G		0x0700	/* BITMASK */
+#define	SIBA_SPROM8_BXA5G		0x1800	/* BITMASK */
+#define	SIBA_SPROM8_TRI25G		0x10a8
+#define	SIBA_SPROM8_TRI2G		0x00ff
+#define	SIBA_SPROM8_TRI5G		0xff00
+#define	SIBA_SPROM8_TRI5GHL		0x10aa
+#define	SIBA_SPROM8_TRI5GL		0x00ff
+#define	SIBA_SPROM8_TRI5GH		0xff00
+#define	SIBA_SPROM8_RXPO		0x10ac
+#define	SIBA_SPROM8_RXPO2G		0x00ff
+#define	SIBA_SPROM8_RXPO5G		0xff00
 #define	SIBA_SPROM8_MAXP_BG		0x10c0
 #define	SIBA_SPROM8_MAXP_BG_MASK	0x00ff
 #define	SIBA_SPROM8_TSSI_BG		0xff00
+#define	SIBA_SPROM8_PA0B0		0x10c2
+#define	SIBA_SPROM8_PA0B1		0x10c4
+#define	SIBA_SPROM8_PA0B2		0x10c6
 #define	SIBA_SPROM8_MAXP_A		0x10c8
 #define	SIBA_SPROM8_MAXP_A_MASK		0x00ff
 #define	SIBA_SPROM8_TSSI_A		0xff00
+#define	SIBA_SPROM8_MAXP_AHL		0x10ca
+#define	SIBA_SPROM8_MAXP_AH_MASK	0x00ff
+#define	SIBA_SPROM8_MAXP_AL_MASK	0xff00
+#define	SIBA_SPROM8_PA1B0		0x10cc
+#define	SIBA_SPROM8_PA1B1		0x10ce
+#define	SIBA_SPROM8_PA1B2		0x10d0
+#define	SIBA_SPROM8_PA1LOB0		0x10d2
+#define	SIBA_SPROM8_PA1LOB1		0x10d4
+#define	SIBA_SPROM8_PA1LOB2		0x10d6
+#define	SIBA_SPROM8_PA1HIB0		0x10d8
+#define	SIBA_SPROM8_PA1HIB1		0x10da
+#define	SIBA_SPROM8_PA1HIB2		0x10dc
+#define	SIBA_SPROM8_CCK2GPO		0x1140
+#define	SIBA_SPROM8_OFDM2GPO		0x1142
+#define	SIBA_SPROM8_OFDM5GPO		0x1146
+#define	SIBA_SPROM8_OFDM5GLPO		0x114a
+#define	SIBA_SPROM8_OFDM5GHPO		0x114e
 
 #define	SIBA_BOARDVENDOR_DELL		0x1028
 #define	SIBA_BOARDVENDOR_BCM		0x14e4
@@ -280,254 +458,7 @@
 #define	SIBA_PCICORE_SBTOPCI_PREF	0x00000004
 #define	SIBA_PCICORE_SBTOPCI_BURST	0x00000008
 #define	SIBA_PCICORE_SBTOPCI_MRM	0x00000020
-#define SIBA_CCID_BCM5354	0x5354
 
-
-
-
-/* Interrupt control */
-#define SIBA_CC_INTSTATUS	0x20
-#define SIBA_CC_INTMASK		0x24
-#define SIBA_CC_CHIPCONTROL 	0x28 /* rev >= 11 */
-#define SIBA_CC_CHIPSTATUS	0x2c /* rev >= 11 */
-
-
-/* intstatus/intmask */
-#define	CI_GPIO			0x00000001	/* gpio intr */
-#define	CI_EI			0x00000002	/* extif intr (corerev >= 3) */
-#define	CI_TEMP			0x00000004	/* temp. ctrl intr (corerev >= 15) */
-#define	CI_SIRQ			0x00000008	/* serial IRQ intr (corerev >= 15) */
-#define	CI_ECI			0x00000010	/* eci intr (corerev >= 21) */
-#define	CI_PMU			0x00000020	/* pmu intr (corerev >= 21) */
-#define	CI_UART			0x00000040	/* uart intr (corerev >= 21) */
-#define	CI_WDRESET		0x80000000	/* watchdog reset occurred */
-
-
-
-/*
- * Sonics Configuration Space Registers.
- */
-#define SB_CORE_CFG_BASE	0xf00
- 
-
-#define SBIPSFLAG		0x08
-#define SBTPSFLAG		0x18
-#define	SBTMERRLOGA		0x48		/* sonics >= 2.3 */
-#define	SBTMERRLOG		0x50		/* sonics >= 2.3 */
-#define SBADMATCH3		0x60
-#define SBADMATCH2		0x68
-#define SBADMATCH1		0x70
-#define SBIMSTATE		0x90
-#define SBINTVEC		0x94
-#define SBTMSTATELOW		0x98
-#define SBTMSTATEHIGH		0x9c
-#define SBBWA0			0xa0
-#define SBIMCONFIGLOW		0xa8
-#define SBIMCONFIGHIGH		0xac
-#define SBADMATCH0		0xb0
-#define SBTMCONFIGLOW		0xb8
-#define SBTMCONFIGHIGH		0xbc
-#define SBBCONFIG		0xc0
-#define SBBSTATE		0xc8
-#define SBACTCNFG		0xd8
-#define	SBFLAGST		0xe8
-#define SBIDLOW			0xf8
-#define SBIDHIGH		0xfc
-
-#define SSB_IPSFLAG		0x08
-#define SSB_TPSFLAG		0x18
-#define	SSB_TMERRLOGA		0x48		/* sonics >= 2.3 */
-#define	SSB_TMERRLOG		0x50		/* sonics >= 2.3 */
-#define SSB_TMCONFIGLOW		0xb8
-#define SSB_TMCONFIGHIGH		0xbc
-#define SSB_BCONFIG		0xc0
-#define SSB_BSTATE		0xc8
-#define SSB_ACTCNFG		0xd8
-#define	SSB_FLAGST		0xe8
-#define SSB_IDLOW			0xf8
-#define SSB_IDHIGH		0xfc
-/* All the previous registers are above SBCONFIGOFF, but with Sonics 2.3, we have
- * a few registers *below* that line. I think it would be very confusing to try
- * and change the value of SBCONFIGOFF, so I'm definig them as absolute offsets here,
- */
-
-#define SBIMERRLOGA		0xea8
-#define SBIMERRLOG		0xeb0
-#define SBTMPORTCONNID0		0xed8
-#define SBTMPORTLOCK0		0xef8
-#ifndef PAD
-#define	_PADLINE(line)	pad ## line
-#define	_XSTR(line)	_PADLINE(line)
-#define	PAD		_XSTR(__LINE__)
-#endif	/* PAD */
-
-
-/* sbipsflag */
-#define	SBIPS_INT1_MASK		0x3f		/* which sbflags get routed to mips interrupt 1 */
-#define	SBIPS_INT1_SHIFT	0
-#define	SBIPS_INT2_MASK		0x3f00		/* which sbflags get routed to mips interrupt 2 */
-#define	SBIPS_INT2_SHIFT	8
-#define	SBIPS_INT3_MASK		0x3f0000	/* which sbflags get routed to mips interrupt 3 */
-#define	SBIPS_INT3_SHIFT	16
-#define	SBIPS_INT4_MASK		0x3f000000	/* which sbflags get routed to mips interrupt 4 */
-#define	SBIPS_INT4_SHIFT	24
-
-/* sbtpsflag */
-#define	SBTPS_NUM0_MASK		0x3f		/* interrupt sbFlag # generated by this core */
-#define	SBTPS_F0EN0		0x40		/* interrupt is always sent on the backplane */
-
-/* sbtmerrlog */
-#define	SBTMEL_CM		0x00000007	/* command */
-#define	SBTMEL_CI		0x0000ff00	/* connection id */
-#define	SBTMEL_EC		0x0f000000	/* error code */
-#define	SBTMEL_ME		0x80000000	/* multiple error */
-
-/* sbimstate */
-#define	SBIM_PC			0xf		/* pipecount */
-#define	SBIM_AP_MASK		0x30		/* arbitration policy */
-#define	SBIM_AP_BOTH		0x00		/* use both timeslaces and token */
-#define	SBIM_AP_TS		0x10		/* use timesliaces only */
-#define	SBIM_AP_TK		0x20		/* use token only */
-#define	SBIM_AP_RSV		0x30		/* reserved */
-#define	SBIM_IBE		0x20000		/* inbanderror */
-#define	SBIM_TO			0x40000		/* timeout */
-#define	SBIM_BY			0x01800000	/* busy (sonics >= 2.3) */
-#define	SBIM_RJ			0x02000000	/* reject (sonics >= 2.3) */
-/* Aliases */
-#define	SSB_IMSTATE_IBE		0x20000		/* inbanderror */
-#define	SSB_IMSTATE_TO		0x40000		/* timeout */
-
-
-/* sbtmstatelow */
-#define	SBTML_RESET		0x1		/* reset */
-#define	SBTML_REJ_MASK		0x6		/* reject */
-#define	SBTML_REJ_SHIFT		1
-#define	SBTML_CLK		0x10000		/* clock enable */
-#define	SBTML_FGC		0x20000		/* force gated clocks on */
-#define	SBTML_FL_MASK		0x3ffc0000	/* core-specific flags */
-#define	SBTML_PE		0x40000000	/* pme enable */
-#define	SBTML_BE		0x80000000	/* bist enable */
-
-/* Aliases */
-#define	SSB_TMSLOW_RESET	0x1		/* reset */
-#define	SSB_TMSLOW_REJ_MASK	0x6		/* reject */
-#define	SSB_TMSLOW_REJ_SHIFT	1
-#define  SSB_TMSLOW_REJECT_22	0x00000002 /* Reject (Backplane rev 2.2) */
-#define  SSB_TMSLOW_REJECT_23	0x00000004 /* Reject (Backplane rev 2.3) */
-#define	SSB_TMSLOW_CLOCK	0x10000		/* clock enable */
-#define	SSB_TMSLOW_FGC		0x20000		/* force gated clocks on */
-#define	SSB_TMSLOW_FL_MASK	0x3ffc0000	/* core-specific flags */
-#define	SSB_TMSLOW_PE		0x40000000	/* pme enable */
-#define	SSB_TMSLOW_BE		0x80000000	/* bist enable */
-
-
-
-/* sbtmstatehigh */
-#define	SBTMH_SERR		0x1		/* serror */
-#define	SBTMH_INT		0x2		/* interrupt */
-#define	SBTMH_BUSY		0x4		/* busy */
-#define	SBTMH_TO		0x00000020	/* timeout (sonics >= 2.3) */
-#define	SBTMH_FL_MASK		0x0fff0000	/* core-specific flags */
-#define SBTMH_DMA64		0x10000000      /* supports DMA with 64-bit addresses */
-#define	SBTMH_GCR		0x20000000	/* gated clock request */
-#define	SBTMH_BISTF		0x40000000	/* bist failed */
-#define	SBTMH_BISTD		0x80000000	/* bist done */
-/* Aliases */
-#define	SSB_TMSHIGH_SERR	0x1		/* serror */
-#define	SSB_TMSHIGH_INT		0x2		/* interrupt */
-#define	SSB_TMSHIGH_BUSY	0x4		/* busy */
-#define	SSB_TMSHIGH_TO		0x00000020	/* timeout (sonics >= 2.3) */
-#define	SSB_TMSHIGH_FL_MASK	0x0fff0000	/* core-specific flags */
-#define SSB_TMSHIGH_DMA64	0x10000000      /* supports DMA with 64-bit addresses */
-#define	SSB_TMSHIGH_GCR		0x20000000	/* gated clock request */
-#define	SSB_TMSHIGH_BISTF	0x40000000	/* bist failed */
-#define	SSB_TMSHIGH_BISTD	0x80000000	/* bist done */
-
-
-/* sbbwa0 */
-#define	SBBWA_TAB0_MASK		0xffff		/* lookup table 0 */
-#define	SBBWA_TAB1_MASK		0xffff		/* lookup table 1 */
-#define	SBBWA_TAB1_SHIFT	16
-
-/* sbimconfiglow */
-#define	SBIMCL_STO_MASK		0x7		/* service timeout */
-#define	SBIMCL_RTO_MASK		0x70		/* request timeout */
-#define	SBIMCL_RTO_SHIFT	4
-#define	SBIMCL_CID_MASK		0xff0000	/* connection id */
-#define	SBIMCL_CID_SHIFT	16
-
-/* sbimconfighigh */
-#define	SBIMCH_IEM_MASK		0xc		/* inband error mode */
-#define	SBIMCH_TEM_MASK		0x30		/* timeout error mode */
-#define	SBIMCH_TEM_SHIFT	4
-#define	SBIMCH_BEM_MASK		0xc0		/* bus error mode */
-#define	SBIMCH_BEM_SHIFT	6
-
-/* sbadmatch0 */
-#define	SBAM_TYPE_MASK		0x3		/* address type */
-#define	SBAM_AD64		0x4		/* reserved */
-#define	SBAM_ADINT0_MASK	0xf8		/* type0 size */
-#define	SBAM_ADINT0_SHIFT	3
-#define	SBAM_ADINT1_MASK	0x1f8		/* type1 size */
-#define	SBAM_ADINT1_SHIFT	3
-#define	SBAM_ADINT2_MASK	0x1f8		/* type2 size */
-#define	SBAM_ADINT2_SHIFT	3
-#define	SBAM_ADEN		0x400		/* enable */
-#define	SBAM_ADNEG		0x800		/* negative decode */
-#define	SBAM_BASE0_MASK		0xffffff00	/* type0 base address */
-#define	SBAM_BASE0_SHIFT	8
-#define	SBAM_BASE1_MASK		0xfffff000	/* type1 base address for the core */
-#define	SBAM_BASE1_SHIFT	12
-#define	SBAM_BASE2_MASK		0xffff0000	/* type2 base address for the core */
-#define	SBAM_BASE2_SHIFT	16
-
-/* sbtmconfiglow */
-#define	SBTMCL_CD_MASK		0xff		/* clock divide */
-#define	SBTMCL_CO_MASK		0xf800		/* clock offset */
-#define	SBTMCL_CO_SHIFT		11
-#define	SBTMCL_IF_MASK		0xfc0000	/* interrupt flags */
-#define	SBTMCL_IF_SHIFT		18
-#define	SBTMCL_IM_MASK		0x3000000	/* interrupt mode */
-#define	SBTMCL_IM_SHIFT		24
-
-/* sbtmconfighigh */
-#define	SBTMCH_BM_MASK		0x3		/* busy mode */
-#define	SBTMCH_RM_MASK		0x3		/* retry mode */
-#define	SBTMCH_RM_SHIFT		2
-#define	SBTMCH_SM_MASK		0x30		/* stop mode */
-#define	SBTMCH_SM_SHIFT		4
-#define	SBTMCH_EM_MASK		0x300		/* sb error mode */
-#define	SBTMCH_EM_SHIFT		8
-#define	SBTMCH_IM_MASK		0xc00		/* int mode */
-#define	SBTMCH_IM_SHIFT		10
-
-/* sbbconfig */
-#define	SBBC_LAT_MASK		0x3		/* sb latency */
-#define	SBBC_MAX0_MASK		0xf0000		/* maxccntr0 */
-#define	SBBC_MAX0_SHIFT		16
-#define	SBBC_MAX1_MASK		0xf00000	/* maxccntr1 */
-#define	SBBC_MAX1_SHIFT		20
-
-/* sbbstate */
-#define	SBBS_SRD		0x1		/* st reg disable */
-#define	SBBS_HRD		0x2		/* hold reg disable */
-
-
-/* sbidhigh */
-#define	SBIDH_RC_MASK		0x000f		/* revision code */
-#define	SBIDH_RCE_MASK		0x7000		/* revision code extension field */
-#define	SBIDH_RCE_SHIFT		8
-#define	SBCOREREV(sbidh) \
-	((((sbidh) & SBIDH_RCE_MASK) >> SBIDH_RCE_SHIFT) | ((sbidh) & SBIDH_RC_MASK))
-#define	SBIDH_CC_MASK		0x8ff0		/* core code */
-#define	SBIDH_CC_SHIFT		4
-#define	SBIDH_VC_MASK		0xffff0000	/* vendor code */
-#define	SBIDH_VC_SHIFT		16
-
-#define	SB_COMMIT		0xfd8		/* update buffered registers value */
-
-/* vendor codes */
-#define	SB_VEND_BCM		0x4243		/* Broadcom's SB vendor code */
-
+#define	SIBA_CHIPPACK_BCM4712S     1       /* Small 200pin 4712 */
 
 #endif /* _SIBA_SIBAREG_H_ */
