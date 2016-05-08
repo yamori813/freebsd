@@ -252,7 +252,6 @@ miiproxy_rendezvous_callback(enum rendezvous_op op, struct rendezvous_entry *ren
 static int
 miiproxy_probe(device_t dev)
 {
-printf("MORI MORI miiproxy\n");
 	device_set_desc(dev, "MII/MDIO proxy, MII side");
 
 	return (BUS_PROBE_SPECIFIC);
