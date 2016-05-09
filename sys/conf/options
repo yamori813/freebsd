@@ -177,6 +177,7 @@ NO_SYSCTL_DESCR	opt_global.h
 NSWBUF_MIN	opt_swap.h
 MBUF_PACKET_ZONE_DISABLE	opt_global.h
 PANIC_REBOOT_WAIT_TIME	opt_panic.h
+PCI_HP		opt_pci.h
 PCI_IOV		opt_global.h
 PPC_DEBUG	opt_ppc.h
 PPC_PROBE_CHIPSET	opt_ppc.h
@@ -854,6 +855,9 @@ AH_AR5416_INTERRUPT_MITIGATION	opt_ah.h
 # options for the Broadcom BCM43xx driver (bwi)
 BWI_DEBUG		opt_bwi.h
 BWI_DEBUG_VERBOSE	opt_bwi.h
+
+# options for the Brodacom BCM43xx driver (bwn)
+BWN_DEBUG		opt_bwn.h
 
 # options for the Marvell 8335 wireless driver
 MALO_DEBUG		opt_malo.h
