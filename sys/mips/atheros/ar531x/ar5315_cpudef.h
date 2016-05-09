@@ -125,8 +125,8 @@ static inline uint32_t ar531x_ddr_freq(void) { return u_ar531x_ddr_freq; }
 static inline uint32_t ar531x_uart_addr(void) { return u_ar531x_uart_addr; }
 
 static inline uint32_t ar531x_gpio_di(void) { return u_ar531x_gpio_di; }
-static inline uint32_t ar531x_gpio_cr(void) { return u_ar531x_gpio_do; }
-static inline uint32_t ar531x_gpio_do(void) { return u_ar531x_gpio_cr; }
+static inline uint32_t ar531x_gpio_cr(void) { return u_ar531x_gpio_cr; }
+static inline uint32_t ar531x_gpio_do(void) { return u_ar531x_gpio_do; }
 static inline uint32_t ar531x_gpio_pins(void) { return u_ar531x_gpio_pins; }
  
 static inline uint32_t ar531x_wdog_ctl(void) { return u_ar531x_wdog_ctl; }

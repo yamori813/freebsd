@@ -49,6 +49,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/bus.h>
 #include <machine/resource.h>
 #include <mips/atheros/ar531x/ar5315reg.h>
+#include <mips/atheros/ar531x/ar5315_cpudef.h>
 #include <mips/atheros/ar531x/ar5315_gpiovar.h>
 #include <dev/gpio/gpiobusvar.h>
 
@@ -122,11 +123,11 @@ ar5315_gpio_pin_configure(struct ar5315_gpio_softc *sc, struct gpio_pin *pin,
 		pin->gp_flags &= ~(GPIO_PIN_INPUT|GPIO_PIN_OUTPUT);
 		if (flags & GPIO_PIN_OUTPUT) {
 			pin->gp_flags |= GPIO_PIN_OUTPUT;
-			GPIO_SET_BITS(sc, AR5315_SYSREG_GPIO_CR, mask);
+			GPIO_SET_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 		else {
 			pin->gp_flags |= GPIO_PIN_INPUT;
-			GPIO_CLEAR_BITS(sc, AR5315_SYSREG_GPIO_CR, mask);
+			GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 	}
 }
@@ -145,7 +146,7 @@ static int
 ar5315_gpio_pin_max(device_t dev, int *maxpin)
 {
 
-	*maxpin = AR5315_GPIO_PINS - 1;
+	*maxpin = ar531x_gpio_pins() - 1;
 	return (0);
 }
 
@@ -185,7 +186,7 @@ ar5315_gpio_pin_getflags(device_t dev, uint32_t pin, uint32_t *flags)
 	if (i >= sc->gpio_npins)
 		return (EINVAL);
 
-	dir = GPIO_READ(sc, AR5315_SYSREG_GPIO_CR) & (1 << pin);
+	dir = GPIO_READ(sc, ar531x_gpio_cr()) & (1 << pin);
 
 	*flags = dir ? GPIO_PIN_OUTPUT : GPIO_PIN_INPUT;
 
@@ -244,7 +245,7 @@ ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value)
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	uint32_t state;
 
-	state = GPIO_READ(sc, AR5315_SYSREG_GPIO_DO);
+	state = GPIO_READ(sc, ar531x_gpio_do());
 
 	if(value == 1) {
 		state |= (1 << pin);
@@ -252,7 +253,7 @@ ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value)
 		state &= ~(1 << pin);
 	}
 
-	GPIO_WRITE(sc, AR5315_SYSREG_GPIO_DO, state);
+	GPIO_WRITE(sc, ar531x_gpio_do(), state);
 
 	return (0);
 }
@@ -271,7 +272,7 @@ ar5315_gpio_pin_get(device_t dev, uint32_t pin, unsigned int *val)
 	if (i >= sc->gpio_npins)
 		return (EINVAL);
 
-	*val = (GPIO_READ(sc, AR5315_SYSREG_GPIO_DI) & (1 << pin)) ? 1 : 0;
+	*val = (GPIO_READ(sc, ar531x_gpio_di()) & (1 << pin)) ? 1 : 0;
 
 	return (0);
 }
@@ -290,11 +291,11 @@ ar5315_gpio_pin_toggle(device_t dev, uint32_t pin)
 	if (i >= sc->gpio_npins)
 		return (EINVAL);
 
-	res = (GPIO_READ(sc, AR5315_SYSREG_GPIO_DO) & (1 << pin)) ? 1 : 0;
+	res = (GPIO_READ(sc, ar531x_gpio_do()) & (1 << pin)) ? 1 : 0;
 	if (res)
-		GPIO_CLEAR_BITS(sc, AR5315_SYSREG_GPIO_DO, pin);
+		GPIO_CLEAR_BITS(sc, ar531x_gpio_do(), pin);
 	else
-		GPIO_SET_BITS(sc, AR5315_SYSREG_GPIO_DO, pin);
+		GPIO_SET_BITS(sc, ar531x_gpio_do(), pin);
 
 	return (0);
 }
@@ -400,7 +401,7 @@ ar5315_gpio_attach(device_t dev)
 	}
 
 	/* Iniatilize the GPIO pins, keep the loader settings. */
-	oe = GPIO_READ(sc, AR5315_SYSREG_GPIO_CR);
+	oe = GPIO_READ(sc, ar531x_gpio_cr());
 	sc->gpio_pins = malloc(sizeof(struct gpio_pin) * sc->gpio_npins,
 	    M_DEVBUF, M_WAITOK | M_ZERO);
 	for (i = 0, j = 0; j <= maxpin; j++) {
@@ -463,14 +464,14 @@ ar5315_gpio_attach(device_t dev)
 		    gpiomode);
 
 		/* Set output (bit == 0) */
-		oe = GPIO_READ(sc, AR5315_SYSREG_GPIO_CR);
+		oe = GPIO_READ(sc, ar531x_gpio_cr());
 		oe &= ~ (1 << i);
-		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_CR, oe);
+		GPIO_WRITE(sc, ar531x_gpio_cr(), oe);
 
 		/* Set pin value = 0, so it stays low by default */
-		oe = GPIO_READ(sc, AR5315_SYSREG_GPIO_DO);
+		oe = GPIO_READ(sc, ar531x_gpio_do());
 		oe &= ~ (1 << i);
-		GPIO_WRITE(sc, AR5315_SYSREG_GPIO_DO, oe);
+		GPIO_WRITE(sc, ar531x_gpio_do(), oe);
 
 		/* Finally: Set the output config */
 //		ar5315_gpio_ouput_configure(i, gpiofunc);
