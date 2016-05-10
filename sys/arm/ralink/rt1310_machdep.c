@@ -46,13 +46,13 @@ __FBSDID("$FreeBSD: head/sys/arm/lpc/lpc_machdep.c 266301 2014-05-17 11:27:36Z a
 #include <sys/systm.h>
 #include <sys/bus.h>
 #include <sys/reboot.h>
+#include <sys/devmap.h>
 
 #include <vm/vm.h>
 #include <vm/pmap.h>
 
 #include <machine/bus.h>
 #include <machine/fdt.h>
-#include <machine/devmap.h>
 #include <machine/machdep.h>
 #include <machine/platform.h> 
 #include <machine/cpu.h>
@@ -73,7 +73,7 @@ vm_offset_t
 platform_lastaddr(void)
 {
 
-	return (arm_devmap_lastaddr());
+	return (devmap_lastaddr());
 }
 
 void
@@ -106,9 +106,9 @@ platform_late_init(void)
 int
 platform_devmap_init(void)
 {
-	arm_devmap_add_entry(0x19C00000, 0xE0000);
-	arm_devmap_add_entry(0x1e800000, 0x800000);
-	arm_devmap_add_entry(0x1f000000, 0x400000);
+	devmap_add_entry(0x19C00000, 0xE0000);
+	devmap_add_entry(0x1e800000, 0x800000);
+	devmap_add_entry(0x1f000000, 0x400000);
 	return (0);
 }
 
