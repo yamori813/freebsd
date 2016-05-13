@@ -132,7 +132,8 @@ static driver_t rt1310_intc_driver = {
 
 static devclass_t rt1310_intc_devclass;
 
-DRIVER_MODULE(pic, simplebus, rt1310_intc_driver, rt1310_intc_devclass, 0, 0);
+//DRIVER_MODULE(pic, simplebus, rt1310_intc_driver, rt1310_intc_devclass, 0, 0);
+EARLY_DRIVER_MODULE(pic, simplebus, rt1310_intc_driver, rt1310_intc_devclass, 0, 0, BUS_PASS_INTERRUPT);
 
 int
 arm_get_next_irq(int last)

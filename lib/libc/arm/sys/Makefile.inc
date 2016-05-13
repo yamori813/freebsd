@@ -1,9 +1,9 @@
 # $FreeBSD$
 
 .if ${MACHINE_ARCH} == "arm"
-#SRCS+=  trivial-vdso_tc.c
-CFLAGS+=-march=armv5te
-SRCS+=  __vdso_gettc.c
+SRCS+=  trivial-vdso_tc.c
+#CFLAGS+=-march=armv5te
+#SRCS+=  __vdso_gettc.c
 .else
 SRCS+=  __vdso_gettc.c
 .endif

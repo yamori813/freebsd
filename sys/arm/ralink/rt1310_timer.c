@@ -161,6 +161,7 @@ rt1310_timer_attach(device_t dev)
 	sc->lt_bsh3 = rman_get_bushandle(sc->lt_res[3]);
 
 //	if (bus_setup_intr(dev, sc->lt_res[4], INTR_TYPE_CLK,
+	/* Timer2 interrupt */
 	if (bus_setup_intr(dev, sc->lt_res[6], INTR_TYPE_CLK,
 	    rt1310_hardclock, NULL, sc, &intrcookie)) {
 		device_printf(dev, "could not setup interrupt handler\n");
@@ -192,7 +193,7 @@ rt1310_timer_attach(device_t dev)
 	sc->lt_et.et_frequency = (uint64_t)freq;
 	rt1310_timecounter.tc_frequency = (uint64_t)freq;
 
-	sc->lt_et.et_name = "RT1310ATimer0";
+	sc->lt_et.et_name = "RT1310ATimer2";
 	sc->lt_et.et_flags = ET_FLAGS_PERIODIC | ET_FLAGS_ONESHOT;
 	sc->lt_et.et_quality = 1000;
 	sc->lt_et.et_min_period = (0x00000002LLU << 32) / sc->lt_et.et_frequency;
@@ -214,7 +215,7 @@ rt1310_timer_attach(device_t dev)
 	timer1_write_4(sc, RT_TIMER_LOAD, ~0);
 	timer1_write_4(sc, RT_TIMER_VALUE, ~0);
 	timer1_write_4(sc, RT_TIMER_CONTROL, 
-		0x100);
+		0x180);
 
 	/* DELAY() now can work properly */
 	rt1310_timer_initialized = 1;
@@ -276,7 +277,8 @@ static driver_t rt1310_timer_driver = {
 
 static devclass_t rt1310_timer_devclass;
 
-DRIVER_MODULE(timer, simplebus, rt1310_timer_driver, rt1310_timer_devclass, 0, 0);
+//DRIVER_MODULE(timer, simplebus, rt1310_timer_driver, rt1310_timer_devclass, 0, 0);
+EARLY_DRIVER_MODULE(timer, simplebus, rt1310_timer_driver, rt1310_timer_devclass, 0, 0, BUS_PASS_TIMER);
 
 static int
 rt1310_hardclock(void *arg)
@@ -288,6 +290,8 @@ rt1310_hardclock(void *arg)
 
 	/* Start timer again */
 	if (!sc->lt_oneshot) {
+		timer2_write_4(sc, RT_TIMER_LOAD, sc->lt_period);
+		timer2_write_4(sc, RT_TIMER_VALUE, sc->lt_period);
 		timer2_write_4(sc, RT_TIMER_CONTROL, 0x180 );
 	}
 
