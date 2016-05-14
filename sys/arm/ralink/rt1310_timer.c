@@ -215,7 +215,7 @@ rt1310_timer_attach(device_t dev)
 	timer1_write_4(sc, RT_TIMER_LOAD, ~0);
 	timer1_write_4(sc, RT_TIMER_VALUE, ~0);
 	timer1_write_4(sc, RT_TIMER_CONTROL, 
-		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_DIV512);
+		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_PERIODCAL);
 
 	/* DELAY() now can work properly */
 	rt1310_timer_initialized = 1;
@@ -249,7 +249,7 @@ rt1310_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
 	timer2_write_4(sc, RT_TIMER_LOAD, ticks);
 	timer2_write_4(sc, RT_TIMER_VALUE, ticks);
 	timer2_write_4(sc, RT_TIMER_CONTROL, 
-		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_DIV512);
+		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTENABLE);
 
 	return (0);
 }
@@ -294,7 +294,7 @@ rt1310_hardclock(void *arg)
 		timer2_write_4(sc, RT_TIMER_LOAD, sc->lt_period);
 		timer2_write_4(sc, RT_TIMER_VALUE, sc->lt_period);
 		timer2_write_4(sc, RT_TIMER_CONTROL,
-			RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_DIV512);
+			RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTENABLE);
 	}
 
 	if (sc->lt_et.et_active)

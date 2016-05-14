@@ -62,9 +62,12 @@
 #define	RT_TIMER_VALUE			0x04
 #define	RT_TIMER_CONTROL		0x08
 
+#define RT_TIMER_CTRL_INTCTL		(1 << 1)
+#define RT_TIMER_CTRL_INTENABLE		(1 << 2)
+#define RT_TIMER_CTRL_INTMASK		(1 << 3)
 #define RT_TIMER_CTRL_DIV16		(3 << 4)
 #define RT_TIMER_CTRL_DIV256		(7 << 4)
-#define RT_TIMER_CTRL_DIV512		(8 << 4)
+#define RT_TIMER_CTRL_PERIODCAL		(1 << 7)
 #define RT_TIMER_CTRL_ENABLE		(1 << 8)
 
 #define	RT_TIMER_INTERVAL		(5000*150)
