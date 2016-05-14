@@ -26,8 +26,8 @@
  * $FreeBSD: head/sys/arm/lpc/lpcvar.h 265858 2014-05-10 21:30:19Z andrew $
  */
 
-#ifndef	_ARM_LPC_LPCVAR_H
-#define	_ARM_LPC_LPCVAR_H
+#ifndef	_ARM_RT_RTVAR_H
+#define	_ARM_RT_RTVAR_H
 
 #include <sys/types.h>
 #include <sys/bus.h>
@@ -68,4 +68,4 @@ int lpc_dmac_start_burst(device_t, int);
 
 extern uint32_t rt1310_master_clock; 
 
-#endif	/* _ARM_LPC_LPCVAR_H */
+#endif	/* _ARM_RT_RTVAR_H */
