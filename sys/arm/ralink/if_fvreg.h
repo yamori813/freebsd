@@ -11,16 +11,16 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * THIS SOFTWFV IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE FV DISCLAIMED.
  * IN NO EVENT SHALL THE AUTHOR OR HIS RELATIVES BE LIABLE FOR ANY DIRECT,
  * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
  * SERVICES; LOSS OF MIND, USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
  * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
  * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * IN ANY WAY OUT OF THE USE OF THIS SOFTWFV, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
  * $FreeBSD$
@@ -30,164 +30,15 @@
 #ifndef __IF_FVREG_H__
 #define __IF_FVREG_H__
 
-#define	FV_ETHINTFC 	0x0000	/* Ethernet interface control             */
-#define		ETH_INTFC_EN 	0x0001
-#define		ETH_INTFC_RIP 	0x0004
-#define		ETH_INTFC_EN 	0x0001
-#define	FV_ETHFIFOTT	0x0004	/* Ethernet FIFO transmit threshold       */
-#define	FV_ETHARC   	0x0008	/* Ethernet address recognition control   */
-#define	FV_ETHHASH0 	0x000C	/* Ethernet hash table 0                  */
-#define	FV_ETHHASH1 	0x0010	/* Ethernet hash table 1                  */
-#define	FV_ETHPFS   	0x0024	/* Ethernet pause frame status            */
-#define	FV_ETHMCP   	0x0028	/* Ethernet management clock prescalar    */
-#define	FV_ETHSAL0  	0x0100	/* Ethernet station address 0 low         */
-#define	FV_ETHSAH0  	0x0104	/* Ethernet station address 0 high        */
-#define	FV_ETHSAL1  	0x0108	/* Ethernet station address 1 low         */
-#define	FV_ETHSAH1  	0x010C	/* Ethernet station address 1 high        */
-#define	FV_ETHSAL2  	0x0110	/* Ethernet station address 2 low         */
-#define	FV_ETHSAH2  	0x0114	/* Ethernet station address 2 high        */
-#define	FV_ETHSAL3  	0x0118	/* Ethernet station address 3 low         */
-#define	FV_ETHSAH3  	0x011C	/* Ethernet station address 3 high        */
-#define	FV_ETHRBC   	0x0120	/* Ethernet receive byte count            */
-#define	FV_ETHRPC   	0x0124	/* Ethernet receive packet count          */
-#define	FV_ETHRUPC  	0x0128	/* Ethernet receive undersized packet cnt */
-#define	FV_ETHRFC   	0x012C	/* Ethernet receive fragment count        */
-#define	FV_ETHTBC   	0x0130	/* Ethernet transmit byte count           */
-#define	FV_ETHGPF   	0x0134	/* Ethernet generate pause frame          */
-#define	FV_ETHMAC1 	0x0200	/* Ethernet MAC configuration 1           */
-#define		FV_ETH_MAC1_RE	0x01
-#define		FV_ETH_MAC1_PAF	0x02
-#define		FV_ETH_MAC1_MR	0x80
-#define	FV_ETHMAC2 	0x0204	/* Ethernet MAC configuration 2           */
-#define		FV_ETH_MAC2_FD	0x01
-#define		FV_ETH_MAC2_FLC	0x02
-#define		FV_ETH_MAC2_HFE	0x04
-#define		FV_ETH_MAC2_DC	0x08
-#define		FV_ETH_MAC2_CEN	0x10
-#define		FV_ETH_MAC2_PEN	0x20
-#define		FV_ETH_MAC2_VPE	0x08
-#define	FV_ETHIPGT 	0x0208	/* Ethernet back-to-back inter-packet gap */
-#define	FV_ETHIPGR 	0x020C	/* Ethernet non back-to-back inter-packet gap */
-#define	FV_ETHCLRT 	0x0210	/* Ethernet collision window retry        */
-#define	FV_ETHMAXF 	0x0214	/* Ethernet maximum frame length          */
-#define	FV_ETHMTEST	0x021C	/* Ethernet MAC test                      */
-#define	FV_MIIMCFG 	0x0220	/* MII management configuration           */
-#define		FV_MIIMCFG_R	0x8000 	
-#define	FV_MIIMCMD 	0x0224	/* MII management command                 */
-#define		FV_MIIMCMD_RD 	0x01
-#define		FV_MIIMCMD_SCN 	0x02
-#define	FV_MIIMADDR	0x0228	/* MII management address                 */
-#define	FV_MIIMWTD 	0x022C	/* MII management write data              */
-#define	FV_MIIMRDD 	0x0230	/* MII management read data               */
-#define	FV_MIIMIND 	0x0234	/* MII management indicators              */
-#define		FV_MIIMIND_BSY 	0x1
-#define		FV_MIIMIND_SCN 	0x2
-#define		FV_MIIMIND_NV 	0x4
-#define	FV_ETHCFSA0	0x0240	/* Ethernet control frame station address 0   */
-#define	FV_ETHCFSA1	0x0244	/* Ethernet control frame station address 1   */
-#define	FV_ETHCFSA2	0x0248	/* Ethernet control frame station address 2   */
-
-#define	FV_ETHIPGT_HALF_DUPLEX	0x12
-#define	FV_ETHIPGT_FULL_DUPLEX	0x15
-
-#define FV_TIMEOUT	0xf000
-#define FV_MII_TIMEOUT	0xf000
-
-#define FV_RX_IRQ	40
-#define FV_TX_IRQ	41
-#define FV_RX_UND_IRQ	42
-#define FV_TX_OVR_IRQ	43
-//#define RC32434_DMA_BASE_ADDR	MIPS_PHYS_TO_KSEG1(0x18040000)
-#define RC32434_DMA_BASE_ADDR	0x00
-#define		DMA_C		0x00
-#define			DMA_C_R		0x01
-#define			DMA_C_ABORT	0x10
-#define		DMA_S		0x04
-#define			DMA_S_F		0x01
-#define			DMA_S_D		0x02
-#define			DMA_S_C		0x04
-#define			DMA_S_E		0x08
-#define			DMA_S_H		0x10
-#define		DMA_SM		0x08
-#define			DMA_SM_F	0x01
-#define			DMA_SM_D	0x02
-#define			DMA_SM_C	0x04
-#define			DMA_SM_E	0x08
-#define			DMA_SM_H	0x10
-#define		DMA_DPTR	0x0C
-#define		DMA_NDPTR	0x10
-
-#define	RC32434_DMA_CHAN_SIZE	0x14
-#define FV_DMA_RXCHAN		0
-#define FV_DMA_TXCHAN		1
-
-#define	FV_DMA_READ_REG(chan, reg) \
-	(*(volatile uint32_t *)	\
-	    (RC32434_DMA_BASE_ADDR + chan * RC32434_DMA_CHAN_SIZE + reg))
-
-#define	FV_DMA_WRITE_REG(chan, reg, val) \
-	((*(volatile uint32_t *)	\
-	    (RC32434_DMA_BASE_ADDR + chan * RC32434_DMA_CHAN_SIZE + reg)) = val)
-
-#define	FV_DMA_SETBITS_REG(chan, reg, bits) \
-	FV_DMA_WRITE_REG((chan), (reg), FV_DMA_READ_REG((chan), (reg)) | (bits))
-
-#define	FV_DMA_CLEARBITS_REG(chan, reg, bits)		\
-	FV_DMA_WRITE_REG((chan), (reg),			\
-	    FV_DMA_READ_REG((chan), (reg)) & ~(bits))
-
 struct fv_desc {
-	uint32_t	fv_ctl;
-	uint32_t	fv_ca;
+	uint32_t	fv_stat;
 	uint32_t	fv_devcs;
+	uint32_t	fv_addr;
 	uint32_t	fv_link;
 };
 
-
-#define FV_DMASIZE(len)		((len)  & ((1 << 18)-1))		
+#define FV_DMASIZE(len)		((len)  & ((1 << 11)-1))		
 #define FV_PKTSIZE(len)		((len & 0xffff0000) >> 16)
-
-#define	FV_CTL_COF	0x02000000
-#define	FV_CTL_COD	0x04000000
-#define	FV_CTL_IOF	0x08000000
-#define	FV_CTL_IOD	0x10000000
-#define	FV_CTL_T	0x20000000
-#define	FV_CTL_D	0x40000000
-#define	FV_CTL_F	0x80000000
-
-#define	FV_DMARX_DEVCS_RSV	0x00000001
-#define	FV_DMARX_DEVCS_LD	0x00000002
-#define	FV_DMARX_DEVCS_ROK	0x00000004
-#define	FV_DMARX_DEVCS_FM	0x00000008
-#define	FV_DMARX_DEVCS_MP	0x00000010
-#define	FV_DMARX_DEVCS_BP	0x00000020
-#define	FV_DMARX_DEVCS_VLT	0x00000040
-#define	FV_DMARX_DEVCS_CF	0x00000080
-#define	FV_DMARX_DEVCS_OVR	0x00000100
-#define	FV_DMARX_DEVCS_CRC	0x00000200
-#define	FV_DMARX_DEVCS_CV	0x00000400
-#define	FV_DMARX_DEVCS_DB	0x00000800
-#define	FV_DMARX_DEVCS_LE	0x00001000
-#define	FV_DMARX_DEVCS_LOR	0x00002000
-#define	FV_DMARX_DEVCS_CES	0x00004000
-
-#define	FV_DMATX_DEVCS_FD	0x00000001
-#define	FV_DMATX_DEVCS_LD	0x00000002
-#define	FV_DMATX_DEVCS_OEN	0x00000004
-#define	FV_DMATX_DEVCS_PEN	0x00000008
-#define	FV_DMATX_DEVCS_CEN	0x00000010
-#define	FV_DMATX_DEVCS_HEN	0x00000020
-#define	FV_DMATX_DEVCS_TOK	0x00000040
-#define	FV_DMATX_DEVCS_MP	0x00000080
-#define	FV_DMATX_DEVCS_BP	0x00000100
-#define	FV_DMATX_DEVCS_UND	0x00000200
-#define	FV_DMATX_DEVCS_OF	0x00000400
-#define	FV_DMATX_DEVCS_ED	0x00000800
-#define	FV_DMATX_DEVCS_EC	0x00001000
-#define	FV_DMATX_DEVCS_LC	0x00002000
-#define	FV_DMATX_DEVCS_TD	0x00004000
-#define	FV_DMATX_DEVCS_CRC	0x00008000
-#define	FV_DMATX_DEVCS_LE	0x00010000
 
 #define FV_RX_RING_CNT		128
 #define FV_TX_RING_CNT		128
@@ -247,17 +98,22 @@ struct fv_softc {
 	bus_space_handle_t	fv_bhandle;	/* bus space handle */
 	bus_space_tag_t		fv_btag;	/* bus space tag */
 	device_t		fv_dev;
+	uint8_t			fv_eaddr[ETHER_ADDR_LEN];
 	struct resource		*fv_res;
 	int			fv_rid;
-	struct resource		*fv_rx_irq;
-	void			*fv_rx_intrhand;
-	struct resource		*fv_tx_irq;
-	void			*fv_tx_intrhand;
-	struct resource		*fv_rx_und_irq;
-	void			*fv_rx_und_intrhand;
-	struct resource		*fv_tx_ovr_irq;
-	void			*fv_tx_ovr_intrhand;
+	struct resource		*fv_irq;
+	void			*fv_intrhand;
+	u_int32_t		sc_inten;	/* copy of CSR_INTEN */
+	u_int32_t		sc_rxint_mask;	/* mask of Rx interrupts we want */
+	u_int32_t		sc_txint_mask;	/* mask of Tx interrupts we want */
+#ifdef MII
 	device_t		fv_miibus;
+#else
+	struct ifmedia		fv_ifmedia;
+#endif
+#ifdef MDIO
+	device_t		fv_miiproxy;
+#endif
 	bus_dma_tag_t		fv_parent_tag;
 	bus_dma_tag_t		fv_tag;
 	struct mtx		fv_mtx;
@@ -281,5 +137,265 @@ struct fv_softc {
 
 #define CSR_READ_4(sc, reg)		\
 	bus_space_read_4(sc->fv_btag, sc->fv_bhandle, reg)
+
+
+/*	$NetBSD: aereg.h,v 1.2 2008/04/28 20:23:28 martin Exp $	*/
+
+/*-
+ * Copyright (c) 1999, 2000 The NetBSD Foundation, Inc.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to The NetBSD Foundation
+ * by Jason R. Thorpe of the Numerical Aerospace Simulation Facility,
+ * NASA Ames Research Center.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWFV IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE FV DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWFV, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * Descriptor Status bits common to transmit and receive.
+ */
+#define	ADSTAT_OWN	0x80000000	/* Tulip owns descriptor */
+#define	ADSTAT_ES	0x00008000	/* Error Summary */
+
+/*
+ * Descriptor Status bits for Receive Descriptor.
+ */
+#define	ADSTAT_Rx_FF	0x40000000	/* Filtering Fail */
+#define	ADSTAT_Rx_FL	0x3fff0000	/* Frame Length including CRC */
+#define	ADSTAT_Rx_DE	0x00004000	/* Descriptor Error */
+#define	ADSTAT_Rx_LE	0x00001000	/* Length Error */
+#define	ADSTAT_Rx_RF	0x00000800	/* Runt Frame */
+#define	ADSTAT_Rx_MF	0x00000400	/* Multicast Frame */
+#define	ADSTAT_Rx_FS	0x00000200	/* First Descriptor */
+#define	ADSTAT_Rx_LS	0x00000100	/* Last Descriptor */
+#define	ADSTAT_Rx_TL	0x00000080	/* Frame Too Long */
+#define	ADSTAT_Rx_CS	0x00000040	/* Collision Seen */
+#define	ADSTAT_Rx_RT	0x00000020	/* Frame Type */
+#define	ADSTAT_Rx_RW	0x00000010	/* Receive Watchdog */
+#define	ADSTAT_Rx_RE	0x00000008	/* Report on MII Error */
+#define	ADSTAT_Rx_DB	0x00000004	/* Dribbling Bit */
+#define	ADSTAT_Rx_CE	0x00000002	/* CRC Error */
+#define	ADSTAT_Rx_ZER	0x00000001	/* Zero (always 0) */
+
+#define	ADSTAT_Rx_LENGTH(x)	(((x) & ADSTAT_Rx_FL) >> 16)
+
+/*
+ * Descriptor Status bits for Transmit Descriptor.
+ */
+#define	ADSTAT_Tx_ES	0x00008000	/* Error Summary */
+#define	ADSTAT_Tx_TO	0x00004000	/* Transmit Jabber Timeout */
+#define	ADSTAT_Tx_LO	0x00000800	/* Loss of Carrier */
+#define	ADSTAT_Tx_NC	0x00000400	/* No Carrier */
+#define	ADSTAT_Tx_LC	0x00000200	/* Late Collision */
+#define	ADSTAT_Tx_EC	0x00000100	/* Excessive Collisions */
+#define	ADSTAT_Tx_HF	0x00000080	/* Heartbeat Fail */
+#define	ADSTAT_Tx_CC	0x00000078	/* Collision Count */
+#define	ADSTAT_Tx_ED	0x00000004	/* Excessive Deferral */
+#define	ADSTAT_Tx_UF	0x00000002	/* Underflow Error */
+#define	ADSTAT_Tx_DE	0x00000001	/* Deferred */
+
+#define	ADSTAT_Tx_COLLISIONS(x)	(((x) & ADSTAT_Tx_CC) >> 3)
+
+/*
+ * Descriptor Control bits common to transmit and receive.
+ */
+#define	ADCTL_SIZE1	0x000007ff	/* Size of buffer 1 */
+#define	ADCTL_SIZE1_SHIFT 0
+
+#define	ADCTL_SIZE2	0x003ff800	/* Size of buffer 2 */
+#define	ADCTL_SIZE2_SHIFT 11
+
+#define	ADCTL_ER	0x02000000	/* End of Ring */
+#define	ADCTL_CH	0x01000000	/* Second Address Chained */
+
+/*
+ * Descriptor Control bits for Transmit Descriptor.
+ */
+#define	ADCTL_Tx_IC	0x80000000	/* Interrupt on Completion */
+#define	ADCTL_Tx_LS	0x40000000	/* Last Segment */
+#define	ADCTL_Tx_FS	0x20000000	/* First Segment */
+#define	ADCTL_Tx_AC	0x04000000	/* Add CRC Disable */
+#define	ADCTL_Tx_DPD	0x00800000	/* Disabled Padding */
+
+/*
+ * Control registers.
+ */
+
+/* tese are registers only found on this part */
+#define	CSR_MACCTL	0x0000		/* mac control */
+#define	CSR_MACHI	0x0004
+#define	CSR_MACLO	0x0008
+#define	CSR_HTHI	0x000C		/* multicast table high */
+#define	CSR_HTLO	0x0010		/* multicast table low */
+#define	CSR_MIIADDR	0x0014		/* mii address */
+#define	CSR_MIIDATA	0x0018		/* mii data */
+#define	CSR_FLOWC	0x001C		/* flow control */
+#define	CSR_VL1		0x0020		/* vlan 1 tag */
+	
+/* these are more or less normal Tulip registers */
+#define	CSR_BUSMODE	0x1000		/* bus mode */
+#define	CSR_TXPOLL	0x1004		/* tx poll demand */
+#define	CSR_RXPOLL	0x1008		/* rx poll demand */
+#define	CSR_RXLIST	0x100C		/* rx base descriptor address */
+#define	CSR_TXLIST	0x1010		/* tx base descriptor address */
+#define	CSR_STATUS	0x1014		/* (interrupt) status */
+#define	CSR_OPMODE	0x1018		/* operation mode */
+#define	CSR_INTEN	0x101C		/* interrupt enable */
+#define	CSR_MISSED	0x1020		/* missed frame counter */
+#define	CSR_HTBA	0x1050		/* host tx buffer address (ro) */
+#define	CSR_HRBA	0x1054		/* host rx buffer address (ro) */
+
+/* CSR_MACCTL - Mac Control */
+#define	MACCTL_RE		0x00000004	/* rx enable */
+#define	MACCTL_TE		0x00000008	/* tx enable */
+#define	MACCTL_DC		0x00000020	/* deferral check */
+#define	MACCTL_PSTR		0x00000100	/* automatic pad strip */
+#define	MACCTL_DTRY		0x00000400	/* disable retry */
+#define	MACCTL_DBF		0x00000800	/* disable broadcast frames */
+#define	MACCTL_LCC		0x00001000	/* late collision control */
+#define	MACCTL_HASH		0x00002000	/* hash filtering enable */
+#define	MACCTL_HO		0x00008000	/* disable perfect filtering */
+#define	MACCTL_PB		0x00010000	/* pass bad frames */
+#define	MACCTL_IF		0x00020000	/* inverse filtering */
+#define	MACCTL_PR		0x00040000	/* promiscuous mode */
+#define	MACCTL_PM		0x00080000	/* pass all multicast */
+#define	MACCTL_FDX		0x00100000	/* full duplex mode */
+#define	MACCTL_LOOP		0x00600000	/* loopback mask */
+#define	MACCTL_LOOP_INT		0x00200000	/* internal loopback */
+#define	MACCTL_LOOP_EXT		0x00400000	/* external loopback */
+#define	MACCTL_LOOP_NONE	0x00000000
+#define	MACCTL_DRO		0x00800000	/* disable receive own */
+#define	MACCTL_PS		0x08000000	/* port select, 0 = mii */
+#define	MACCTL_HBD		0x10000000	/* heartbeat disable */
+#define	MACCTL_BLE		0x40000000	/* mac big endian */
+#define	MACCTL_RA		0x80000000	/* receive all packets */
+
+/* CSR_MIIADDR - MII Addess */
+#define	MIIADDR_BUSY		0x00000001	/* mii busy */
+#define	MIIADDR_WRITE		0x00000002	/* mii write */
+#define	MIIADDR_REG_MASK	0x000007C0	/* mii register */
+#define	MIIADDR_REG_SHIFT	6
+#define	MIIADDR_PHY_MASK	0x0000F800	/* mii phy */
+#define	MIIADDR_PHY_SHIFT	11
+
+#define	MIIADDR_GETREG(x)	(((x) & MIIADDR_REG) >> 6)
+#define	MIIADDR_PUTREG(x)	(((x) << 6) & MIIADR_REG)
+#define	MIIADDR_GETPHY(x)	(((x) & MIIADDR_PHY) >> 11)
+#define	MIIADDR_PUTPHY(x)	(((x) << 6) & MIIADR_PHY)
+
+/* CSR_FLOWC - Flow Control */
+#define	FLOWC_FCB		0x00000001	/* flow control busy */
+#define	FLOWC_FCE		0x00000002	/* flow control enable */
+#define	FLOWC_PCF		0x00000004	/* pass control frames */
+#define	FLOWC_PT		0xffff0000	/* pause time */
+
+/* CSR_BUSMODE - Bus Mode */
+#define	BUSMODE_SWR		0x00000001	/* software reset */
+#define	BUSMODE_BAR		0x00000002	/* bus arbitration */
+#define	BUSMODE_DSL		0x0000007c	/* descriptor skip length */
+#define	BUSMODE_BLE		0x00000080	/* data buf endian */
+						/* programmable burst length */
+#define	BUSMODE_PBL_DEFAULT	0x00000000	/*     default value */
+#define	BUSMODE_PBL_1LW		0x00000100	/*     1 longword */
+#define	BUSMODE_PBL_2LW		0x00000200	/*     2 longwords */
+#define	BUSMODE_PBL_4LW		0x00000400	/*     4 longwords */
+#define	BUSMODE_PBL_8LW		0x00000800	/*     8 longwords */
+#define	BUSMODE_PBL_16LW	0x00001000	/*    16 longwords */
+#define	BUSMODE_PBL_32LW	0x00002000	/*    32 longwords */
+#define	BUSMODE_DBO		0x00100000	/* descriptor endian */
+#define	BUSMODE_ALIGN_16B	0x01000000	/* force oddhw rx buf align */
+
+/* CSR_TXPOLL - Transmit Poll Demand */
+#define	TXPOLL_TPD		0x00000001	/* transmit poll demand */
+
+
+/* CSR_RXPOLL - Receive Poll Demand */
+#define	RXPOLL_RPD		0x00000001	/* receive poll demand */
+
+/* CSR_STATUS - Status */
+#define	STATUS_TI		0x00000001	/* transmit interrupt */
+#define	STATUS_TPS		0x00000002	/* transmit process stopped */
+#define	STATUS_TU		0x00000004	/* transmit buffer unavail */
+#define	STATUS_TJT		0x00000008	/* transmit jabber timeout */
+#define	STATUS_UNF		0x00000020	/* transmit underflow */
+#define	STATUS_RI		0x00000040	/* receive interrupt */
+#define	STATUS_RU		0x00000080	/* receive buffer unavail */
+#define	STATUS_RPS		0x00000100	/* receive process stopped */
+#define	STATUS_ETI		0x00000400	/* early transmit interrupt */
+#define	STATUS_SE		0x00002000	/* system error */
+#define	STATUS_ER		0x00004000	/* early receive (21041) */
+#define	STATUS_AIS		0x00008000	/* abnormal intr summary */
+#define	STATUS_NIS		0x00010000	/* normal interrupt summary */
+#define	STATUS_RS		0x000e0000	/* receive process state */
+#define	STATUS_RS_STOPPED	0x00000000	/* Stopped */
+#define	STATUS_RS_FETCH		0x00020000	/* Running - fetch receive
+						   descriptor */
+#define	STATUS_RS_CHECK		0x00040000	/* Running - check for end
+						   of receive */
+#define	STATUS_RS_WAIT		0x00060000	/* Running - wait for packet */
+#define	STATUS_RS_SUSPENDED	0x00080000	/* Suspended */
+#define	STATUS_RS_CLOSE		0x000a0000	/* Running - close receive
+						   descriptor */
+#define	STATUS_RS_FLUSH		0x000c0000	/* Running - flush current
+						   frame from FIFO */
+#define	STATUS_RS_QUEUE		0x000e0000	/* Running - queue current
+						   frame from FIFO into
+						   buffer */
+#define	STATUS_TS		0x00700000	/* transmit process state */
+#define	STATUS_TS_STOPPED	0x00000000	/* Stopped */
+#define	STATUS_TS_FETCH		0x00100000	/* Running - fetch transmit
+						   descriptor */
+#define	STATUS_TS_WAIT		0x00200000	/* Running - wait for end
+						   of transmission */
+#define	STATUS_TS_READING	0x00300000	/* Running - read buffer from
+						   memory and queue into
+						   FIFO */
+#define	STATUS_TS_SUSPENDED	0x00600000	/* Suspended */
+#define	STATUS_TS_CLOSE		0x00700000	/* Running - close transmit
+						   descriptor */
+#define	STATUS_TX_ABORT		0x00800000	/* Transmit bus abort */
+#define	STATUS_RX_ABORT		0x01000000	/* Transmit bus abort */
+
+/* CSR_OPMODE - Operation Mode */
+#define	OPMODE_SR		0x00000002	/* start receive */
+#define	OPMODE_OSF		0x00000004	/* operate on second frame */
+#define	OPMODE_ST		0x00002000	/* start transmitter */
+#define	OPMODE_TR		0x0000c000	/* threshold control */
+#define	OPMODE_TR_32		0x00000000	/*     32 words */
+#define	OPMODE_TR_64		0x00004000	/*     64 words */
+#define	OPMODE_TR_128		0x00008000	/*    128 words */
+#define	OPMODE_TR_256		0x0000c000	/*    256 words */
+#define	OPMODE_SF		0x00200000	/* store and forward mode */
+
+/* CSR_INTEN - Interrupt Enable */
+	/* See bits for CSR_STATUS -- Status */
+
+
+/* CSR_MISSED - Missed Frames */
+#define	MISSED_MFC		0xffff0000	/* missed packet count */
+#define	MISSED_FOC		0x0000ffff	/* fifo overflow counter */
+
+#define	MISSED_GETMFC(x)	((x) & MISSED_MFC)
+#define	MISSED_GETFOC(x)	(((x) & MISSED_FOC) >> 16)
 
 #endif /* __IF_FVREG_H__ */
