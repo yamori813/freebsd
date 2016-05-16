@@ -105,6 +105,8 @@ static int rt1310_hardclock(void *);
 	    timer1_write_4(sc, RT_TIMER_VALUE, 0);	\
     } while(0)
 
+#define	timer2_read_4(sc, reg)			\
+    bus_space_read_4(sc->lt_bst1, sc->lt_bsh2, reg)
 #define	timer2_write_4(sc, reg, val)		\
     bus_space_write_4(sc->lt_bst2, sc->lt_bsh2, reg, val)
 #define	timer3_write_4(sc, reg, val)		\
@@ -249,7 +251,7 @@ rt1310_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
 	timer2_write_4(sc, RT_TIMER_LOAD, ticks);
 	timer2_write_4(sc, RT_TIMER_VALUE, ticks);
 	timer2_write_4(sc, RT_TIMER_CONTROL, 
-		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTENABLE);
+		RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTCTL);
 
 	return (0);
 }
@@ -287,14 +289,17 @@ rt1310_hardclock(void *arg)
 	struct rt1310_timer_softc *sc = (struct rt1310_timer_softc *)arg;
 
 	/* Reset pending interrupt */
-//	timer0_write_4(sc, LPC_TIMER_IR, 0xffffffff);
+	timer2_write_4(sc, RT_TIMER_CONTROL, 
+	    timer2_read_4(sc, RT_TIMER_CONTROL) | 0x08);
+	timer2_write_4(sc, RT_TIMER_CONTROL, 
+	    timer2_read_4(sc, RT_TIMER_CONTROL) & 0x1fb);
 
 	/* Start timer again */
 	if (!sc->lt_oneshot) {
 		timer2_write_4(sc, RT_TIMER_LOAD, sc->lt_period);
 		timer2_write_4(sc, RT_TIMER_VALUE, sc->lt_period);
 		timer2_write_4(sc, RT_TIMER_CONTROL,
-			RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTENABLE);
+			RT_TIMER_CTRL_ENABLE | RT_TIMER_CTRL_INTCTL);
 	}
 
 	if (sc->lt_et.et_active)

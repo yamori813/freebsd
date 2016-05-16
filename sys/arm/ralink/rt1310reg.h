@@ -63,7 +63,7 @@
 #define	RT_TIMER_CONTROL		0x08
 
 #define RT_TIMER_CTRL_INTCTL		(1 << 1)
-#define RT_TIMER_CTRL_INTENABLE		(1 << 2)
+#define RT_TIMER_CTRL_INTCLR		(1 << 2)
 #define RT_TIMER_CTRL_INTMASK		(1 << 3)
 #define RT_TIMER_CTRL_DIV16		(3 << 4)
 #define RT_TIMER_CTRL_DIV256		(7 << 4)

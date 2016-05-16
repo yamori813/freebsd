@@ -95,7 +95,7 @@ void
 platform_late_init(void)
 {
 	bootverbose = 1;
-	boothowto |= (RB_SINGLE);
+//	boothowto |= (RB_SINGLE);
 }
 
 /*
