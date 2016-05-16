@@ -84,6 +84,10 @@ struct fv_chain_data {
 	int			fv_tx_cons;
 	int			fv_tx_cnt;
 	int			fv_rx_cons;
+
+	bus_dma_tag_t		fv_sf_tag;
+	bus_dmamap_t		fv_sf_buff_map;
+	uint32_t		*fv_sf_buff;
 };
 
 struct fv_ring_data {
@@ -91,6 +95,7 @@ struct fv_ring_data {
 	struct fv_desc		*fv_tx_ring;
 	bus_addr_t		fv_rx_ring_paddr;
 	bus_addr_t		fv_tx_ring_paddr;
+	bus_addr_t		fv_sf_paddr;
 };
 
 struct fv_softc {
@@ -117,6 +122,7 @@ struct fv_softc {
 	bus_dma_tag_t		fv_parent_tag;
 	bus_dma_tag_t		fv_tag;
 	struct mtx		fv_mtx;
+	phandle_t		fv_ofw;
 	struct callout		fv_stat_callout;
 	struct task		fv_link_task;
 	struct fv_chain_data	fv_cdata;
@@ -234,6 +240,7 @@ struct fv_softc {
 #define	ADCTL_Tx_IC	0x80000000	/* Interrupt on Completion */
 #define	ADCTL_Tx_LS	0x40000000	/* Last Segment */
 #define	ADCTL_Tx_FS	0x20000000	/* First Segment */
+#define	ADCTL_Tx_SETUP	0x08000000	/* Setup frame */
 #define	ADCTL_Tx_AC	0x04000000	/* Add CRC Disable */
 #define	ADCTL_Tx_DPD	0x00800000	/* Disabled Padding */
 
@@ -242,6 +249,7 @@ struct fv_softc {
  */
 
 /* tese are registers only found on this part */
+#ifdef NOTUSE
 #define	CSR_MACCTL	0x0000		/* mac control */
 #define	CSR_MACHI	0x0004
 #define	CSR_MACLO	0x0008
@@ -251,19 +259,26 @@ struct fv_softc {
 #define	CSR_MIIDATA	0x0018		/* mii data */
 #define	CSR_FLOWC	0x001C		/* flow control */
 #define	CSR_VL1		0x0020		/* vlan 1 tag */
+#endif
 	
 /* these are more or less normal Tulip registers */
-#define	CSR_BUSMODE	0x1000		/* bus mode */
-#define	CSR_TXPOLL	0x1004		/* tx poll demand */
-#define	CSR_RXPOLL	0x1008		/* rx poll demand */
-#define	CSR_RXLIST	0x100C		/* rx base descriptor address */
-#define	CSR_TXLIST	0x1010		/* tx base descriptor address */
-#define	CSR_STATUS	0x1014		/* (interrupt) status */
-#define	CSR_OPMODE	0x1018		/* operation mode */
-#define	CSR_INTEN	0x101C		/* interrupt enable */
-#define	CSR_MISSED	0x1020		/* missed frame counter */
+#define	CSR_BUSMODE	(0x08*0)	/* bus mode */
+#define	CSR_TXPOLL	(0x08*1)	/* tx poll demand */
+#define	CSR_RXPOLL	(0x08*2)	/* rx poll demand */
+#define	CSR_RXLIST	(0x08*3)	/* rx base descriptor address */
+#define	CSR_TXLIST	(0x08*4)	/* tx base descriptor address */
+#define	CSR_STATUS	(0x08*5)	/* (interrupt) status */
+#define	CSR_OPMODE	(0x08*6)	/* operation mode */
+#define	CSR_INTEN	(0x08*7)	/* interrupt enable */
+#define	CSR_MISSED	(0x08*8)	/* missed frame counter */
+
+#ifdef NOTUSE
 #define	CSR_HTBA	0x1050		/* host tx buffer address (ro) */
 #define	CSR_HRBA	0x1054		/* host rx buffer address (ro) */
+#endif
+
+#define	CSR_MIIMNG	(0x08*9)	/* MII Management Register */
+#define	CSR_FULLDUP	(0x08*11)	/* Full Duplex Register */
 
 /* CSR_MACCTL - Mac Control */
 #define	MACCTL_RE		0x00000004	/* rx enable */
@@ -397,5 +412,8 @@ struct fv_softc {
 
 #define	MISSED_GETMFC(x)	((x) & MISSED_MFC)
 #define	MISSED_GETFOC(x)	(((x) & MISSED_FOC) >> 16)
+
+#define FV_SFRAME_LEN		192
+#define FV_MIN_FRAMELEN		60
 
 #endif /* __IF_FVREG_H__ */

@@ -75,15 +75,15 @@
 			reg = <0x0 0x400000>;		// 4M at 0x1f000000
 
 			partition@0 {
-				reg = <0x0 0x10000>;
+				reg = <0x00000000 0x00010000>;
 				label = "boot";
 			};
 			partition@1 {
-				reg = <0x10000 0xf0000>;
+				reg = <0x00010000 0x000f0000>;
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x100000 0x002d0000>;
+				reg = <0x00100000 0x002d0000>;
 				label = "rootfs";
 			};
 		};
@@ -102,6 +102,44 @@
 			#interrupt-cells = <1>;
 			reg = <0x40000 0x20000>;
 			compatible = "rt,pic";
+		};
+
+		fv_mac0@80000 {
+			compatible = "fv,ethernet";
+			reg = <0x80000 0x20000>;
+			interrupts = <7>;
+			interrupt-parent = <&PIC>;	
+			local-mac-address = [ 00 1a f1 01 1f 23 ];
+
+			mdio@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "lpc,mdio";
+
+				phy0: ethernet-phy@0 {
+					reg = <0x0>;
+                        	};
+			};
+
+		};
+
+		fv_mac1@A0000 {
+			compatible = "fv,ethernet";
+			reg = <0xA0000 0x20000>;
+			interrupts = <8>;
+			interrupt-parent = <&PIC>;	
+			local-mac-address = [ 00 1a f1 01 1f 24 ];
+
+			mdio@1 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "lpc,mdio";
+
+				phy1: ethernet-phy@0 {
+					reg = <0x0>;
+                        	};
+			};
+
 		};
 
 	};

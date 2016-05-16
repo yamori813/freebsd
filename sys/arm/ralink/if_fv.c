@@ -32,7 +32,7 @@
 __FBSDID("$FreeBSD$");
 
 /*
- * AR231x Ethernet interface driver
+ * FV Ethernet interface driver
  * copy from mips/idt/if_kr.c and netbsd code
  */
 #include <sys/param.h>
@@ -58,6 +58,9 @@ __FBSDID("$FreeBSD$");
 
 #include <net/bpf.h>
 
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>                                              
+
 #include <machine/bus.h>
 #include <machine/resource.h>
 #include <sys/bus.h>
@@ -79,7 +82,7 @@ MODULE_DEPEND(are, miibus, 1, 1, 1);
 
 #include <arm/ralink/if_fvreg.h>
 
-//#define FV_DEBUG
+#define FV_DEBUG
 
 #ifdef FV_DEBUG
 void dump_txdesc(struct fv_softc *, int);
@@ -121,6 +124,8 @@ static __inline void fv_fixup_rx(struct mbuf *);
 
 static void fv_hinted_child(device_t bus, const char *dname, int dunit);
 
+static void fv_setfilt(struct fv_softc *sc);
+
 static device_method_t fv_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		fv_probe),
@@ -143,16 +148,16 @@ static device_method_t fv_methods[] = {
 };
 
 static driver_t fv_driver = {
-	"are",
+	"fv",
 	fv_methods,
 	sizeof(struct fv_softc)
 };
 
 static devclass_t fv_devclass;
 
-DRIVER_MODULE(are, nexus, fv_driver, fv_devclass, 0, 0);
+DRIVER_MODULE(fv, simplebus, fv_driver, fv_devclass, 0, 0);
 #ifdef MII
-DRIVER_MODULE(miibus, are, miibus_driver, miibus_devclass, 0, 0);
+DRIVER_MODULE(miibus, fv, miibus_driver, miibus_devclass, 0, 0);
 #endif
 
 #ifdef MDIO
@@ -186,13 +191,53 @@ DRIVER_MODULE(aremdio, nexus, aremdio_driver, aremdio_devclass, 0, 0);
 DRIVER_MODULE(mdio, aremdio, mdio_driver, mdio_devclass, 0, 0);
 #endif
 
+static void
+fv_setfilt(struct fv_softc *sc)
+{
+	uint16_t eaddr[(ETHER_ADDR_LEN+1)/2];
+	struct fv_desc *sframe;
+	int i;
+	struct ifnet *ifp;
+	uint16_t *sp;
+
+	ifp = sc->fv_ifp;
+
+	i = sc->fv_cdata.fv_tx_prod;
+	FV_INC(sc->fv_cdata.fv_tx_prod, FV_TX_RING_CNT);
+	sc->fv_cdata.fv_tx_cnt++;
+	sframe = &sc->fv_rdata.fv_tx_ring[i];
+	sp = (uint16_t *)sc->fv_cdata.fv_sf_buff;
+	memset(sp, 0xff, FV_SFRAME_LEN);
+	
+	sframe->fv_addr = sc->fv_rdata.fv_sf_paddr;
+	sframe->fv_devcs = ADCTL_Tx_SETUP | FV_DMASIZE(FV_SFRAME_LEN);
+
+	bcopy(IF_LLADDR(sc->fv_ifp), eaddr, ETHER_ADDR_LEN);
+	sp[90] = sp[91] = eaddr[0];
+	sp[92] = sp[93] = eaddr[1];
+	sp[94] = sp[95] = eaddr[2];
+
+	sframe->fv_stat = ADSTAT_OWN;
+	bus_dmamap_sync(sc->fv_cdata.fv_tx_ring_tag,
+	    sc->fv_cdata.fv_tx_ring_map, BUS_DMASYNC_PREWRITE);
+	bus_dmamap_sync(sc->fv_cdata.fv_sf_tag,
+	    sc->fv_cdata.fv_sf_buff_map, BUS_DMASYNC_PREWRITE);
+	CSR_WRITE_4(sc, CSR_TXPOLL, 0xFFFFFFFF);
+	DELAY(10000);
+}
 
 static int 
 fv_probe(device_t dev)
 {
 
-	device_set_desc(dev, "AR231x Ethernet interface");
-	return (0);
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "fv,ethernet"))
+		return (ENXIO);
+
+	device_set_desc(dev, "FV Ethernet interface");
+	return (BUS_PROBE_DEFAULT);
 }
 
 static int
@@ -202,42 +247,22 @@ fv_attach(device_t dev)
 	struct fv_softc		*sc;
 	int			error = 0, rid;
 	int			unit;
-	char *			local_macstr;
-	int			count;
 	int			i;
 
 	sc = device_get_softc(dev);
 	unit = device_get_unit(dev);
 	sc->fv_dev = dev;
+	sc->fv_ofw = ofw_bus_get_node(dev); 
 
-	// hardcode macaddress
-	sc->fv_eaddr[0] = 0x00;
-	sc->fv_eaddr[1] = 0x0C;
-	sc->fv_eaddr[2] = 0x42;
-	sc->fv_eaddr[3] = 0x09;
-	sc->fv_eaddr[4] = 0x5E;
-	sc->fv_eaddr[5] = 0x6B;
-
-	// try to get from hints
-	if (!resource_string_value(device_get_name(dev),
-		device_get_unit(dev), "macaddr", (const char **)&local_macstr)) {
-		uint32_t tmpmac[ETHER_ADDR_LEN];
-
-		/* Have a MAC address; should use it */
-		device_printf(dev, "Overriding MAC address from environment: '%s'\n",
-		    local_macstr);
-
-		/* Extract out the MAC address */
-		/* XXX this should all be a generic method */
-		count = sscanf(local_macstr, "%x%*c%x%*c%x%*c%x%*c%x%*c%x",
-		    &tmpmac[0], &tmpmac[1],
-		    &tmpmac[2], &tmpmac[3],
-		    &tmpmac[4], &tmpmac[5]);
-		if (count == 6) {
-			/* Valid! */
-			for (i = 0; i < ETHER_ADDR_LEN; i++)
-				sc->fv_eaddr[i] = tmpmac[i];
-		}
+	i = OF_getprop(sc->fv_ofw, "local-mac-address", (void *)&sc->fv_eaddr, 6);
+	if (i != 6) {
+		// hardcode macaddress
+		sc->fv_eaddr[0] = 0x00;
+		sc->fv_eaddr[1] = 0x0C;
+		sc->fv_eaddr[2] = 0x42;
+		sc->fv_eaddr[3] = 0x09;
+		sc->fv_eaddr[4] = 0x5E;
+		sc->fv_eaddr[5] = 0x6B;
 	}
 
 	mtx_init(&sc->fv_mtx, device_get_nameunit(dev), MTX_NETWORK_LOCK,
@@ -423,6 +448,7 @@ fv_shutdown(device_t dev)
 static int
 fv_miibus_readreg(device_t dev, int phy, int reg)
 {
+#if 0
 	struct fv_softc * sc = device_get_softc(dev);
 	uint32_t	addr;
 	int		i;
@@ -436,11 +462,14 @@ fv_miibus_readreg(device_t dev, int phy, int reg)
 	}
 
 	return (CSR_READ_4(sc, CSR_MIIDATA) & 0xffff);
+#endif
+	return (0);
 }
 
 static int
 fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
+#if 0
 	struct fv_softc * sc = device_get_softc(dev);
 	uint32_t	addr;
 	int		i;
@@ -458,6 +487,7 @@ fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 		if ((CSR_READ_4(sc, CSR_MIIADDR) & MIIADDR_BUSY) == 0)
 			break;
 	}
+#endif
 
 	return (0);
 }
@@ -575,7 +605,8 @@ fv_init_locked(struct fv_softc *sc)
 	CSR_WRITE_4(sc, CSR_BUSMODE,
 	    /* XXX: not sure if this is a good thing or not... */
 	    //BUSMODE_ALIGN_16B |
-	    BUSMODE_BAR | BUSMODE_BLE | BUSMODE_PBL_4LW);
+//	    BUSMODE_BAR | BUSMODE_BLE | BUSMODE_PBL_4LW);
+	    BUSMODE_BAR | BUSMODE_PBL_4LW);
 
 	/*
 	 * Initialize the interrupt mask and enable interrupts.
@@ -605,15 +636,16 @@ fv_init_locked(struct fv_softc *sc)
 	/*
 	 * Set the station address.
 	 */
-	CSR_WRITE_4(sc, CSR_MACHI, sc->fv_eaddr[5] << 16 | sc->fv_eaddr[4]);
-	CSR_WRITE_4(sc, CSR_MACLO, sc->fv_eaddr[3] << 24 |
-	    sc->fv_eaddr[2] << 16 | sc->fv_eaddr[1] << 8 | sc->fv_eaddr[0]);
+//	CSR_WRITE_4(sc, CSR_MACHI, sc->fv_eaddr[5] << 16 | sc->fv_eaddr[4]);
+//	CSR_WRITE_4(sc, CSR_MACLO, sc->fv_eaddr[3] << 24 |
+//	    sc->fv_eaddr[2] << 16 | sc->fv_eaddr[1] << 8 | sc->fv_eaddr[0]);
+	fv_setfilt(sc);
 
 	/*
 	 * Start the mac.
 	 */
-	CSR_WRITE_4(sc, CSR_MACCTL, CSR_READ_4(sc, CSR_MACCTL) | 
-	    (MACCTL_RE | MACCTL_TE));
+//	CSR_WRITE_4(sc, CSR_MACCTL, CSR_READ_4(sc, CSR_MACCTL) | 
+//	    (MACCTL_RE | MACCTL_TE));
 
 	/*
 	 * Write out the opmode.
@@ -809,8 +841,8 @@ fv_stop(struct fv_softc *sc)
 	CSR_WRITE_4(sc, CSR_OPMODE, 0);
 	CSR_WRITE_4(sc, CSR_RXLIST, 0);
 	CSR_WRITE_4(sc, CSR_TXLIST, 0);
-	CSR_WRITE_4(sc, CSR_MACCTL, 
-	    CSR_READ_4(sc, CSR_MACCTL) & ~(MACCTL_TE | MACCTL_RE));
+//	CSR_WRITE_4(sc, CSR_MACCTL, 
+//	    CSR_READ_4(sc, CSR_MACCTL) & ~(MACCTL_TE | MACCTL_RE));
 
 }
 
@@ -1057,6 +1089,24 @@ fv_dma_alloc(struct fv_softc *sc)
 		goto fail;
 	}
 
+	/* Create tag for setup frame buffers. */
+	error = bus_dma_tag_create(
+	    sc->fv_cdata.fv_parent_tag,	/* parent */
+	    sizeof(uint32_t), 0,	/* alignment, boundary */
+	    BUS_SPACE_MAXADDR,		/* lowaddr */
+	    BUS_SPACE_MAXADDR,		/* highaddr */
+	    NULL, NULL,			/* filter, filterarg */
+	    FV_SFRAME_LEN + FV_MIN_FRAMELEN,			/* maxsize */
+	    1,				/* nsegments */
+	    FV_SFRAME_LEN + FV_MIN_FRAMELEN,			/* maxsegsize */
+	    0,				/* flags */
+	    NULL, NULL,			/* lockfunc, lockarg */
+	    &sc->fv_cdata.fv_sf_tag);
+	if (error != 0) {
+		device_printf(sc->fv_dev, "failed to create setup frame DMA tag\n");
+		goto fail;
+	}
+
 	/* Allocate DMA'able memory and load the DMA map for Tx ring. */
 	error = bus_dmamem_alloc(sc->fv_cdata.fv_tx_ring_tag,
 	    (void **)&sc->fv_rdata.fv_tx_ring, BUS_DMA_WAITOK |
@@ -1098,6 +1148,27 @@ fv_dma_alloc(struct fv_softc *sc)
 		goto fail;
 	}
 	sc->fv_rdata.fv_rx_ring_paddr = ctx.fv_busaddr;
+
+	/* Allocate DMA'able memory and load the DMA map for setup frame. */
+	error = bus_dmamem_alloc(sc->fv_cdata.fv_sf_tag,
+	    (void **)&sc->fv_cdata.fv_sf_buff, BUS_DMA_WAITOK |
+	    BUS_DMA_COHERENT | BUS_DMA_ZERO, &sc->fv_cdata.fv_sf_buff_map);
+	if (error != 0) {
+		device_printf(sc->fv_dev,
+		    "failed to allocate DMA'able memory for setup frame\n");
+		goto fail;
+	}
+
+	ctx.fv_busaddr = 0;
+	error = bus_dmamap_load(sc->fv_cdata.fv_sf_tag,
+	    sc->fv_cdata.fv_sf_buff_map, sc->fv_cdata.fv_sf_buff,
+	    FV_SFRAME_LEN, fv_dmamap_cb, &ctx, 0);
+	if (error != 0 || ctx.fv_busaddr == 0) {
+		device_printf(sc->fv_dev,
+		    "failed to load DMA'able memory for setup frame\n");
+		goto fail;
+	}
+	sc->fv_rdata.fv_sf_paddr = ctx.fv_busaddr;
 
 	/* Create DMA maps for Tx buffers. */
 	for (i = 0; i < FV_TX_RING_CNT; i++) {
@@ -1530,6 +1601,7 @@ fv_intr(void *arg)
 	if (status & sc->sc_txint_mask) {
 		fv_tx(sc);
 	}
+	CSR_WRITE_4(sc, CSR_FULLDUP, 0x8b240000);
 
 	/* Try to get more packets going. */
 	fv_start(ifp);
@@ -1588,7 +1660,7 @@ dump_txdesc(struct fv_softc *sc, int pos)
 
 	desc = &sc->fv_rdata.fv_tx_ring[pos];
 	device_printf(sc->fv_dev, "CSR_TXLIST %08x\n", CSR_READ_4(sc, CSR_TXLIST));
-	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
+//	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
 	device_printf(sc->fv_dev, "%d TDES0:%08x TDES1:%08x TDES2:%08x TDES3:%08x\n",
 	    pos, desc->fv_stat, desc->fv_devcs, desc->fv_addr, desc->fv_link);
 }
@@ -1600,7 +1672,7 @@ dump_status_reg(struct fv_softc *sc)
 
 	/* mask out interrupts */
 
-	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
+//	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
 	status = CSR_READ_4(sc, CSR_STATUS);
 	device_printf(sc->fv_dev, "CSR5 Status Register EB:%d TS:%d RS:%d NIS:%d AIS:%d ER:%d SE:%d LNF:%d TM:%d RWT:%d RPS:%d RU:%d RI:%d UNF:%d LNP/ANC:%d TJT:%d TU:%d TPS:%d TI:%d\n", 
 	    (status >> 23 ) & 7,
