@@ -79,11 +79,11 @@
 				label = "boot";
 			};
 			partition@1 {
-				reg = <0x00010000 0x000f0000>;
+				reg = <0x00010000 0x00100000>;
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x00100000 0x002d0000>;
+				reg = <0x00110000 0x002d0000>;
 				label = "rootfs";
 			};
 		};
@@ -102,6 +102,13 @@
 			#interrupt-cells = <1>;
 			reg = <0x40000 0x20000>;
 			compatible = "rt,pic";
+		};
+
+		fvmdio@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fv,mdio";
+			reg = <0x80000 0x20000>;
 		};
 
 		fv_mac0@80000 {

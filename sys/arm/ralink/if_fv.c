@@ -69,6 +69,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
+#define MDIO
+
 #ifdef MDIO
 #include <dev/mdio/mdio.h>
 #include <dev/etherswitch/miiproxy.h>
@@ -82,7 +84,7 @@ MODULE_DEPEND(are, miibus, 1, 1, 1);
 
 #include <arm/ralink/if_fvreg.h>
 
-#define FV_DEBUG
+//#define FV_DEBUG
 
 #ifdef FV_DEBUG
 void dump_txdesc(struct fv_softc *, int);
@@ -161,18 +163,18 @@ DRIVER_MODULE(miibus, fv, miibus_driver, miibus_devclass, 0, 0);
 #endif
 
 #ifdef MDIO
-static int aremdio_probe(device_t);
-static int aremdio_attach(device_t);
-static int aremdio_detach(device_t);
+static int fvmdio_probe(device_t);
+static int fvmdio_attach(device_t);
+static int fvmdio_detach(device_t);
 
 /*
  * Declare an additional, separate driver for accessing the MDIO bus.
  */
-static device_method_t aremdio_methods[] = {
+static device_method_t fvmdio_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe,		aremdio_probe),
-	DEVMETHOD(device_attach,	aremdio_attach),
-	DEVMETHOD(device_detach,	aremdio_detach),
+	DEVMETHOD(device_probe,		fvmdio_probe),
+	DEVMETHOD(device_attach,	fvmdio_attach),
+	DEVMETHOD(device_detach,	fvmdio_detach),
 
 	/* bus interface */
 	DEVMETHOD(bus_add_child,	device_add_child_ordered),
@@ -182,14 +184,16 @@ static device_method_t aremdio_methods[] = {
 	DEVMETHOD(mdio_writereg,	fv_miibus_writereg),
 };
 
-DEFINE_CLASS_0(aremdio, aremdio_driver, aremdio_methods,
+DEFINE_CLASS_0(fvmdio, fvmdio_driver, fvmdio_methods,
     sizeof(struct fv_softc));
-static devclass_t aremdio_devclass;
+static devclass_t fvmdio_devclass;
 
-DRIVER_MODULE(miiproxy, are, miiproxy_driver, miiproxy_devclass, 0, 0);
-DRIVER_MODULE(aremdio, nexus, aremdio_driver, aremdio_devclass, 0, 0);
-DRIVER_MODULE(mdio, aremdio, mdio_driver, mdio_devclass, 0, 0);
+DRIVER_MODULE(miiproxy, fv, miiproxy_driver, miiproxy_devclass, 0, 0);
+DRIVER_MODULE(fvmdio, simplebus, fvmdio_driver, fvmdio_devclass, 0, 0);
+DRIVER_MODULE(mdio, fvmdio, mdio_driver, mdio_devclass, 0, 0);
 #endif
+
+/* setup frame code refer dc code */
 
 static void
 fv_setfilt(struct fv_softc *sc)
@@ -273,7 +277,7 @@ fv_attach(device_t dev)
 	/* Map control/status registers. */
 	sc->fv_rid = 0;
 	sc->fv_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &sc->fv_rid, 
-	    RF_ACTIVE);
+	    RF_ACTIVE | RF_SHAREABLE);
 
 	if (sc->fv_res == NULL) {
 		device_printf(dev, "couldn't map memory\n");
@@ -446,48 +450,78 @@ fv_shutdown(device_t dev)
 }
 
 static int
-fv_miibus_readreg(device_t dev, int phy, int reg)
+fv_miibus_readbits(struct fv_softc *sc, int count)
 {
-#if 0
-	struct fv_softc * sc = device_get_softc(dev);
-	uint32_t	addr;
-	int		i;
+	int result;
 
-	addr = (phy << MIIADDR_PHY_SHIFT) | (reg << MIIADDR_REG_SHIFT);
-	CSR_WRITE_4(sc, CSR_MIIADDR, addr);
-//	AE_BARRIER(sc);
-	for (i = 0; i < 100000000; i++) {
-		if ((CSR_READ_4(sc, CSR_MIIADDR) & MIIADDR_BUSY) == 0)
-			break;
+	result = 0;
+	while(count--) {
+		result <<= 1;
+		CSR_WRITE_4(sc, CSR_MIIMNG, MII_RD);
+		DELAY(10);
+		CSR_WRITE_4(sc, CSR_MIIMNG, MII_RD | MII_CLK);
+		DELAY(10);
+		if(CSR_READ_4(sc, CSR_MIIMNG) & MII_DIN)
+			result |= 1;
 	}
 
-	return (CSR_READ_4(sc, CSR_MIIDATA) & 0xffff);
-#endif
+	return (result);
+}
+
+static int
+fv_miibus_writebits(struct fv_softc *sc, int data, int count)
+{
+	int bit;
+
+	while(count--) {
+		bit = ((data) >> count) & 0x1 ? MII_DOUT : 0;
+		CSR_WRITE_4(sc, CSR_MIIMNG, bit | MII_WR);
+		DELAY(10);
+		CSR_WRITE_4(sc, CSR_MIIMNG, bit | MII_WR | MII_CLK);
+		DELAY(10);
+	}
+
 	return (0);
+}
+
+static void
+fv_miibus_turnaround(struct fv_softc *sc, int cmd)
+{
+	if(cmd == MII_WRCMD) {
+		fv_miibus_writebits(sc, 0x02, 2);
+	} else {
+		fv_miibus_readbits(sc, 1);
+	}
+}
+
+static int
+fv_miibus_readreg(device_t dev, int phy, int reg)
+{
+	struct fv_softc * sc = device_get_softc(dev);
+	int		result;
+
+	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
+	fv_miibus_writebits(sc, MII_RDCMD, 4);
+	fv_miibus_writebits(sc, phy, 5);
+	fv_miibus_writebits(sc, reg, 5);
+	fv_miibus_turnaround(sc, MII_RDCMD);
+	result = fv_miibus_readbits(sc, 16);
+	fv_miibus_turnaround(sc, MII_RDCMD);
+
+	return (result);
 }
 
 static int
 fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
-#if 0
 	struct fv_softc * sc = device_get_softc(dev);
-	uint32_t	addr;
-	int		i;
 
-	/* write the data register */
-	CSR_WRITE_4(sc, CSR_MIIDATA, data);
-
-	/* write the address to latch it in */
-	addr = (phy << MIIADDR_PHY_SHIFT) | (reg << MIIADDR_REG_SHIFT) |
-	    MIIADDR_WRITE;
-	CSR_WRITE_4(sc, CSR_MIIADDR, addr);
-//	AE_BARRIER(sc);
-
-	for (i = 0; i < 100000000; i++) {
-		if ((CSR_READ_4(sc, CSR_MIIADDR) & MIIADDR_BUSY) == 0)
-			break;
-	}
-#endif
+	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
+	fv_miibus_writebits(sc, MII_WRCMD, 4);
+	fv_miibus_writebits(sc, phy, 5);
+	fv_miibus_writebits(sc, reg, 5);
+	fv_miibus_turnaround(sc, MII_WRCMD);
+	fv_miibus_writebits(sc, data, 16);
 
 	return (0);
 }
@@ -1633,20 +1667,47 @@ fv_hinted_child(device_t bus, const char *dname, int dunit)
 
 #ifdef MDIO
 static int
-aremdio_probe(device_t dev)
+fvmdio_probe(device_t dev)
 {
-	device_set_desc(dev, "Atheros AR231x built-in ethernet interface, MDIO controller");
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "fv,mdio"))
+		return (ENXIO);
+
+	device_set_desc(dev, "FV built-in ethernet interface, MDIO controller");
 	return(0);
 }
 
 static int
-aremdio_attach(device_t dev)
+fvmdio_attach(device_t dev)
 {
-	return(0);
+	struct fv_softc	*sc;
+	int	error;
+
+	sc = device_get_softc(dev);
+	sc->fv_dev = dev;
+	sc->fv_rid = 0;
+	sc->fv_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
+	    &sc->fv_rid, RF_ACTIVE | RF_SHAREABLE);
+	if (sc->fv_res == NULL) {
+		device_printf(dev, "couldn't map memory\n");
+		error = ENXIO;
+		goto fail;
+	}
+
+	sc->fv_btag = rman_get_bustag(sc->fv_res);
+	sc->fv_bhandle = rman_get_bushandle(sc->fv_res);
+
+        bus_generic_probe(dev);
+	bus_enumerate_hinted_children(dev);
+	error = bus_generic_attach(dev);
+fail:
+	return(error);
 }
 
 static int
-aremdio_detach(device_t dev)
+fvmdio_detach(device_t dev)
 {
 	return(0);
 }

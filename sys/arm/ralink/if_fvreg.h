@@ -413,7 +413,25 @@ struct fv_softc {
 #define	MISSED_GETMFC(x)	((x) & MISSED_MFC)
 #define	MISSED_GETFOC(x)	(((x) & MISSED_FOC) >> 16)
 
+/* setup frame code refer dc code */
+
 #define FV_SFRAME_LEN		192
 #define FV_MIN_FRAMELEN		60
+
+/*
+ * MII Definitions for the 21041 and 21140/21140A/21142
+ * copy from if_devar.h
+ */
+#define MII_PREAMBLE            (~0)
+#define MII_TEST                0xAAAAAAAA
+#define MII_RDCMD               0x06
+#define MII_WRCMD               0x05
+#define MII_DIN                 0x00080000
+#define MII_RD                  0x00040000
+#define MII_WR                  0x00000000
+#define MII_DOUT                0x00020000
+#define MII_CLK                 0x00010000
+#define MII_CLKON               MII_CLK
+#define MII_CLKOFF              MII_CLK
 
 #endif /* __IF_FVREG_H__ */
