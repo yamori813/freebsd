@@ -79,11 +79,11 @@
 				label = "boot";
 			};
 			partition@1 {
-				reg = <0x00010000 0x00100000>;
+				reg = <0x00010000 0x000f0000>;
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x00110000 0x002d0000>;
+				reg = <0x00100000 0x002d0000>;
 				label = "rootfs";
 			};
 		};

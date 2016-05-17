@@ -69,7 +69,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
-#define MDIO
+//#define MDIO
 
 #ifdef MDIO
 #include <dev/mdio/mdio.h>
