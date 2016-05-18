@@ -264,7 +264,6 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	}
 #endif
 
-
 	cninit();
 	mips_init();
 #ifdef CFE
@@ -294,4 +293,3 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	mips_timer_init_params(platform_counter_freq, 1);
 }
-

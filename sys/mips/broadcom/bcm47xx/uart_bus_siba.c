@@ -49,7 +49,13 @@ __FBSDID("$FreeBSD$");
 #include <dev/uart/uart_bus.h>
 #include <dev/uart/uart_cpu.h>
 
-#include <dev/siba/siba_cc.h>
+
+enum siba_cc_device_ivars {
+        SIBA_CC_IVAR_XTALFREQ
+};
+
+#define SIBA_CC_UART0 0x00000300      /* offset of UART0 */
+#define SIBA_CC_UART1 0x00000400      /* offset of UART1 */
 
 #include "uart_if.h"
 
@@ -82,6 +88,7 @@ uart_siba_cc_probe(device_t dev)
 	sc = device_get_softc(dev);
 	sc->sc_class = &uart_ns8250_class;
 	
+/*
 	if (device_get_unit(dev) == 0) {
 	  sc->sc_sysdev = SLIST_FIRST(&uart_sysdevs);
 	  bcopy(&sc->sc_sysdev->bas, &sc->sc_bas, sizeof(sc->sc_bas));
@@ -89,7 +96,11 @@ uart_siba_cc_probe(device_t dev)
 
 	if (BUS_READ_IVAR(parent, dev, SIBA_CC_IVAR_XTALFREQ, &rclk))
 	  rclk = 0;
+*/
 	  
+	sc->sc_bas.regshft = 2;
+	sc->sc_bas.bst = mips_bus_space_generic;
+	rclk = 40 * 1000 * 1000;
 	sc->sc_bas.bsh=
 	  MIPS_PHYS_TO_KSEG1(0x18000000+
 	      device_get_unit(dev)?SIBA_CC_UART1:SIBA_CC_UART0);
@@ -97,4 +108,5 @@ uart_siba_cc_probe(device_t dev)
 	return (uart_bus_probe(dev, 0, rclk, 0, 0));
 }
 
-DRIVER_MODULE(uart, siba_cc, uart_siba_cc_driver, uart_devclass, 0, 0);
+//DRIVER_MODULE(uart, siba_cc, uart_siba_cc_driver, uart_devclass, 0, 0);
+DRIVER_MODULE(uart, nexus, uart_siba_cc_driver, uart_devclass, 0, 0);
