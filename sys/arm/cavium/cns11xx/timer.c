@@ -34,6 +34,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/rman.h>
 #include <sys/timetc.h>
+#include <sys/timeet.h>
 #include <sys/watchdog.h>
 #include <machine/bus.h>
 #include <machine/cpu.h>
@@ -63,6 +64,7 @@ struct ec_timer_softc {
 	bus_space_tag_t		timer_bst;
 	bus_space_handle_t	timer_bsh;
 	struct mtx		timer_mtx;
+	struct eventtimer	ec_et;
 };
 
 static struct resource_spec ec_timer_spec[] = {
@@ -73,6 +75,9 @@ static struct resource_spec ec_timer_spec[] = {
 };
 
 static unsigned ec_timer_get_timecount(struct timecounter *);
+static int ec_timer_start(struct eventtimer *,
+    sbintime_t first, sbintime_t period);
+static int ec_timer_stop(struct eventtimer *et);
 
 static struct timecounter ec_timecounter = {
 	.tc_get_timecount = ec_timer_get_timecount,
@@ -264,12 +269,14 @@ do_setup_timer(void)
 	setup_timer(timer_counter);
 }
 
+#if 0
 void
 cpu_initclocks(void)
 {
 
 	ec_timecounter.tc_frequency = APB_clock;
 	tc_init(&ec_timecounter);
+
 	timer_enable();
 	timers_initialized = 1;
 }
@@ -285,6 +292,7 @@ cpu_stopprofclock(void)
 {
 
 }
+#endif
 
 static int
 ec_timer_probe(device_t dev)
@@ -370,6 +378,35 @@ ec_timer_attach(device_t dev)
 		return (ENXIO);
 	}
 
+	ec_timecounter.tc_frequency = APB_clock;
+	tc_init(&ec_timecounter);
+
+	sc->ec_et.et_frequency = APB_clock;
+	sc->ec_et.et_name = "Timer2";
+	sc->ec_et.et_flags = ET_FLAGS_PERIODIC | ET_FLAGS_ONESHOT;
+	sc->ec_et.et_quality = 1000;
+	sc->ec_et.et_min_period = (0x00000002LLU << 32) / sc->ec_et.et_frequency;
+	sc->ec_et.et_max_period = (0xfffffffeLLU << 32) / sc->ec_et.et_frequency;
+	sc->ec_et.et_start = ec_timer_start;
+	sc->ec_et.et_stop = ec_timer_stop;
+	sc->ec_et.et_priv = sc;
+	et_register(&sc->ec_et);
+
+	timer_enable();
+	timers_initialized = 1;
+
+	return (0);
+}
+
+static int
+ec_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
+{
+	return (0);
+}
+
+static int
+ec_timer_stop(struct eventtimer *et)
+{
 	return (0);
 }
 

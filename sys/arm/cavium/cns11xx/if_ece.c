@@ -62,6 +62,9 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>                                              
+
 #include <arm/cavium/cns11xx/if_ecereg.h>
 #include <arm/cavium/cns11xx/if_ecevar.h>
 #include <arm/cavium/cns11xx/econa_var.h>
@@ -258,6 +261,11 @@ static int get_phy_type(struct ece_softc *sc)
 static int
 ece_probe(device_t dev)
 {
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "econa,ethernet"))
+		return (ENXIO);
 
 	device_set_desc(dev, "Econa Ethernet Controller");
 	return (0);
@@ -1949,7 +1957,7 @@ static driver_t ece_driver = {
 	sizeof(struct ece_softc),
 };
 
-DRIVER_MODULE(ece, econaarm, ece_driver, ece_devclass, 0, 0);
+DRIVER_MODULE(ece, simplebus, ece_driver, ece_devclass, 0, 0);
 DRIVER_MODULE(miibus, ece, miibus_driver, miibus_devclass, 0, 0);
 MODULE_DEPEND(ece, miibus, 1, 1, 1);
 MODULE_DEPEND(ece, ether, 1, 1, 1);
