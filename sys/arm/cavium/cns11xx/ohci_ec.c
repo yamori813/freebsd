@@ -45,6 +45,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/priv.h>
 
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>
+
 #include <dev/usb/usb.h>
 #include <dev/usb/usbdi.h>
 
@@ -75,6 +78,12 @@ struct ec_ohci_softc {
 static int
 ohci_ec_probe(device_t dev)
 {
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "econa,usb-ohci"))
+		return (ENXIO);
+
 	device_set_desc(dev, "Econa integrated OHCI controller");
 	return (BUS_PROBE_DEFAULT);
 }
@@ -236,5 +245,5 @@ static driver_t ohci_driver = {
 
 static devclass_t ohci_devclass;
 
-DRIVER_MODULE(ohci, econaarm, ohci_driver, ohci_devclass, 0, 0);
+DRIVER_MODULE(ohci, simplebus, ohci_driver, ohci_devclass, 0, 0);
 MODULE_DEPEND(ohci, usb, 1, 1, 1);

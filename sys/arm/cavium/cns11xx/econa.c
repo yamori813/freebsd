@@ -85,13 +85,14 @@ econa_probe(device_t dev)
 	device_set_desc(dev, "ECONA device bus");
 	return (BUS_PROBE_DEFAULT);
 }
-
+/*
 static void
 econa_identify(driver_t *drv, device_t parent)
 {
 
 	BUS_ADD_CHILD(parent, 0, "econaarm", 0);
 }
+*/
 
 struct arm32_dma_range *
 bus_dma_get_range(void)
@@ -308,6 +309,7 @@ econa_attach(device_t dev)
 	return (0);
 }
 
+#if 0
 static struct resource *
 econa_alloc_resource(device_t dev, device_t child, int type, int *rid,
     rman_res_t start, rman_res_t end, rman_res_t count, u_int flags)
@@ -438,6 +440,7 @@ econa_print_child(device_t dev, device_t child)
 
 	return (retval);
 }
+#endif
 
 void
 arm_mask_irq(uintptr_t nb)
@@ -548,6 +551,7 @@ fdt_pic_decode_t fdt_pic_table[] = {
 static device_method_t econa_methods[] = {
 	DEVMETHOD(device_probe,		econa_probe),
 	DEVMETHOD(device_attach,		econa_attach),
+/*
 	DEVMETHOD(device_identify,		econa_identify),
 	DEVMETHOD(bus_alloc_resource,		econa_alloc_resource),
 	DEVMETHOD(bus_setup_intr,		econa_setup_intr),
@@ -559,6 +563,7 @@ static device_method_t econa_methods[] = {
 	DEVMETHOD(bus_get_resource,		bus_generic_rl_get_resource),
 	DEVMETHOD(bus_release_resource,	econa_release_resource),
 	DEVMETHOD(bus_print_child,		econa_print_child),
+*/
 	{0, 0},
 };
 
