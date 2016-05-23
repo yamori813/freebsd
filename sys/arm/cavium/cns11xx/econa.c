@@ -69,8 +69,6 @@ unsigned int CPU_clock = 200000000;
 unsigned int AHB_clock;
 unsigned int APB_clock;
 
-bus_space_tag_t obio_tag;
-
 struct fdt_fixup_entry fdt_fixup_table[] = {
 	{ NULL, NULL }
 };
@@ -85,7 +83,6 @@ econa_probe(device_t dev)
 		return (ENXIO);
 
 	device_set_desc(dev, "ECONA device bus");
-//	return (BUS_PROBE_NOWILDCARD);
 	return (BUS_PROBE_DEFAULT);
 }
 
@@ -112,45 +109,6 @@ bus_dma_get_range_nb(void)
 
 extern void irq_entry(void);
 
-#if 0
-static void
-econa_add_child(device_t dev, int prio, const char *name, int unit,
-    bus_addr_t addr, bus_size_t size,
-    int irq0, int irq1,
-    int irq2, int irq3, int irq4)
-{
-	device_t kid;
-	struct econa_ivar *ivar;
-
-	kid = device_add_child_ordered(dev, prio, name, unit);
-	if (kid == NULL) {
-		printf("Can't add child %s%d ordered\n", name, unit);
-		return;
-	}
-	ivar = malloc(sizeof(*ivar), M_DEVBUF, M_NOWAIT | M_ZERO);
-	if (ivar == NULL) {
-		device_delete_child(dev, kid);
-		return;
-	}
-	device_set_ivars(kid, ivar);
-	resource_list_init(&ivar->resources);
-	if (irq0 != -1)
-		bus_set_resource(kid, SYS_RES_IRQ, 0, irq0, 1);
-	if (irq1 != 0)
-		bus_set_resource(kid, SYS_RES_IRQ, 1, irq1, 1);
-	if (irq2 != 0)
-		bus_set_resource(kid, SYS_RES_IRQ, 2, irq2, 1);
-	if (irq3 != 0)
-		bus_set_resource(kid, SYS_RES_IRQ, 3, irq3, 1);
-	if (irq4 != 0)
-		bus_set_resource(kid, SYS_RES_IRQ, 4, irq4, 1);
-
-	if (addr != 0)
-		bus_set_resource(kid, SYS_RES_MEMORY, 0, addr, size);
-
-}
-#endif
-
 struct cpu_devs
 {
 	const char *name;
@@ -163,69 +121,6 @@ struct cpu_devs
 	int irq3;
 	int irq4;
 };
-
-struct cpu_devs econarm_devs[] =
-{
-	{
-		"econa_ic", 0,
-		ECONA_IO_BASE + ECONA_PIC_BASE, ECONA_PIC_SIZE,
-		0
-	},
-	{
-		"system", 0,
-		ECONA_IO_BASE + ECONA_SYSTEM_BASE, ECONA_SYSTEM_SIZE,
-		0
-	},
-	{
-		"uart", 0,
-		ECONA_IO_BASE + ECONA_UART_BASE, ECONA_UART_SIZE,
-		ECONA_IRQ_UART
-	},
-	{
-		"timer", 0,
-		ECONA_IO_BASE + ECONA_TIMER_BASE, ECONA_TIMER_SIZE,
-		ECONA_IRQ_TIMER_1, ECONA_IRQ_TIMER_2
-	},
-	{
-		"ohci", 0,
-		ECONA_OHCI_VBASE, ECONA_OHCI_SIZE,
-		ECONA_IRQ_OHCI
-		},
-	{
-		"ehci", 0,
-		ECONA_EHCI_VBASE, ECONA_EHCI_SIZE,
-		ECONA_IRQ_EHCI
-	},
-	{
-		"cfi", 0,
-		ECONA_CFI_VBASE, ECONA_CFI_SIZE,
-		0
-	},
-	{
-		"ece", 0,
-		ECONA_IO_BASE + ECONA_NET_BASE, ECONA_NET_SIZE,
-		ECONA_IRQ_STATUS,
-		ECONA_IRQ_TSTC, ECONA_IRQ_FSRC,
-		ECONA_IRQ_TSQE, ECONA_IRQ_FSQF,
-	},
-	{	0, 0, 0, 0, 0, 0, 0, 0, 0 }
-};
-#if 0
-static void
-econa_cpu_add_builtin_children(device_t dev, struct econa_softc *sc)
-{
-	int i;
-	struct cpu_devs *walker;
-
-	for (i = 0, walker = econarm_devs; walker->name; i++, walker++) {
-		econa_add_child(dev, i, walker->name, walker->unit,
-		    walker->mem_base, walker->mem_len,
-		    walker->irq0,walker->irq1, walker->irq2,
-		    walker->irq3, walker->irq4);
-	}
-
-}
-#endif
 
 struct intc_trigger_t {
 	int mode;
@@ -381,23 +276,9 @@ econa_attach(device_t dev)
 	struct econa_softc *sc = device_get_softc(dev);
 	int i;
 
-//	obio_tag = arm_base_bs_tag;
-
 	econa_softc = sc;
-/*
-	sc->ec_st = arm_base_bs_tag;
-	sc->ec_sh = ECONA_IO_BASE;
-*/
 	sc->dev = dev;
-/*
-	if (bus_space_subregion(sc->ec_st, sc->ec_sh, ECONA_PIC_BASE,
-	    ECONA_PIC_SIZE, &sc->ec_sys_sh) != 0)
-		panic("Unable to map IRQ registers");
 
-	if (bus_space_subregion(sc->ec_st, sc->ec_sh, ECONA_SYSTEM_BASE,
-	    ECONA_SYSTEM_SIZE, &sc->ec_system_sh) != 0)
-		panic("Unable to map IRQ registers");
-*/
 	if (bus_alloc_resources(dev, econa_spec, sc->ec_res)) {
 		device_printf(dev, "could not allocate resources\n");
 		return (ENXIO);
@@ -407,20 +288,6 @@ econa_attach(device_t dev)
 	sc->ec_sys_sh = rman_get_bushandle(sc->ec_res[0]);
 	sc->ec_system_st = rman_get_bustag(sc->ec_res[1]);
 	sc->ec_system_sh = rman_get_bushandle(sc->ec_res[1]);
-
-/*
-	sc->ec_irq_rman.rm_type = RMAN_ARRAY;
-	sc->ec_irq_rman.rm_descr = "ECONA IRQs";
-	sc->ec_mem_rman.rm_type = RMAN_ARRAY;
-	sc->ec_mem_rman.rm_descr = "ECONA Memory";
-	if (rman_init(&sc->ec_irq_rman) != 0 ||
-	    rman_manage_region(&sc->ec_irq_rman, 0, 31) != 0)
-		panic("econa_attach: failed to set up IRQ rman");
-	if (rman_init(&sc->ec_mem_rman) != 0 ||
-	    rman_manage_region(&sc->ec_mem_rman, 0,
-	    ~0) != 0)
-		panic("econa_attach: failed to set up memory rman");
-*/
 
 	write_4(sc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 0xffffffff);
 
@@ -437,14 +304,6 @@ econa_attach(device_t dev)
 	}
 
 	get_system_clock();
-
-/*
-	econa_cpu_add_builtin_children(dev, sc);
-
-	bus_generic_probe(dev);
-	bus_generic_attach(dev);
-	enable_interrupts(PSR_I | PSR_F);
-*/
 
 	return (0);
 }
@@ -711,4 +570,3 @@ static driver_t econa_driver = {
 static devclass_t econa_devclass;
 
 DRIVER_MODULE(econaarm, simplebus, econa_driver, econa_devclass, 0, 0);
-//EARLY_DRIVER_MODULE(econaarm, simplebus, econa_driver, econa_devclass, 0, 0, BUS_PASS_INTERRUPT);
