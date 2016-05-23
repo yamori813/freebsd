@@ -33,12 +33,14 @@ extern bus_space_tag_t obio_tag;
 
 struct econa_softc {
 	device_t dev;
-	bus_space_tag_t ec_st;
-	bus_space_handle_t ec_sh;
+//	bus_space_handle_t ec_sh;
+	bus_space_tag_t ec_sys_st;
 	bus_space_handle_t ec_sys_sh;
+	bus_space_tag_t ec_system_st;
 	bus_space_handle_t ec_system_sh;
 	struct rman ec_irq_rman;
 	struct rman ec_mem_rman;
+	struct resource * ec_res[3];
 };
 
 struct econa_ivar {

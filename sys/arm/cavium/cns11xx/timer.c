@@ -39,6 +39,10 @@ __FBSDID("$FreeBSD$");
 #include <machine/cpu.h>
 #include <machine/intr.h>
 
+#include <dev/fdt/fdt_common.h>
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>
+
 #include "econa_reg.h"
 #include "econa_var.h"
 
@@ -285,6 +289,11 @@ cpu_stopprofclock(void)
 static int
 ec_timer_probe(device_t dev)
 {
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "econa,timer"))
+		return (ENXIO);
 
 	device_set_desc(dev, "Econa CPU Timer");
 	return (0);
@@ -378,4 +387,4 @@ static driver_t ec_timer_driver = {
 
 static devclass_t ec_timer_devclass;
 
-DRIVER_MODULE(timer, econaarm, ec_timer_driver, ec_timer_devclass, 0, 0);
+DRIVER_MODULE(timer, simplebus, ec_timer_driver, ec_timer_devclass, 0, 0);

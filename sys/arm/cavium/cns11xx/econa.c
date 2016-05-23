@@ -47,8 +47,21 @@ __FBSDID("$FreeBSD$");
 #include <machine/intr.h>
 #include <machine/resource.h>
 
+#include <dev/fdt/fdt_common.h>
+#include <dev/ofw/openfirm.h>
+
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>
+
 #include "econa_reg.h"
 #include "econa_var.h"
+
+static struct resource_spec econa_spec[] = {
+	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },
+	{ SYS_RES_MEMORY,	1,	RF_ACTIVE },
+	{ -1, 0 }
+};
+
 
 static struct econa_softc *econa_softc;
 
@@ -58,12 +71,22 @@ unsigned int APB_clock;
 
 bus_space_tag_t obio_tag;
 
+struct fdt_fixup_entry fdt_fixup_table[] = {
+	{ NULL, NULL }
+};
+
 static int
 econa_probe(device_t dev)
 {
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "econa,pic"))
+		return (ENXIO);
 
 	device_set_desc(dev, "ECONA device bus");
-	return (BUS_PROBE_NOWILDCARD);
+//	return (BUS_PROBE_NOWILDCARD);
+	return (BUS_PROBE_DEFAULT);
 }
 
 static void
@@ -89,6 +112,7 @@ bus_dma_get_range_nb(void)
 
 extern void irq_entry(void);
 
+#if 0
 static void
 econa_add_child(device_t dev, int prio, const char *name, int unit,
     bus_addr_t addr, bus_size_t size,
@@ -125,6 +149,7 @@ econa_add_child(device_t dev, int prio, const char *name, int unit,
 		bus_set_resource(kid, SYS_RES_MEMORY, 0, addr, size);
 
 }
+#endif
 
 struct cpu_devs
 {
@@ -185,7 +210,7 @@ struct cpu_devs econarm_devs[] =
 	},
 	{	0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
-
+#if 0
 static void
 econa_cpu_add_builtin_children(device_t dev, struct econa_softc *sc)
 {
@@ -200,6 +225,7 @@ econa_cpu_add_builtin_children(device_t dev, struct econa_softc *sc)
 	}
 
 }
+#endif
 
 struct intc_trigger_t {
 	int mode;
@@ -238,28 +264,28 @@ static inline uint32_t
 read_4(struct econa_softc *sc, bus_size_t off)
 {
 
-	return bus_space_read_4(sc->ec_st, sc->ec_sys_sh, off);
+	return bus_space_read_4(sc->ec_sys_st, sc->ec_sys_sh, off);
 }
 
 static inline void
 write_4(struct econa_softc *sc, bus_size_t off, uint32_t val)
 {
 
-	return bus_space_write_4(sc->ec_st, sc->ec_sys_sh, off, val);
+	return bus_space_write_4(sc->ec_sys_st, sc->ec_sys_sh, off, val);
 }
 
 static inline uint32_t
 system_read_4(struct econa_softc *sc, bus_size_t off)
 {
 
-	return bus_space_read_4(sc->ec_st, sc->ec_system_sh, off);
+	return bus_space_read_4(sc->ec_system_st, sc->ec_system_sh, off);
 }
 
 static inline void
 system_write_4(struct econa_softc *sc, bus_size_t off, uint32_t val)
 {
 
-	return bus_space_write_4(sc->ec_st, sc->ec_system_sh, off, val);
+	return bus_space_write_4(sc->ec_system_st, sc->ec_system_sh, off, val);
 }
 
 
@@ -355,12 +381,15 @@ econa_attach(device_t dev)
 	struct econa_softc *sc = device_get_softc(dev);
 	int i;
 
-	obio_tag = arm_base_bs_tag;
+//	obio_tag = arm_base_bs_tag;
 
 	econa_softc = sc;
+/*
 	sc->ec_st = arm_base_bs_tag;
 	sc->ec_sh = ECONA_IO_BASE;
+*/
 	sc->dev = dev;
+/*
 	if (bus_space_subregion(sc->ec_st, sc->ec_sh, ECONA_PIC_BASE,
 	    ECONA_PIC_SIZE, &sc->ec_sys_sh) != 0)
 		panic("Unable to map IRQ registers");
@@ -368,7 +397,18 @@ econa_attach(device_t dev)
 	if (bus_space_subregion(sc->ec_st, sc->ec_sh, ECONA_SYSTEM_BASE,
 	    ECONA_SYSTEM_SIZE, &sc->ec_system_sh) != 0)
 		panic("Unable to map IRQ registers");
+*/
+	if (bus_alloc_resources(dev, econa_spec, sc->ec_res)) {
+		device_printf(dev, "could not allocate resources\n");
+		return (ENXIO);
+	}
 
+	sc->ec_sys_st = rman_get_bustag(sc->ec_res[0]);
+	sc->ec_sys_sh = rman_get_bushandle(sc->ec_res[0]);
+	sc->ec_system_st = rman_get_bustag(sc->ec_res[1]);
+	sc->ec_system_sh = rman_get_bushandle(sc->ec_res[1]);
+
+/*
 	sc->ec_irq_rman.rm_type = RMAN_ARRAY;
 	sc->ec_irq_rman.rm_descr = "ECONA IRQs";
 	sc->ec_mem_rman.rm_type = RMAN_ARRAY;
@@ -380,6 +420,7 @@ econa_attach(device_t dev)
 	    rman_manage_region(&sc->ec_mem_rman, 0,
 	    ~0) != 0)
 		panic("econa_attach: failed to set up memory rman");
+*/
 
 	write_4(sc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 0xffffffff);
 
@@ -397,11 +438,13 @@ econa_attach(device_t dev)
 
 	get_system_clock();
 
+/*
 	econa_cpu_add_builtin_children(dev, sc);
 
 	bus_generic_probe(dev);
 	bus_generic_attach(dev);
 	enable_interrupts(PSR_I | PSR_F);
+*/
 
 	return (0);
 }
@@ -625,6 +668,24 @@ get_tclk(void)
 	return CPU_clock;
 }
 
+static int
+fdt_pic_decode_ic(phandle_t node, pcell_t *intr, int *interrupt, int *trig,
+    int *pol)
+{
+	if (!fdt_is_compatible(node, "str,pic"))
+		return (ENXIO);
+
+	*interrupt = fdt32_to_cpu(intr[0]);
+	*trig = INTR_TRIGGER_CONFORM;
+	*pol = INTR_POLARITY_CONFORM;
+	return (0);
+}
+
+fdt_pic_decode_t fdt_pic_table[] = {
+	&fdt_pic_decode_ic,
+	NULL
+};
+
 static device_method_t econa_methods[] = {
 	DEVMETHOD(device_probe,		econa_probe),
 	DEVMETHOD(device_attach,		econa_attach),
@@ -649,4 +710,5 @@ static driver_t econa_driver = {
 };
 static devclass_t econa_devclass;
 
-DRIVER_MODULE(econaarm, nexus, econa_driver, econa_devclass, 0, 0);
+DRIVER_MODULE(econaarm, simplebus, econa_driver, econa_devclass, 0, 0);
+//EARLY_DRIVER_MODULE(econaarm, simplebus, econa_driver, econa_devclass, 0, 0, BUS_PASS_INTERRUPT);
