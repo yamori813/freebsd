@@ -286,7 +286,13 @@ ec_hardclock(void *arg)
 	control_value &= ~TIMER1_ENABLE;
 	write_4(control_value, TIMER_TM_CR_REG);
 
+	/* Start timer again */
 	if (!sc->ec_oneshot) {
+		write_4(sc->ec_period, TIMER_TM1_COUNTER_REG);
+		write_4(sc->ec_period, TIMER_TM1_LOAD_REG);
+		control_value = read_4(TIMER_TM_CR_REG);
+		control_value |= TIMER1_ENABLE;
+		write_4(control_value, TIMER_TM_CR_REG);
 	}
 
 	if (sc->ec_et.et_active)

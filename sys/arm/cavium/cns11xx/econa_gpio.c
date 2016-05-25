@@ -119,7 +119,7 @@ econa_gpio_probe(device_t dev)
 	if (!ofw_bus_is_compatible(dev, "gpio"))
 		return (ENXIO);
 
-	device_set_desc(dev, "ECONA GPIO");
+	device_set_desc(dev, "Econa GPIO");
 	return (BUS_PROBE_DEFAULT);
 }
 
