@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2016 Hiroki Mori
  * Copyright (c) 2009 Yohanes Nugroho <yohanes@gmail.com>
  * All rights reserved.
  *
@@ -85,14 +86,6 @@ econa_probe(device_t dev)
 	device_set_desc(dev, "ECONA device bus");
 	return (BUS_PROBE_DEFAULT);
 }
-/*
-static void
-econa_identify(driver_t *drv, device_t parent)
-{
-
-	BUS_ADD_CHILD(parent, 0, "econaarm", 0);
-}
-*/
 
 struct arm32_dma_range *
 bus_dma_get_range(void)
@@ -306,141 +299,21 @@ econa_attach(device_t dev)
 
 	get_system_clock();
 
-	return (0);
-}
-
-#if 0
-static struct resource *
-econa_alloc_resource(device_t dev, device_t child, int type, int *rid,
-    rman_res_t start, rman_res_t end, rman_res_t count, u_int flags)
-{
-	struct econa_softc *sc = device_get_softc(dev);
-	struct resource_list_entry *rle;
-	struct econa_ivar *ivar = device_get_ivars(child);
-	struct resource_list *rl = &ivar->resources;
-
-	if (device_get_parent(child) != dev)
-		return (BUS_ALLOC_RESOURCE(device_get_parent(dev), child,
-			   type, rid, start, end, count, flags));
-
-	rle = resource_list_find(rl, type, *rid);
-	if (rle == NULL) {
-		return (NULL);
-	}
-	if (rle->res)
-		panic("Resource rid %d type %d already in use", *rid, type);
-	if (RMAN_IS_DEFAULT_RANGE(start, end)) {
-		start = rle->start;
-		count = ulmax(count, rle->count);
-		end = ulmax(rle->end, start + count - 1);
-	}
-	switch (type)
-	{
-	case SYS_RES_IRQ:
-		rle->res = rman_reserve_resource(&sc->ec_irq_rman,
-		    start, end, count, flags, child);
-		break;
-	case SYS_RES_MEMORY:
-		rle->res = rman_reserve_resource(&sc->ec_mem_rman,
-		    start, end, count, flags, child);
-		if (rle->res != NULL) {
-			rman_set_bustag(rle->res, arm_base_bs_tag);
-			rman_set_bushandle(rle->res, start);
-		}
-		break;
-	}
-	if (rle->res) {
-		rle->start = rman_get_start(rle->res);
-		rle->end = rman_get_end(rle->res);
-		rle->count = count;
-		rman_set_rid(rle->res, *rid);
-	}
-	return (rle->res);
-}
-
-static struct resource_list *
-econa_get_resource_list(device_t dev, device_t child)
-{
-	struct econa_ivar *ivar;
-	ivar = device_get_ivars(child);
-	return (&(ivar->resources));
-}
-
-static int
-econa_release_resource(device_t dev, device_t child, int type,
-    int rid, struct resource *r)
-{
-	struct resource_list *rl;
-	struct resource_list_entry *rle;
-
-	rl = econa_get_resource_list(dev, child);
-	if (rl == NULL)
-		return (EINVAL);
-	rle = resource_list_find(rl, type, rid);
-	if (rle == NULL)
-		return (EINVAL);
-	rman_release_resource(r);
-	rle->res = NULL;
-	return (0);
-}
-
-static int
-econa_setup_intr(device_t dev, device_t child,
-    struct resource *ires, int flags, driver_filter_t *filt,
-    driver_intr_t *intr, void *arg, void **cookiep)
-{
+	phandle_t node;
+	pcell_t clock;
 	int error;
 
-	if (rman_get_start(ires) == ECONA_IRQ_SYSTEM && filt == NULL)
-		panic("All system interrupt ISRs must be FILTER");
-
-	error = BUS_SETUP_INTR(device_get_parent(dev), child, ires, flags,
-	    filt, intr, arg, cookiep);
-	if (error)
-		return (error);
+	node = ofw_bus_get_node(dev);
+	if (node > 0) {
+		error = OF_getencprop(OF_parent(node), "bus-frequency", &clock,
+		    sizeof(clock));
+		if (error > 0) {
+			APB_clock = clock;
+		}
+	}
 
 	return (0);
 }
-
-static int
-econa_teardown_intr(device_t dev, device_t child, struct resource *res,
-    void *cookie)
-{
-
-	return (BUS_TEARDOWN_INTR(device_get_parent(dev), child, res, cookie));
-}
-
-static int
-econa_activate_resource(device_t bus, device_t child, int type, int rid,
-    struct resource *r)
-{
-
-	return (rman_activate_resource(r));
-}
-
-static int
-econa_print_child(device_t dev, device_t child)
-{
-	struct econa_ivar *ivars;
-	struct resource_list *rl;
-	int retval = 0;
-
-	ivars = device_get_ivars(child);
-	rl = &ivars->resources;
-
-	retval += bus_print_child_header(dev, child);
-
-	retval += resource_list_print_type(rl, "port", SYS_RES_IOPORT, "%#jx");
-	retval += resource_list_print_type(rl, "mem", SYS_RES_MEMORY, "%#jx");
-	retval += resource_list_print_type(rl, "irq", SYS_RES_IRQ, "%jd");
-	if (device_get_flags(dev))
-		retval += printf(" flags %#x", device_get_flags(dev));
-
-	retval += bus_print_child_footer(dev, child);
-
-	return (retval);
-}
-#endif
 
 void
 arm_mask_irq(uintptr_t nb)
@@ -551,19 +424,6 @@ fdt_pic_decode_t fdt_pic_table[] = {
 static device_method_t econa_methods[] = {
 	DEVMETHOD(device_probe,		econa_probe),
 	DEVMETHOD(device_attach,		econa_attach),
-/*
-	DEVMETHOD(device_identify,		econa_identify),
-	DEVMETHOD(bus_alloc_resource,		econa_alloc_resource),
-	DEVMETHOD(bus_setup_intr,		econa_setup_intr),
-	DEVMETHOD(bus_teardown_intr,		econa_teardown_intr),
-	DEVMETHOD(bus_activate_resource,	econa_activate_resource),
-	DEVMETHOD(bus_deactivate_resource, bus_generic_deactivate_resource),
-	DEVMETHOD(bus_get_resource_list,	econa_get_resource_list),
-	DEVMETHOD(bus_set_resource,		bus_generic_rl_set_resource),
-	DEVMETHOD(bus_get_resource,		bus_generic_rl_get_resource),
-	DEVMETHOD(bus_release_resource,	econa_release_resource),
-	DEVMETHOD(bus_print_child,		econa_print_child),
-*/
 	{0, 0},
 };
 

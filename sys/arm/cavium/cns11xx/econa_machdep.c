@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2009 Yohanes Nugroho <yohanes@gmail.com>
  * Copyright (c) 1994-1998 Mark Brinicombe.
  * Copyright (c) 1994 Brini.
  * All rights reserved.
@@ -61,18 +62,6 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/fdt/fdt_common.h>
 
-void bootdebug3(int c);
-void bootdebug3(int c)
-{
-        bus_space_tag_t bst;
-        bus_space_handle_t bsh;
-
-        bst = fdtbus_bs_tag;
-        bus_space_map(bst, 0x78000000, 0x1000000, 0, &bsh);
-        bus_space_write_1(bst, bsh, 0, c);
-        bus_space_unmap(bst, bsh, 0x1000000);
-}
-
 vm_offset_t
 platform_lastaddr(void)
 {
@@ -92,7 +81,6 @@ platform_gpio_init(void)
 	/*
 	 * Set initial values of GPIO output ports
 	 */
-//	lpc_gpio_init();
 }
 
 void
