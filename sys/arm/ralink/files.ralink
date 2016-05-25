@@ -1,7 +1,4 @@
-# $FreeBSD: head/sys/arm/lpc/files.lpc 280831 2015-03-29 22:43:39Z andrew $
-arm/arm/bus_space_base.c		standard
-arm/arm/bus_space_generic.c		standard
-
+# $FreeBSD$
 arm/ralink/rt1310_machdep.c		standard
 arm/ralink/rt1310_intc.c		standard
 arm/ralink/rt1310_gpio.c		optional	rt1310gpio
