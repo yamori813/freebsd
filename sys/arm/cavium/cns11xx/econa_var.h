@@ -33,7 +33,6 @@ extern bus_space_tag_t obio_tag;
 
 struct econa_softc {
 	device_t dev;
-//	bus_space_handle_t ec_sh;
 	bus_space_tag_t ec_sys_st;
 	bus_space_handle_t ec_sys_sh;
 	bus_space_tag_t ec_system_st;
@@ -48,7 +47,6 @@ struct econa_ivar {
 };
 
 void	power_on_network_interface	(void);
-unsigned int	get_tclk	(void);
 
 
 #endif

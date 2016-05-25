@@ -240,9 +240,14 @@ econa_set_irq_level(struct econa_softc * sc,
 }
 
 static void
-get_system_clock(void)
+get_system_clock(device_t dev)
 {
 	uint32_t sclock = system_read_4(econa_softc, SYSTEM_CLOCK);
+
+	if (bootverbose) {
+		device_printf(dev, "Reset Latch Configuration Register %x\n",
+		    sclock);
+	}
 
 	sclock = (sclock >> 6) & 0x03;
 
@@ -297,20 +302,7 @@ econa_attach(device_t dev)
 		}
 	}
 
-	get_system_clock();
-
-	phandle_t node;
-	pcell_t clock;
-	int error;
-
-	node = ofw_bus_get_node(dev);
-	if (node > 0) {
-		error = OF_getencprop(OF_parent(node), "bus-frequency", &clock,
-		    sizeof(clock));
-		if (error > 0) {
-			APB_clock = clock;
-		}
-	}
+	get_system_clock(dev);
 
 	return (0);
 }
@@ -394,13 +386,6 @@ power_on_network_interface(void)
 	cfg_reg |= NET_INTERFACE_RESET;
 	/* set reset bit to HIGH active; */
 	system_write_4(econa_softc, RESET_CONTROL, cfg_reg);
-}
-
-unsigned int
-get_tclk(void)
-{
-
-	return CPU_clock;
 }
 
 static int
