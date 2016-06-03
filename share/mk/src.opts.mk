@@ -56,6 +56,7 @@ __DEFAULT_YES_OPTIONS = \
     BHYVE \
     BINUTILS \
     BINUTILS_BOOTSTRAP \
+    BLACKLIST \
     BLUETOOTH \
     BOOT \
     BOOTPARAMD \
@@ -187,7 +188,9 @@ __DEFAULT_NO_OPTIONS = \
     OPENLDAP \
     SHARED_TOOLCHAIN \
     SORT_THREADS \
-    SVN
+    SVN \
+    SYSTEM_COMPILER \
+
 
 #
 # Default behaviour of some options depends on the architecture.  Unfortunately
@@ -372,6 +375,7 @@ MK_CLANG_FULL:= no
 # MK_* variable is set to "no".
 #
 .for var in \
+    BLACKLIST \
     BZIP2 \
     GNU \
     INET \

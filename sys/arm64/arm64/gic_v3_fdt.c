@@ -139,13 +139,15 @@ gic_v3_fdt_attach(device_t dev)
 
 #ifdef INTRNG
 	xref = OF_xref_from_node(ofw_bus_get_node(dev));
-	if (intr_pic_register(dev, xref) != 0) {
+	if (intr_pic_register(dev, xref) == NULL) {
 		device_printf(dev, "could not register PIC\n");
+		err = ENXIO;
 		goto error;
 	}
 
 	if (intr_pic_claim_root(dev, xref, arm_gic_v3_intr, sc,
 	    GIC_LAST_SGI - GIC_FIRST_SGI + 1) != 0) {
+		err = ENXIO;
 		goto error;
 	}
 #endif
