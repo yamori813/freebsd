@@ -28,6 +28,6 @@
 	.p2align 2
 DEFINE_COMPILERRT_PRIVATE_FUNCTION(__save_vfp_d8_d15_regs)
 	vstmdb	sp!, {d8-d15}           // push registers d8-d15 onto stack
-	bx      lr                      // return to prolog
+	mov     pc,lr                      // return to prolog
 END_COMPILERRT_FUNCTION(__save_vfp_d8_d15_regs)
 

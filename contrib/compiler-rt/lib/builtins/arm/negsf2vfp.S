@@ -19,5 +19,5 @@
 	.p2align 2
 DEFINE_COMPILERRT_FUNCTION(__negsf2vfp)
 	eor	r0, r0, #-2147483648	// flip sign bit on float in r0
-	bx	lr
+	mov	pc,lr
 END_COMPILERRT_FUNCTION(__negsf2vfp)

@@ -42,10 +42,10 @@ DEFINE_COMPILERRT_FUNCTION(__divsi3)
    tst     r1,r1
    beq     LOCAL_LABEL(divzero)
    sdiv    r0, r0, r1
-   bx      lr
+   mov     pc,lr
 LOCAL_LABEL(divzero):
    mov     r0,#0
-   bx      lr
+   mov     pc,lr
 #else
 ESTABLISH_FRAME
 //  Set aside the sign of the quotient.

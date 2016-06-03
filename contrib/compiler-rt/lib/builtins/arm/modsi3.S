@@ -40,10 +40,10 @@ DEFINE_COMPILERRT_FUNCTION(__modsi3)
 	beq     LOCAL_LABEL(divzero)
 	sdiv	r2, r0, r1
 	mls 	r0, r2, r1, r0
-	bx      lr
+	mov     pc,lr
 LOCAL_LABEL(divzero):
 	mov     r0, #0
-	bx      lr
+	mov     pc,lr
 #else
     ESTABLISH_FRAME
     //  Set aside the sign of the dividend.

@@ -39,6 +39,6 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__switch16)
 	ldrshlo r0, [r0, #1]            // load 16-bit element if r0 is in range
 	ldrshhs r0, [ip, #1]            // load 16-bit element if r0 out of range
 	add     ip, lr, r0, lsl #1      // compute label = lr + element*2
-	bx      ip                      // jump to computed label
+	mov     pc,ip                      // jump to computed label
 END_COMPILERRT_FUNCTION(__switch16)
 

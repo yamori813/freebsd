@@ -115,6 +115,8 @@ _CPUCFLAGS = -mfloat-abi=softfp
 _CPUCFLAGS = -march=${CPUTYPE} -DARM_ARCH_6=1
 .  elif ${CPUTYPE} == "cortexa"
 _CPUCFLAGS = -march=armv7 -DARM_ARCH_6=1 -mfpu=vfp
+.  elif ${CPUTYPE:Marmv4} != ""
+_CPUCFLAGS = -march=armv4 -mno-thumb-interwork
 .  elif ${CPUTYPE:Marmv[4567]*} != ""
 # Handle all the armvX types that FreeBSD runs:
 #	armv4, armv4t, armv5, armv5te, armv6, armv6t2, armv7, armv7-a, armv7ve

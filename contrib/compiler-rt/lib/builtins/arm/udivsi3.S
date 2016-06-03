@@ -36,7 +36,7 @@ DEFINE_COMPILERRT_FUNCTION(__udivsi3)
 	tst     r1, r1
 	beq     LOCAL_LABEL(divby0)
 	udiv	r0, r0, r1
-	bx  	lr
+	mov  	pc,lr
 #else
 	cmp	r1, #1
 	bcc	LOCAL_LABEL(divby0)
@@ -76,7 +76,7 @@ DEFINE_COMPILERRT_FUNCTION(__udivsi3)
 	sub	ip, ip, r3, lsl #2
 	sub	ip, ip, r3, lsl #3
 	mov	r3, #0
-	bx	ip
+	mov	pc,ip
 #  else
 #    if __ARM_ARCH_ISA_THUMB == 2
 #    error THUMB mode requires CLZ or UDIV

@@ -25,5 +25,5 @@ DEFINE_COMPILERRT_FUNCTION(__eqsf2vfp)
 	vmrs	apsr_nzcv, fpscr
 	moveq	r0, #1      // set result register to 1 if equal
 	movne	r0, #0
-	bx	lr
+	mov	pc,lr
 END_COMPILERRT_FUNCTION(__eqsf2vfp)

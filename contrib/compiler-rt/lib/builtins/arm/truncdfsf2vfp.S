@@ -22,5 +22,5 @@ DEFINE_COMPILERRT_FUNCTION(__truncdfsf2vfp)
 	vmov 	d7, r0, r1   // load double from r0/r1 pair
 	vcvt.f32.f64 s15, d7 // convert double to single (trucate precision)
 	vmov 	r0, s15      // return result in r0
-	bx	lr
+	mov	pc,lr
 END_COMPILERRT_FUNCTION(__truncdfsf2vfp)
