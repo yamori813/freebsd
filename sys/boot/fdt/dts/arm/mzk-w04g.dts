@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2011 Jakub Klama <jceel@FreeBSD.org>
+ *
+ * Redieconaibution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redieconaibutions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redieconaibutions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the dieconaibution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * This is base on ea3250.dts.
+ *
+ * $FreeBSD$
+ */
+
+/dts-v1/;
+
+/ {
+	model = "ea,STR9102";
+	compatible = "STR9102";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "ARM,FA526";
+			reg = <0x0>;
+			d-cache-line-size = <16>;	// 16 bytes
+			i-cache-line-size = <16>;	// 16 bytes
+			d-cache-size = <0x4000>;	// L1, 8K
+			i-cache-size = <0x4000>;	// L1, 8K
+			timebase-frequency = <0>;
+			bus-frequency = <0>;
+			clock-frequency = <0>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x00000000 0x4000000>;		// 64M at 0x00000000
+	};
+
+	localbus@10000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x10000000 0x800000>;
+		flash@10000000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "cfi-flash";
+			reg = <0x0 0x800000>;		// 8M at 0x10000000
+
+			partition@0 {
+				reg = <0x00000000 0x00040000>;
+				label = "boot";
+			};
+			partition@1 {
+				reg = <0x00040000 0x00160000>;
+				label = "kernel";
+			};
+			partition@2 {
+				reg = <0x001a0000 0x00660000>;
+				label = "rootfs";
+			};
+			partition@3 {
+				reg = <0x007e0000 0x00020000>;
+				label = "config";
+			};
+		};
+	};
+
+	soc: apb7@70000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x70000000 0x10000000>;
+		bus-frequency = <62500000>;
+
+		PIC: pic@d000000 {
+			compatible = "econa,pic";
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <1>;
+			reg = <0xd000000 0x1000000
+				0x7000000 0x1000000>;
+		};
+
+		timer@9000000 {
+			compatible = "econa,timer";
+			reg = <0x9000000 0x1000000>;
+			interrupts = <0 1>;
+			interrupt-parent = <&PIC>;
+		};
+
+		uart0: uart@8000000 {
+			compatible = "ns16550";
+			reg = <0x8000000 0x1000000>;
+			reg-shift = <2>;
+			clock-frequency = <14769230>;
+			current-speed = <38400>;
+			interrupts = <10>;
+			interrupt-parent = <&PIC>;
+//			broken-txfifo = <1>;
+		};
+
+		gpio@c000000 {
+			compatible = "gpio";
+			reg = <0xc000000 0x1000000>;
+		};
+
+		ece1@0000000 {
+			compatible = "econa,ethernet";
+			reg = <0x0000000 0x1000000>;
+			interrupts = <18 19 20 21 22>;
+			interrupt-parent = <&PIC>;	
+			local-mac-address = [ 00 1a f1 01 1f 23 ];
+
+/*
+			mdio@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "econa,mdio";
+
+				phy0: ethernet-phy@0 {
+					reg = <0x0>;
+                        	};
+			};
+*/
+		};
+		ece2@0000000 {
+			compatible = "econa,ethernet";
+			reg = <0x0000000 0x1000000>;
+			interrupts = <18 19 20 21 22>;
+			interrupt-parent = <&PIC>;	
+			local-mac-address = [ 00 1a f1 01 1f 23 ];
+		};
+	};
+
+	apbc@c0000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0xc0000000 0x10000000>;
+
+		usb1@1020000 {
+			compatible = "econa,usb-ohci", "usb-ohci";
+			reg = <0x0000000 0x8000000>;
+			interrupts = <23>;
+			interrupt-parent = <&PIC>;
+		};
+                usb2@50000 {
+                        compatible = "econa,usb-ehci", "usb-ehci";
+                        reg = <0x8000000 0x8000000>;
+                        interrupts = <24>;
+                        interrupt-parent = <&PIC>;
+                };
+
+
+	};
+
+};

@@ -67,7 +67,9 @@ __FBSDID("$FreeBSD$");
 
 #include <arm/cavium/cns11xx/if_ecereg.h>
 #include <arm/cavium/cns11xx/if_ecevar.h>
-#include <arm/cavium/cns11xx/econa_var.h>
+//#include <arm/cavium/cns11xx/econa_var.h>
+void    power_on_network_interface      (void);
+
 
 #include <machine/bus.h>
 #include <machine/intr.h>

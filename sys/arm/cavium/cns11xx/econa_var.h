@@ -29,7 +29,21 @@
 #ifndef	_ARM_ECONA_VAR_H
 #define	_ARM_ECONA_VAR_H
 
+#ifdef INTRNG
+#include "pic_if.h"
+#endif
+
 extern bus_space_tag_t obio_tag;
+
+#define INTC_NIRQS 25
+
+#ifdef INTRNG
+
+struct econa_irqsrc {
+	struct intr_irqsrc      ec_isrc;
+	u_int                   ec_irq;
+};
+#endif
 
 struct econa_softc {
 	device_t dev;
@@ -40,6 +54,9 @@ struct econa_softc {
 	struct rman ec_irq_rman;
 	struct rman ec_mem_rman;
 	struct resource * ec_res[3];
+#ifdef INTRNG
+	struct econa_irqsrc  ec_isrcs[INTC_NIRQS];
+#endif
 };
 
 struct econa_ivar {

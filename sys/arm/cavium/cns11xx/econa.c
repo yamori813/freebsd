@@ -28,6 +28,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include "opt_platform.h"
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
@@ -35,6 +37,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/kernel.h>
 #include <sys/malloc.h>
 #include <sys/module.h>
+#include <sys/proc.h>
 #include <sys/rman.h>
 #include <vm/vm.h>
 #include <vm/vm_kern.h>
@@ -43,10 +46,8 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_extern.h>
 
 #define	_ARM32_BUS_DMA_PRIVATE
-#include <machine/armreg.h>
 #include <machine/bus.h>
 #include <machine/intr.h>
-#include <machine/resource.h>
 
 #include <dev/fdt/fdt_common.h>
 #include <dev/ofw/openfirm.h>
@@ -57,12 +58,17 @@ __FBSDID("$FreeBSD$");
 #include "econa_reg.h"
 #include "econa_var.h"
 
+#ifndef INTRNG
+static void ec_intc_eoi(void *);
+#else
+static int econa_pic_attach(struct econa_softc *sc);
+#endif
+
 static struct resource_spec econa_spec[] = {
 	{ SYS_RES_MEMORY,	0,	RF_ACTIVE },
 	{ SYS_RES_MEMORY,	1,	RF_ACTIVE },
 	{ -1, 0 }
 };
-
 
 static struct econa_softc *econa_softc;
 
@@ -103,49 +109,62 @@ bus_dma_get_range_nb(void)
 
 extern void irq_entry(void);
 
-struct cpu_devs
-{
-	const char *name;
-	int unit;
-	bus_addr_t mem_base;
-	bus_size_t mem_len;
-	int irq0;
-	int irq1;
-	int irq2;
-	int irq3;
-	int irq4;
-};
-
 struct intc_trigger_t {
 	int mode;
 	int level;
 };
 
+// Datasheet P42
 static struct intc_trigger_t intc_trigger_table[] = {
+	// Bit[0]: Timer#1
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[1]: Timer#2
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[2]: Clock and Power Management
 	{INTC_EDGE_TRIGGER, INTC_FALLING_EDGE},
+	// Bit[3]: Watch Dog Timer
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[4]: GPIO
 	{INTC_TRIGGER_UNKNOWN, INTC_TRIGGER_UNKNOWN},
+	// Bit[5]: PCI External Interrupt 0
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_LOW},
+	// Bit[6]: PCI External Interrupt 1
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_LOW},
+	// Bit[7]: PCI External Interrupt 2
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[8]: AHB-to-PCI Bridge Status
 	{INTC_TRIGGER_UNKNOWN, INTC_TRIGGER_UNKNOWN},
+	// Bit[9]: Reserved
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[10]: UART
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[11]: Generic DMA Terminal Counter
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[12]: Generic DMA Error
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[13]: PCMCIA
 	{INTC_TRIGGER_UNKNOWN, INTC_TRIGGER_UNKNOWN},
+	// Bit[14]: RTC
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[15]: External Interrupt
 	{INTC_EDGE_TRIGGER, INTC_FALLING_EDGE},
+	// Bit[16]: Reserved
 	{INTC_TRIGGER_UNKNOWN, INTC_TRIGGER_UNKNOWN},
+	// Bit[17]: Reserved
 	{INTC_TRIGGER_UNKNOWN, INTC_TRIGGER_UNKNOWN},
+	// Bit[18]: Switch Controller
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_HIGH},
+	// Bit[19]: Switch DMA TSTC (To-Switch-Tx-Complete)
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[20]: Switch DMA FSRC (Fm-Switch-Rx-Complete)
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[21]: Switch DMA TSQE(To-Switch-Queue-Empty)
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[22]: Switch DMA FSQE (Fm-Switch-Queue-Empty)
 	{INTC_EDGE_TRIGGER, INTC_RISING_EDGE},
+	// Bit[23]: USB 1.1 host controller
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_LOW},
+	// Bit[24]: USB 2.0 host controller
 	{INTC_LEVEL_TRIGGER, INTC_ACTIVE_LOW},
 };
 
@@ -177,32 +196,19 @@ system_write_4(struct econa_softc *sc, bus_size_t off, uint32_t val)
 	return bus_space_write_4(sc->ec_system_st, sc->ec_system_sh, off, val);
 }
 
-
-
 static inline void
-econa_set_irq_mode(struct econa_softc * sc, unsigned int irq,
-		   unsigned int mode)
+econa_set_irq_mode(struct econa_softc * sc)
 {
 	unsigned int val;
+	int i;
 
-	if ((mode != INTC_LEVEL_TRIGGER) && (mode != INTC_EDGE_TRIGGER))
-		return;
-
-	val =	read_4(sc, INTC_INTERRUPT_TRIGGER_MODE_REG_OFFSET);
-
-	if (mode == INTC_LEVEL_TRIGGER) {
-		if (val & (1UL << irq)) {
-			val &= ~(1UL << irq);
-			write_4(sc, INTC_INTERRUPT_TRIGGER_MODE_REG_OFFSET,
-			    val);
-		}
-	} else {
-		if (!(val & (1UL << irq))) {
-			val |= (1UL << irq);
-			write_4(sc, INTC_INTERRUPT_TRIGGER_MODE_REG_OFFSET,
-			    val);
+	val = 0;
+	for (i = 0; i < INTC_NIRQS; i++) {
+		if(intc_trigger_table[i].mode == INTC_EDGE_TRIGGER) {
+			val |= (1UL << i);
 		}
 	}
+	write_4(sc, INTC_INTERRUPT_TRIGGER_MODE_REG_OFFSET, val);
 }
 
 /*
@@ -210,33 +216,19 @@ econa_set_irq_mode(struct econa_softc * sc, unsigned int irq,
  * or Rising/Falling Edge
  */
 static inline void
-econa_set_irq_level(struct econa_softc * sc,
-    unsigned int irq, unsigned int level)
+econa_set_irq_level(struct econa_softc * sc)
 {
 	unsigned int val;
+	int i;
 
-	if ((level != INTC_ACTIVE_HIGH) &&
-	    (level != INTC_ACTIVE_LOW) &&
-	    (level != INTC_RISING_EDGE) &&
-	    (level != INTC_FALLING_EDGE)) {
-		return;
-	}
-
-	val = read_4(sc, INTC_INTERRUPT_TRIGGER_LEVEL_REG_OFFSET);
-
-	if ((level == INTC_ACTIVE_HIGH) || (level == INTC_RISING_EDGE)) {
-		if (val & (1UL << irq)) {
-			val &= ~(1UL << irq);
-			write_4(sc, INTC_INTERRUPT_TRIGGER_LEVEL_REG_OFFSET,
-			    val);
-		}
-	} else {
-		if (!(val & (1UL << irq))) {
-			val |= (1UL << irq);
-			write_4(sc, INTC_INTERRUPT_TRIGGER_LEVEL_REG_OFFSET,
-			    val);
+	val = 0;
+	for (i = 0; i < INTC_NIRQS; i++) {
+		if(intc_trigger_table[i].level == INTC_FALLING_EDGE ||
+		    intc_trigger_table[i].level == INTC_ACTIVE_LOW) {
+			val |= (1UL << i);
 		}
 	}
+	write_4(sc, INTC_INTERRUPT_TRIGGER_LEVEL_REG_OFFSET, val);
 }
 
 static void
@@ -273,7 +265,6 @@ static int
 econa_attach(device_t dev)
 {
 	struct econa_softc *sc = device_get_softc(dev);
-	int i;
 
 	econa_softc = sc;
 	sc->dev = dev;
@@ -288,6 +279,12 @@ econa_attach(device_t dev)
 	sc->ec_system_st = rman_get_bustag(sc->ec_res[1]);
 	sc->ec_system_sh = rman_get_bushandle(sc->ec_res[1]);
 
+#ifndef INTRNG
+	arm_post_filter = ec_intc_eoi;
+#else
+	econa_pic_attach(sc);
+#endif
+
 	write_4(sc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 0xffffffff);
 
 	write_4(sc, INTC_INTERRUPT_MASK_REG_OFFSET, 0xffffffff);
@@ -295,18 +292,15 @@ econa_attach(device_t dev)
 	write_4(sc, INTC_FIQ_MODE_SELECT_REG_OFFSET, 0);
 
 	/*initialize irq*/
-	for (i = 0; i < 32; i++) {
-		if (intc_trigger_table[i].mode != INTC_TRIGGER_UNKNOWN) {
-			econa_set_irq_mode(sc,i, intc_trigger_table[i].mode);
-			econa_set_irq_level(sc, i, intc_trigger_table[i].level);
-		}
-	}
+	econa_set_irq_mode(sc);
+	econa_set_irq_level(sc);
 
 	get_system_clock(dev);
 
 	return (0);
 }
 
+#ifndef INTRNG
 void
 arm_mask_irq(uintptr_t nb)
 {
@@ -321,10 +315,8 @@ arm_unmask_irq(uintptr_t nb)
 {
 	unsigned int value;
 
-	value = read_4(econa_softc,
-	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET) | (1 << nb);
 	write_4(econa_softc,
-	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, value);
+	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 1 << nb);
 	value = read_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET)& ~(1 << nb);
 	write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
 }
@@ -334,8 +326,7 @@ arm_get_next_irq(int x)
 {
 	int irq;
 
-	irq = read_4(econa_softc, INTC_INTERRUPT_STATUS_REG_OFFSET) &
-	    ~(read_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET));
+	irq = read_4(econa_softc, INTC_INTERRUPT_STATUS_REG_OFFSET);
 
 	if (irq!=0) {
 		return (ffs(irq) - 1);
@@ -343,6 +334,140 @@ arm_get_next_irq(int x)
 
 	return (-1);
 }
+#endif
+
+#ifdef INTRNG
+static void
+econa_enable_intr(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
+	unsigned int value;
+
+	write_4(econa_softc,
+	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 1 << irq);
+
+	value = read_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET)& ~(1 << irq);
+	write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
+}
+
+static void
+econa_disable_intr(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
+	unsigned int value;
+
+	value = read_4(econa_softc,INTC_INTERRUPT_MASK_REG_OFFSET) | 1 << irq;
+	write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
+}
+
+static int
+econa_map_intr(device_t dev, struct intr_map_data *data,
+    struct intr_irqsrc **isrcp)
+{
+	struct intr_map_data_fdt *daf;
+	struct econa_softc *sc;
+
+	if (data->type != INTR_MAP_DATA_FDT)
+		return (ENOTSUP);
+
+	daf = (struct intr_map_data_fdt *)data;
+
+	if (daf->ncells != 1 || daf->cells[0] >= INTC_NIRQS)
+		return (EINVAL);
+
+	sc = device_get_softc(dev);
+	*isrcp = &sc->ec_isrcs[daf->cells[0]].ec_isrc;
+	return (0);
+}
+
+static void
+econa_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
+	unsigned int value;
+	
+	value = read_4(econa_softc,INTC_INTERRUPT_MASK_REG_OFFSET) | 1 << irq;
+	write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
+	write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
+	    1 << irq);
+}
+
+static void
+econa_post_ithread(device_t dev, struct intr_irqsrc *isrc)
+{
+	econa_enable_intr(dev, isrc);
+}
+
+static void
+econa_post_filter(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
+	
+	write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
+	    1 << irq);
+}
+
+static int
+econa_intr(void *arg)
+{
+	uint32_t irq;
+	struct econa_softc *sc = arg;
+	unsigned int value;
+
+	irq = ffs(read_4(econa_softc, INTC_INTERRUPT_STATUS_REG_OFFSET)) - 1;
+
+	if(intr_isrc_dispatch(&sc->ec_isrcs[irq].ec_isrc,
+	    curthread->td_intr_frame) != 0) {
+
+		value = read_4(econa_softc,INTC_INTERRUPT_MASK_REG_OFFSET) | 1 << irq;
+		write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
+		write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
+		    1 << irq);
+		device_printf(sc->dev, "Stray irq %u disabled\n", irq);
+	}
+
+	arm_irq_memory_barrier(irq); /* XXX */
+
+	return (FILTER_HANDLED);
+}
+
+static int
+econa_pic_attach(struct econa_softc *sc)
+{
+	int error;
+	uint32_t irq;
+	const char *name;
+	intptr_t xref;
+
+	name = device_get_nameunit(sc->dev);
+	for (irq = 0; irq < INTC_NIRQS; irq++) {
+		sc->ec_isrcs[irq].ec_irq = irq;
+
+		error = intr_isrc_register(&sc->ec_isrcs[irq].ec_isrc,
+		    sc->dev, 0, "%s,%u", name, irq);
+		if (error != 0)
+			return (error);
+	}
+
+	xref = OF_xref_from_node(ofw_bus_get_node(sc->dev));
+	error = intr_pic_register(sc->dev, xref);
+	if (error != 0)
+		return (error);
+
+	return (intr_pic_claim_root(sc->dev, xref, econa_intr, sc, 0));
+}
+
+#else
+static void
+ec_intc_eoi(void *data)
+{
+	int nb = (int)data;
+
+	write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
+	    1 << nb);
+
+}
+#endif
 
 void
 cpu_reset(void)
@@ -357,8 +482,6 @@ cpu_reset(void)
 	system_write_4(econa_softc, RESET_CONTROL, control);
 	while (1);
 }
-
-
 
 void
 power_on_network_interface(void)
@@ -388,11 +511,12 @@ power_on_network_interface(void)
 	system_write_4(econa_softc, RESET_CONTROL, cfg_reg);
 }
 
+#ifndef INTRNG
 static int
 fdt_pic_decode_ic(phandle_t node, pcell_t *intr, int *interrupt, int *trig,
     int *pol)
 {
-	if (!fdt_is_compatible(node, "str,pic"))
+	if (!fdt_is_compatible(node, "econa,pic"))
 		return (ENXIO);
 
 	*interrupt = fdt32_to_cpu(intr[0]);
@@ -405,10 +529,20 @@ fdt_pic_decode_t fdt_pic_table[] = {
 	&fdt_pic_decode_ic,
 	NULL
 };
+#endif
 
 static device_method_t econa_methods[] = {
 	DEVMETHOD(device_probe,		econa_probe),
 	DEVMETHOD(device_attach,		econa_attach),
+#ifdef INTRNG
+	DEVMETHOD(pic_disable_intr,     econa_disable_intr),
+	DEVMETHOD(pic_enable_intr,      econa_enable_intr),
+	DEVMETHOD(pic_map_intr,         econa_map_intr),
+	DEVMETHOD(pic_post_filter,      econa_post_filter),
+	DEVMETHOD(pic_post_ithread,     econa_post_ithread),
+	DEVMETHOD(pic_pre_ithread,      econa_pre_ithread),
+#endif
+
 	{0, 0},
 };
 
