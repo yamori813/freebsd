@@ -142,6 +142,7 @@ rtl8366rb_probe(device_t dev)
 	struct rtl8366rb_softc *sc;
 
 	sc = device_get_softc(dev);
+	bzero(sc, sizeof(*sc));
 	if (smi_probe(dev) != 0)
 		return (ENXIO);
 	if(sc->chip_type == 0)
@@ -354,7 +355,6 @@ smi_probe(device_t dev)
 	int xferd;
 
 	sc = device_get_softc(dev);
-	bzero(sc, sizeof(*sc));
 	iicbus = device_get_parent(dev);
 	iicha = device_get_parent(iicbus);
 
