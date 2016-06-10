@@ -74,6 +74,7 @@ struct rtl8366rb_softc {
 	struct ifnet	*ifp[RTL8366_NUM_PHYS];
 	struct callout	callout_tick;
 	etherswitch_info_t	info;
+	int		chip_type;	/* 0 = RTL8366RB, 1 = RTL8366SR */
 };
 
 #define RTL_LOCK(_sc)	mtx_lock(&(_sc)->sc_mtx)
@@ -121,7 +122,6 @@ static void rtl8366rb_tick(void *arg);
 static int rtl8366rb_ifmedia_upd(struct ifnet *);
 static void rtl8366rb_ifmedia_sts(struct ifnet *, struct ifmediareq *);
 
-static int chip_type = 0;	/* 0 = RTL8366RB, 1 = RTL8366SR */
 
 static void
 rtl8366rb_identify(driver_t *driver, device_t parent)
@@ -139,9 +139,12 @@ rtl8366rb_identify(driver_t *driver, device_t parent)
 static int
 rtl8366rb_probe(device_t dev)
 {
+	struct rtl8366rb_softc *sc;
+
+	sc = device_get_softc(dev);
 	if (smi_probe(dev) != 0)
 		return (ENXIO);
-	if(chip_type == 0)
+	if(sc->chip_type == 0)
 		device_set_desc(dev, "RTL8366RB Ethernet Switch Controller");
 	else
 		device_set_desc(dev, "RTL8366SR Ethernet Switch Controller");
@@ -200,7 +203,6 @@ rtl8366rb_attach(device_t dev)
 	int i;
 
 	sc = device_get_softc(dev);
-	bzero(sc, sizeof(*sc));
 	sc->dev = dev;
 	mtx_init(&sc->sc_mtx, "rtl8366rb", NULL, MTX_DEF);
 	sc->smi_acquired = 0;
@@ -213,7 +215,7 @@ rtl8366rb_attach(device_t dev)
 	sc->info.es_nports = RTL8366_NUM_PORTS;
 	sc->info.es_nvlangroups = RTL8366_NUM_VLANS;
 	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_DOT1Q;
-	if(chip_type == 0)
+	if(sc->chip_type == 0)
 		sprintf(sc->info.es_name, "Realtek RTL8366RB");
 	else
 		sprintf(sc->info.es_name, "Realtek RTL8366SR");
@@ -344,12 +346,15 @@ rtl8366rb_tick(void *arg)
 static int
 smi_probe(device_t dev)
 {
+	struct rtl8366rb_softc *sc;
 	device_t iicbus, iicha;
 	int err, i, j;
 	uint16_t chipid;
 	char bytes[2];
 	int xferd;
 
+	sc = device_get_softc(dev);
+	bzero(sc, sizeof(*sc));
 	iicbus = device_get_parent(dev);
 	iicha = device_get_parent(iicbus);
 
@@ -384,13 +389,13 @@ smi_probe(device_t dev)
 		chipid = ((bytes[1] & 0xff) << 8) | (bytes[0] & 0xff);
 		if (i == 0 && chipid == RTL8366RB_CIR_ID8366RB) {
 			DPRINTF(dev, "chip id 0x%04x\n", chipid);
-			chip_type = 0;
+			sc->chip_type = 0;
 			err = 0;
 			break;
 		}
 		if (i == 1 && chipid == RTL8366SR_CIR_ID8366SR) {
 			DPRINTF(dev, "chip id 0x%04x\n", chipid);
-			chip_type = 1;
+			sc->chip_type = 1;
 			err = 0;
 			break;
 		}
@@ -450,10 +455,12 @@ smi_select(device_t dev, int op, int sleep)
 	device_t iicbus = device_get_parent(dev);
 	struct iicbus_ivar *devi = IICBUS_IVAR(dev);
 	int slave = devi->addr;
+	struct rtl8366rb_softc *sc;
 
 	RTL_SMI_ACQUIRED_ASSERT((struct rtl8366rb_softc *)device_get_softc(dev));
 
-	if(chip_type == 1) {   // RTL8366SR work around
+	sc = device_get_softc(dev);
+	if(sc->chip_type == 1) {   // RTL8366SR work around
 		// this is same work around at probe
 		for (int i=3; i--; )
 			IICBUS_STOP(device_get_parent(device_get_parent(dev)));
@@ -709,7 +716,7 @@ rtl_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	sc->vid[g] |= ETHERSWITCH_VID_VALID;
 	rtl_writereg(dev, RTL8366_VMCR(RTL8366_VMCR_DOT1Q_REG, g),
 		(vg->es_vid << RTL8366_VMCR_DOT1Q_VID_SHIFT) & RTL8366_VMCR_DOT1Q_VID_MASK);
-	if(chip_type == 0) {
+	if(sc->chip_type == 0) {
 		rtl_writereg(dev, RTL8366_VMCR(RTL8366_VMCR_MU_REG, g),
 	 	    ((vg->es_member_ports << RTL8366_VMCR_MU_MEMBER_SHIFT) & RTL8366_VMCR_MU_MEMBER_MASK) |
 		    ((vg->es_untagged_ports << RTL8366_VMCR_MU_UNTAG_SHIFT) & RTL8366_VMCR_MU_UNTAG_MASK));

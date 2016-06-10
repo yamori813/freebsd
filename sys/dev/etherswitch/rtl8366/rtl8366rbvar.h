@@ -66,7 +66,7 @@
 #define RTL8366_SSCR2_DROP_UNKNOWN_DA		0x0001
 
 /* Port Link Status: two ports per register */
-#define RTL8366_PLSR_BASE			(chip_type == 0 ? 0x0014 : 0x0060)
+#define RTL8366_PLSR_BASE			(sc->chip_type == 0 ? 0x0014 : 0x0060)
 #define RTL8366_PLSR_SPEED_MASK	0x03
 #define RTL8366_PLSR_SPEED_10		0x00
 #define RTL8366_PLSR_SPEED_100	0x01
@@ -78,8 +78,8 @@
 #define RTL8366_PLSR_NO_AUTO		0x80
 
 /* VLAN Member Configuration, 3 or 2 registers per VLAN */
-#define RTL8366_VMCR_BASE			(chip_type == 0 ? 0x0020 : 0x0016)
-#define RTL8366_VMCR_MULT		(chip_type == 0 ? 3 : 2)
+#define RTL8366_VMCR_BASE			(sc->chip_type == 0 ? 0x0020 : 0x0016)
+#define RTL8366_VMCR_MULT		(sc->chip_type == 0 ? 3 : 2)
 #define RTL8366_VMCR_DOT1Q_REG	0
 #define RTL8366_VMCR_DOT1Q_VID_SHIFT	0
 #define RTL8366_VMCR_DOT1Q_VID_MASK	0x0fff
@@ -87,12 +87,12 @@
 #define RTL8366_VMCR_DOT1Q_PCP_MASK	0x7000
 #define RTL8366_VMCR_MU_REG		1
 #define RTL8366_VMCR_MU_MEMBER_SHIFT	0
-#define RTL8366_VMCR_MU_MEMBER_MASK	(chip_type == 0 ? 0x00ff : 0x003f)
-#define RTL8366_VMCR_MU_UNTAG_SHIFT	(chip_type == 0 ? 8 : 6)
-#define RTL8366_VMCR_MU_UNTAG_MASK	(chip_type == 0 ? 0xff00 : 0x0fc0)
-#define RTL8366_VMCR_FID_REG		(chip_type == 0 ? 2 : 1)
-#define RTL8366_VMCR_FID_FID_SHIFT	(chip_type == 0 ? 0 : 12)
-#define RTL8366_VMCR_FID_FID_MASK	(chip_type == 0 ? 0x0007 : 0x7000)
+#define RTL8366_VMCR_MU_MEMBER_MASK	(sc->chip_type == 0 ? 0x00ff : 0x003f)
+#define RTL8366_VMCR_MU_UNTAG_SHIFT	(sc->chip_type == 0 ? 8 : 6)
+#define RTL8366_VMCR_MU_UNTAG_MASK	(sc->chip_type == 0 ? 0xff00 : 0x0fc0)
+#define RTL8366_VMCR_FID_REG		(sc->chip_type == 0 ? 2 : 1)
+#define RTL8366_VMCR_FID_FID_SHIFT	(sc->chip_type == 0 ? 0 : 12)
+#define RTL8366_VMCR_FID_FID_MASK	(sc->chip_type == 0 ? 0x0007 : 0x7000)
 #define RTL8366_VMCR(_reg, _vlan) \
 	(RTL8366_VMCR_BASE + _reg + _vlan * RTL8366_VMCR_MULT)
 /* VLAN Identifier */
@@ -111,7 +111,7 @@
 	>> RTL8366_VMCR_MU_UNTAG_SHIFT)
 /* Forwarding ID */
 #define RTL8366_VMCR_FID(_r) \
-	(chip_type == 0 ? (_r[RTL8366_VMCR_FID_REG] & RTL8366_VMCR_FID_FID_MASK) : \
+	(sc->chip_type == 0 ? (_r[RTL8366_VMCR_FID_REG] & RTL8366_VMCR_FID_FID_MASK) : \
 		((_r[RTL8366_VMCR_FID_REG] & RTL8366_VMCR_FID_FID_MASK) \
 		>> RTL8366_VMCR_FID_FID_SHIFT))
 
@@ -120,7 +120,7 @@
  * Determines the VID for untagged ingress frames through
  * index into VMC.
  */
-#define RTL8366_PVCR_BASE			(chip_type == 0 ? 0x0063 : 0x0058)
+#define RTL8366_PVCR_BASE			(sc->chip_type == 0 ? 0x0063 : 0x0058)
 #define RTL8366_PVCR_PORT_SHIFT	4
 #define RTL8366_PVCR_PORT_PERREG	(16 / RTL8366_PVCR_PORT_SHIFT)
 #define RTL8366_PVCR_PORT_MASK	0x000f
@@ -138,7 +138,7 @@
 #define RTL8366_RCR_SOFT_RESET	0x0002
 
 /* Chip Version Control: CHIP_VER[3:0] */
-#define RTL8366_CVCR				(chip_type == 0 ? 0x050A : 0x0104)
+#define RTL8366_CVCR				(sc->chip_type == 0 ? 0x050A : 0x0104)
 /* Chip Identifier */
 #define RTL8366RB_CIR				0x0509
 #define RTL8366RB_CIR_ID8366RB		0x5937
@@ -150,7 +150,7 @@
 
 /* MIB registers */
 #define RTL8366_MCNT_BASE			0x1000
-#define RTL8366_MCTLR				(chip_type == 0 ? 0x13f0 : 0x11F0)
+#define RTL8366_MCTLR				(sc->chip_type == 0 ? 0x13f0 : 0x11F0)
 #define RTL8366_MCTLR_BUSY		0x0001
 #define RTL8366_MCTLR_RESET		0x0002
 #define RTL8366_MCTLR_RESET_PORT_MASK	0x00fc
@@ -162,15 +162,15 @@
 	(1 << ((_p) + 2))
 
 /* PHY Access Control */
-#define RTL8366_PACR				(chip_type == 0 ? 0x8000 : 0x8028)
+#define RTL8366_PACR				(sc->chip_type == 0 ? 0x8000 : 0x8028)
 #define RTL8366_PACR_WRITE		0x0000
 #define RTL8366_PACR_READ			0x0001
 
 /* PHY Access Data */
-#define	RTL8366_PADR				(chip_type == 0 ? 0x8002 : 0x8029)
+#define	RTL8366_PADR				(sc->chip_type == 0 ? 0x8002 : 0x8029)
 
 #define RTL8366_PHYREG(phy, page, reg) \
-	(0x8000 | (1 << (((phy) & 0x1f) + 9)) | (((page) & (chip_type == 0 ? 0xf : 0x7)) << 5) | ((reg) & 0x1f))
+	(0x8000 | (1 << (((phy) & 0x1f) + 9)) | (((page) & (sc->chip_type == 0 ? 0xf : 0x7)) << 5) | ((reg) & 0x1f))
 
 /* general characteristics of the chip */
 #define	RTL8366_CPU_PORT			5
