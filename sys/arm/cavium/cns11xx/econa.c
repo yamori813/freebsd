@@ -434,6 +434,7 @@ econa_intr(void *arg)
 static int
 econa_pic_attach(struct econa_softc *sc)
 {
+	struct intr_pic *pic;
 	int error;
 	uint32_t irq;
 	const char *name;
@@ -450,9 +451,9 @@ econa_pic_attach(struct econa_softc *sc)
 	}
 
 	xref = OF_xref_from_node(ofw_bus_get_node(sc->dev));
-	error = intr_pic_register(sc->dev, xref);
-	if (error != 0)
-		return (error);
+	pic = intr_pic_register(sc->dev, xref);
+	if (pic == NULL)
+		return (ENXIO);
 
 	return (intr_pic_claim_root(sc->dev, xref, econa_intr, sc, 0));
 }
