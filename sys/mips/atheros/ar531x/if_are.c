@@ -66,6 +66,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
+#define MDIO
+
 #ifdef MDIO
 #include <dev/mdio/mdio.h>
 #include <dev/etherswitch/miiproxy.h>
@@ -248,7 +250,7 @@ are_attach(device_t dev)
 	/* Map control/status registers. */
 	sc->are_rid = 0;
 	sc->are_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &sc->are_rid, 
-	    RF_ACTIVE);
+	    RF_ACTIVE | RF_SHAREABLE);
 
 	if (sc->are_res == NULL) {
 		device_printf(dev, "couldn't map memory\n");
@@ -1570,7 +1572,28 @@ aremdio_probe(device_t dev)
 static int
 aremdio_attach(device_t dev)
 {
-	return(0);
+	struct are_softc	*sc;
+	int			error = 0;
+
+	sc = device_get_softc(dev);
+	sc->are_dev = dev;
+	sc->are_rid = 0;
+	sc->are_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, 
+	    &sc->are_rid, RF_ACTIVE | RF_SHAREABLE);
+	if (sc->are_res == NULL) {
+		device_printf(dev, "couldn't map memory\n");
+		error = ENXIO;
+		goto fail;
+	}
+
+	sc->are_btag = rman_get_bustag(sc->are_res);
+	sc->are_bhandle = rman_get_bushandle(sc->are_res);
+
+	bus_generic_probe(dev);
+	bus_enumerate_hinted_children(dev);
+	error = bus_generic_attach(dev);
+fail:
+	return (error);
 }
 
 static int
