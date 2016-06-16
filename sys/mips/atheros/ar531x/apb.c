@@ -390,8 +390,14 @@ apb_filter(void *arg)
 
 			event = sc->sc_eventstab[irq];
 			if (!event || TAILQ_EMPTY(&event->ie_handlers)) {
+				if(irq == 1 && ar531x_soc < AR531X_SOC_AR5315) {
+					ATH_READ_REG(AR5312_SYSREG_BASE +
+						AR5312_SYSREG_AHBPERR);
+					ATH_READ_REG(AR5312_SYSREG_BASE +
+						AR5312_SYSREG_AHBDMAE);
+				}
 				/* Ignore non handle interrupts */
-				if (irq != 0)
+				if (irq != 0 && irq != 6)
 					printf("Stray APB IRQ %d\n", irq);
 
 				continue;
