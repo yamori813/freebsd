@@ -1,7 +1,7 @@
 /*-
+ * Copyright (c) 2016 Hiroki Mori
  * Copyright (c) 2010 Adrian Chadd
  * All rights reserved.
- * Copyright (c) 2016, Hiroki Mori
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -56,6 +56,7 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5312_chip.c 234326 2012-04-15 22:34:
 #include <mips/atheros/ar531x/ar5312reg.h>
 #include <mips/atheros/ar531x/ar5315reg.h>
 #include <mips/atheros/ar531x/ar5315_cpudef.h>
+#include <mips/atheros/ar531x/ar5315_setup.h>
 
 #include <mips/sentry5/s5reg.h>
 
@@ -72,8 +73,13 @@ ar5312_chip_detect_sys_frequency(void)
 
 
 	const uint32_t clockctl = ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_CLOCKCTL);
-	predivisor = __SHIFTOUT(clockctl, AR2313_CLOCKCTL_PREDIVIDE);
-	multiplier = __SHIFTOUT(clockctl, AR2313_CLOCKCTL_MULTIPLIER);
+	if(ar531x_soc == AR531X_SOC_AR5313) {
+		predivisor = __SHIFTOUT(clockctl, AR2313_CLOCKCTL_PREDIVIDE);
+		multiplier = __SHIFTOUT(clockctl, AR2313_CLOCKCTL_MULTIPLIER);
+	} else {
+		predivisor = __SHIFTOUT(clockctl, AR5312_CLOCKCTL_PREDIVIDE);
+		multiplier = __SHIFTOUT(clockctl, AR5312_CLOCKCTL_MULTIPLIER);
+	}
 
 	const uint32_t divisor = (0x5421 >> (predivisor * 4)) & 15;
 
@@ -160,14 +166,14 @@ ar5312_chip_soc_init(void)
 	u_ar531x_wdog_ctl = AR5312_SYSREG_WDOG_CTL;
 	u_ar531x_wdog_timer = AR5312_SYSREG_WDOG_TIMER;
 
-//#ifdef FIXMEMSIZE
+#if 0
 	uint32_t cfg1;
 	cfg1 = ATH_READ_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1);
 	cfg1 &= ~__SHIFTOUT_MASK(AR5312_MEM_CFG1_BANK0);
 	cfg1 |= (3 * __LOWEST_SET_BIT(AR5312_MEM_CFG1_BANK0));
 	ATH_WRITE_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1,
 		cfg1);
-//#endif
+#endif
 }
 
 static uint32_t
