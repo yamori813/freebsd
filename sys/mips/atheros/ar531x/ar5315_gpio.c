@@ -1,7 +1,7 @@
 /*-
+ * Copyright (c) 2016, Hiroki Mori
  * Copyright (c) 2009, Oleksandr Tymoshenko <gonzo@FreeBSD.org>
  * Copyright (c) 2009, Luiz Otavio O Souza. 
- * Copyright (c) 2016, Hiroki Mori
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

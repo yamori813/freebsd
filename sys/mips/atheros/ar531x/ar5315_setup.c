@@ -1,7 +1,7 @@
 /*-
+ * Copyright (c) 2016, Hiroki Mori
  * Copyright (c) 2010 Adrian Chadd
  * All rights reserved.
- * Copyright (c) 2016, Hiroki Mori
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
