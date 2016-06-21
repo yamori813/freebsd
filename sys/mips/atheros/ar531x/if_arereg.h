@@ -106,7 +106,7 @@ struct are_softc {
 	u_int32_t		sc_inten;	/* copy of CSR_INTEN */
 	u_int32_t		sc_rxint_mask;	/* mask of Rx interrupts we want */
 	u_int32_t		sc_txint_mask;	/* mask of Tx interrupts we want */
-#ifdef MII
+#ifdef ARE_MII
 	device_t		are_miibus;
 #else
 	struct ifmedia		are_ifmedia;

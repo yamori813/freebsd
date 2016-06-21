@@ -67,8 +67,12 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
-//#define ARE_MDIO
-//#define MII
+// Use etherswitch driver
+#define ARE_MDIO
+// Use normal PHY chip
+//#define ARE_MII 
+// If your switch chip not support on etherswitch then
+// not define ARE_MDIO and ARE_MII
 
 #ifdef ARE_MDIO
 #include <dev/mdio/mdio.h>
@@ -155,7 +159,7 @@ static driver_t are_driver = {
 static devclass_t are_devclass;
 
 DRIVER_MODULE(are, nexus, are_driver, are_devclass, 0, 0);
-#ifdef MII
+#ifdef ARE_MII
 DRIVER_MODULE(miibus, are, miibus_driver, miibus_devclass, 0, 0);
 #endif
 
@@ -316,7 +320,7 @@ are_attach(device_t dev)
 	sc->are_miiproxy = mii_attach_proxy(sc->are_dev);
 #endif
 
-#ifdef MII
+#ifdef ARE_MII
 	/* Do MII setup. */
 	error = mii_attach(dev, &sc->are_miibus, ifp, are_ifmedia_upd,
 	    are_ifmedia_sts, BMSR_DEFCAPMASK, MII_PHY_ANY, MII_OFFSET_ANY, 0);
@@ -368,7 +372,7 @@ are_detach(device_t dev)
 		taskqueue_drain(taskqueue_swi, &sc->are_link_task);
 		ether_ifdetach(ifp);
 	}
-#ifdef MII
+#ifdef ARE_MII
 	if (sc->are_miibus)
 		device_delete_child(dev, sc->are_miibus);
 #endif
@@ -478,7 +482,7 @@ are_miibus_statchg(device_t dev)
 static void
 are_link_task(void *arg, int pending)
 {
-#ifdef MII
+#ifdef ARE_MII
 	struct are_softc		*sc;
 	struct mii_data		*mii;
 	struct ifnet		*ifp;
@@ -549,13 +553,13 @@ static void
 are_init_locked(struct are_softc *sc)
 {
 	struct ifnet		*ifp = sc->are_ifp;
-#ifdef MII
+#ifdef ARE_MII
 	struct mii_data		*mii;
 #endif
 
 	ARE_LOCK_ASSERT(sc);
 
-#ifdef MII
+#ifdef ARE_MII
 	mii = device_get_softc(sc->are_miibus);
 #endif
 
@@ -631,7 +635,7 @@ are_init_locked(struct are_softc *sc)
 	CSR_WRITE_4(sc, CSR_RXPOLL, RXPOLL_RPD);
 
 	sc->are_link_status = 1;
-#ifdef MII
+#ifdef ARE_MII
 	mii_mediachg(mii);
 #endif
 
@@ -824,7 +828,7 @@ are_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 {
 	struct are_softc		*sc = ifp->if_softc;
 	struct ifreq		*ifr = (struct ifreq *) data;
-#ifdef MII
+#ifdef ARE_MII
 	struct mii_data		*mii;
 #endif
 	int			error;
@@ -862,7 +866,7 @@ are_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 		break;
 	case SIOCGIFMEDIA:
 	case SIOCSIFMEDIA:
-#ifdef MII
+#ifdef ARE_MII
 		mii = device_get_softc(sc->are_miibus);
 		error = ifmedia_ioctl(ifp, ifr, &mii->mii_media, command);
 #else
@@ -908,7 +912,7 @@ are_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 static int
 are_ifmedia_upd(struct ifnet *ifp)
 {
-#ifdef MII
+#ifdef ARE_MII
 	struct are_softc		*sc;
 	struct mii_data		*mii;
 	struct mii_softc	*miisc;
@@ -934,7 +938,7 @@ are_ifmedia_upd(struct ifnet *ifp)
 static void
 are_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
-#ifdef MII
+#ifdef ARE_MII
 	struct are_softc		*sc = ifp->if_softc;
 	struct mii_data		*mii;
 
@@ -1545,7 +1549,7 @@ are_intr(void *arg)
 static void
 are_tick(void *xsc)
 {
-#ifdef MII
+#ifdef ARE_MII
 	struct are_softc		*sc = xsc;
 	struct mii_data		*mii;
 
