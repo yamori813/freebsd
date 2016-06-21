@@ -92,7 +92,7 @@ static int
 ar5315_wdog_probe(device_t dev)
 {
 
-	device_set_desc(dev, "Atheros AR5315 watchdog timer");
+	device_set_desc(dev, "Atheros AR531x watchdog timer");
 	return (0);
 }
 

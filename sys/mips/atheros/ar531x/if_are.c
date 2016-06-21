@@ -195,7 +195,7 @@ static int
 are_probe(device_t dev)
 {
 
-	device_set_desc(dev, "AR231x Ethernet interface");
+	device_set_desc(dev, "AR531x Ethernet interface");
 	return (0);
 }
 
@@ -1568,7 +1568,7 @@ are_hinted_child(device_t bus, const char *dname, int dunit)
 static int
 aremdio_probe(device_t dev)
 {
-	device_set_desc(dev, "Atheros AR231x built-in ethernet interface, MDIO controller");
+	device_set_desc(dev, "Atheros AR531x built-in ethernet interface, MDIO controller");
 	return(0);
 }
 

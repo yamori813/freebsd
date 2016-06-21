@@ -324,7 +324,7 @@ static int
 ar5315_gpio_probe(device_t dev)
 {
 
-	device_set_desc(dev, "Atheros AR5315 GPIO driver");
+	device_set_desc(dev, "Atheros AR531x GPIO driver");
 	return (0);
 }
 
