@@ -47,6 +47,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/mutex.h>
 #include <sys/socket.h>
 #include <sys/taskqueue.h>
+#include <sys/kdb.h>
 
 #include <net/if.h>
 #include <net/if_arp.h>
@@ -67,6 +68,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/miivar.h>
 
 #define MDIO
+//#define MII
 
 #ifdef MDIO
 #include <dev/mdio/mdio.h>
@@ -1517,6 +1519,7 @@ are_intr(void *arg)
 	struct are_softc		*sc = arg;
 	uint32_t		status;
 	struct ifnet		*ifp = sc->are_ifp;
+//kdb_break();
 
 	ARE_LOCK(sc);
 
