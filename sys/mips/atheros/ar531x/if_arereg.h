@@ -111,7 +111,7 @@ struct are_softc {
 #else
 	struct ifmedia		are_ifmedia;
 #endif
-#ifdef MDIO
+#ifdef ARE_MDIO
 	device_t		are_miiproxy;
 #endif
 	bus_dma_tag_t		are_parent_tag;

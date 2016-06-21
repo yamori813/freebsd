@@ -166,6 +166,8 @@ ar5315_chip_device_start(void)
 		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_ENDIAN) |
 		AR5315_ENDIAN_ENET);
 */
+	/* Disable interrupts for all gpio pins. */
+	ATH_WRITE_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_GPIO_INT, 0);
 
 	printf("AHB Master Arbitration Control %08x\n",
 		ATH_READ_REG(AR5315_SYSREG_BASE+AR5315_SYSREG_AHB_ARB_CTL));

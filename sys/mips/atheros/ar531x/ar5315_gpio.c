@@ -316,7 +316,6 @@ ar5315_gpio_intr(void *arg)
 	struct ar5315_gpio_softc *sc = arg;
 	GPIO_LOCK(sc);
 	/* TODO: something useful */
-printf("MORI MORI GPIO intr\n");
 	GPIO_UNLOCK(sc);
 }
 
@@ -381,9 +380,6 @@ ar5315_gpio_attach(device_t dev)
 		device_printf(dev, "function_clear: 0x%x\n", mask);
 		ar5315_gpio_function_disable(sc, mask);
 	}
-
-	/* Disable interrupts for all pins. */
-	GPIO_WRITE(sc, AR5315_SYSREG_GPIO_INT, 0);
 
 	/* Initialise all pins specified in the mask, up to the pin count */
 	(void) ar5315_gpio_pin_max(dev, &maxpin);
