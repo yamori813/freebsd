@@ -58,11 +58,27 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5312_chip.c 234326 2012-04-15 22:34:
 #include <mips/atheros/ar531x/ar5315_cpudef.h>
 #include <mips/atheros/ar531x/ar5315_setup.h>
 
-#include <mips/sentry5/s5reg.h>
-
 static void
 ar5312_chip_detect_mem_size(void)
 {
+	uint32_t memsize;
+	uint32_t memcfg, bank0, bank1;
+
+	/*
+	 * Determine the memory size as established by system
+	 * firmware.
+	 *
+	 * NB: we allow compile time override
+	 */
+	memcfg = ATH_READ_REG(AR5312_SDRAMCTL_BASE + AR5312_SDRAMCTL_MEM_CFG1);
+	bank0 = __SHIFTOUT(memcfg, AR5312_MEM_CFG1_BANK0);
+	bank1 = __SHIFTOUT(memcfg, AR5312_MEM_CFG1_BANK1);
+
+	memsize = (bank0 ? (1 << (bank0 + 1)) : 0) +
+	    (bank1 ? (1 << (bank1 + 1)) : 0);
+	memsize <<= 20;
+
+	realmem = memsize;
 }
 
 static void

@@ -57,8 +57,6 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_chip.c 234326 2012-04-15 22:34:
 #include <mips/atheros/ar531x/ar5315_chip.h>
 #include <mips/atheros/ar531x/ar5315_cpudef.h>
 
-#include <mips/sentry5/s5reg.h>
-
 /* XXX these shouldn't be in here - this file is a per-chip file */
 /* XXX these should be in the top-level ar5315 type, not ar5315 -chip */
 uint32_t u_ar531x_cpu_freq;
@@ -78,6 +76,30 @@ uint32_t u_ar531x_wdog_timer;
 static void
 ar5315_chip_detect_mem_size(void)
 {
+	uint32_t	memsize = 0;
+	uint32_t	memcfg, cw, rw, dw;
+
+	/*
+	 * Determine the memory size.  We query the board info.
+	 */
+	memcfg = ATH_READ_REG(AR5315_SDRAMCTL_BASE + AR5315_SDRAMCTL_MEM_CFG);
+	cw = __SHIFTOUT(memcfg, AR5315_MEM_CFG_COL_WIDTH);
+	cw += 1;
+	rw = __SHIFTOUT(memcfg, AR5315_MEM_CFG_ROW_WIDTH);
+	rw += 1;
+
+	/* XXX: according to redboot, this could be wrong if DDR SDRAM */
+	dw = __SHIFTOUT(memcfg, AR5315_MEM_CFG_DATA_WIDTH);
+	dw += 1;
+	dw *= 8;	/* bits */
+
+	/* not too sure about this math, but it _seems_ to add up */
+	memsize = (1 << cw) * (1 << rw) * dw;
+#if 0
+	printf("SDRAM_MEM_CFG =%x, cw=%d rw=%d dw=%d xmemsize=%d\n", memcfg,
+	    cw, rw, dw, memsize);
+#endif
+	realmem = memsize;
 }
 
 static void

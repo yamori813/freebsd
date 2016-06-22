@@ -58,11 +58,6 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar71xx_machdep.c 232853 2012-03-12 07:
 #include <mips/atheros/ar531x/ar5315_setup.h>
 #include <mips/atheros/ar531x/ar5315_cpudef.h>
 
-//#include <mips/atheros/ar71xx_setup.h>
-//#include <mips/atheros/ar71xx_cpudef.h>
-
-#include <mips/sentry5/s5reg.h>
-
 extern char edata[], end[];
 
 uint32_t ar711_base_mac[ETHER_ADDR_LEN];
@@ -222,12 +217,17 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	/* 
 	 * Protect ourselves from garbage in registers 
 	 */
-//	if (MIPS_IS_VALID_PTR(envp)) {
-//		for (i = 0; envp[i]; i += 2) {
-//			if (strcmp(envp[i], "memsize") == 0)
-//				realmem = btoc(strtoul(envp[i+1], NULL, 16));
-//		}
-//	}
+	if (MIPS_IS_VALID_PTR(envp)) {
+		for (i = 0; envp[i]; i += 2) {
+			if (strcmp(envp[i], "memsize") == 0)
+				realmem = btoc(strtoul(envp[i+1], NULL, 16));
+		}
+	}
+
+	ar5315_detect_sys_type();
+
+// RedBoot SDRAM Detect is missing
+//	ar531x_detect_mem_size();
 
 	/*
 	 * Just wild guess. RedBoot let us down and didn't reported 
@@ -271,7 +271,6 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 
 	/* Detect the system type - this is needed for subsequent chipset-specific calls */
 
-	ar5315_detect_sys_type();
 
 	ar531x_device_soc_init();
 	ar531x_detect_sys_frequency();
@@ -279,7 +278,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	platform_counter_freq = ar531x_cpu_freq();
 	mips_timer_init_params(platform_counter_freq, 1);
 	cninit();
-//	init_static_kenv(boot1_env, sizeof(boot1_env));
+	init_static_kenv(boot1_env, sizeof(boot1_env));
 
 	printf("CPU platform: %s\n", ar5315_get_system_type());
 	printf("CPU Frequency=%d MHz\n", ar531x_cpu_freq() / 1000000);
@@ -332,7 +331,7 @@ platform_start(__register_t a0 __unused, __register_t a1 __unused,
 	printf ("envp skiped\n");
 #endif
 
-	/* Redboot if_arge MAC address is in the environment */
+	/* Redboot if_are MAC address is in the environment */
 	ar5315_redboot_get_macaddr();
 
 	init_param2(physmem);

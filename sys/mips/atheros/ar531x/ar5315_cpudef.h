@@ -58,6 +58,11 @@ struct ar5315_cpu_def {
 
 extern struct ar5315_cpu_def * ar5315_cpu_ops;
 
+static inline void ar531x_detect_mem_size(void)
+{
+	ar5315_cpu_ops->detect_mem_size();
+}
+
 static inline void ar531x_detect_sys_frequency(void)
 {
 	ar5315_cpu_ops->detect_sys_frequency();

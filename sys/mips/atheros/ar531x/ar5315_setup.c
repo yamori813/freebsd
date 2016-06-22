@@ -64,8 +64,6 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/ar5315_setup.c 223562 2011-06-26 10:07
 #include <mips/atheros/ar724x_chip.h>
 #include <mips/atheros/ar91xx_chip.h>
 
-#include <mips/sentry5/s5reg.h>
-
 #include <dev/ath/ath_hal/ah_soc.h>
 
 #define	AR5315_SYS_TYPE_LEN		128
