@@ -139,9 +139,8 @@ rtl8366rb_identify(driver_t *driver, device_t parent)
 static int
 rtl8366rb_probe(device_t dev)
 {
-	struct rtl8366rb_softc *sc;
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 
-	sc = device_get_softc(dev);
 	bzero(sc, sizeof(*sc));
 	if (smi_probe(dev) != 0)
 		return (ENXIO);
@@ -155,8 +154,8 @@ rtl8366rb_probe(device_t dev)
 static void
 rtl8366rb_init(device_t dev)
 {
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	int i;
-	struct rtl8366rb_softc *sc;
 
 	/* Initialisation for TL-WR1043ND */
 #ifdef RTL8366_SOFT_RESET
@@ -175,7 +174,6 @@ rtl8366rb_init(device_t dev)
 		RTL8366_SGCR_EN_VLAN | RTL8366_SGCR_EN_VLAN_4KTB,
 		RTL8366_SGCR_EN_VLAN, RTL_WAITOK);
 	/* Initialize our vlan table. */
-	sc = device_get_softc(dev);
 	for (i = 0; i <= 1; i++)
 		sc->vid[i] = (i + 1) | ETHERSWITCH_VID_VALID;
 	/* Remove port 0 from VLAN 1. */
@@ -197,13 +195,12 @@ rtl8366rb_init(device_t dev)
 static int
 rtl8366rb_attach(device_t dev)
 {
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	uint16_t rev = 0;
-	struct rtl8366rb_softc *sc;
 	char name[IFNAMSIZ];
 	int err = 0;
 	int i;
 
-	sc = device_get_softc(dev);
 	sc->dev = dev;
 	mtx_init(&sc->sc_mtx, "rtl8366rb", NULL, MTX_DEF);
 	sc->smi_acquired = 0;
@@ -347,14 +344,13 @@ rtl8366rb_tick(void *arg)
 static int
 smi_probe(device_t dev)
 {
-	struct rtl8366rb_softc *sc;
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	device_t iicbus, iicha;
 	int err, i, j;
 	uint16_t chipid;
 	char bytes[2];
 	int xferd;
 
-	sc = device_get_softc(dev);
 	iicbus = device_get_parent(dev);
 	iicha = device_get_parent(iicbus);
 
@@ -451,15 +447,14 @@ smi_release(struct rtl8366rb_softc *sc, int sleep)
 static int
 smi_select(device_t dev, int op, int sleep)
 {
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	int err, i;
 	device_t iicbus = device_get_parent(dev);
 	struct iicbus_ivar *devi = IICBUS_IVAR(dev);
 	int slave = devi->addr;
-	struct rtl8366rb_softc *sc;
 
 	RTL_SMI_ACQUIRED_ASSERT((struct rtl8366rb_softc *)device_get_softc(dev));
 
-	sc = device_get_softc(dev);
 	if(sc->chip_type == 1) {   // RTL8366SR work around
 		// this is same work around at probe
 		for (int i=3; i--; )
@@ -611,7 +606,7 @@ rtl_writereg(device_t dev, int reg, int value)
 static int
 rtl_getport(device_t dev, etherswitch_port_t *p)
 {
-	struct rtl8366rb_softc *sc;
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	struct ifmedia *ifm;
 	struct mii_data *mii;
 	struct ifmediareq *ifmr = &p->es_ifmr;
@@ -620,7 +615,6 @@ rtl_getport(device_t dev, etherswitch_port_t *p)
 	
 	if (p->es_port < 0 || p->es_port >= RTL8366_NUM_PORTS)
 		return (ENXIO);
-	sc = device_get_softc(dev);
 	vlangroup = RTL8366_PVCR_GET(p->es_port,
 		rtl_readreg(dev, RTL8366_PVCR_REG(p->es_port)));
 	p->es_pvid = sc->vid[vlangroup] & ETHERSWITCH_VID_MASK;
@@ -654,14 +648,13 @@ rtl_getport(device_t dev, etherswitch_port_t *p)
 static int
 rtl_setport(device_t dev, etherswitch_port_t *p)
 {
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	int i, err, vlangroup;
-	struct rtl8366rb_softc *sc;
 	struct ifmedia *ifm;
 	struct mii_data *mii;
 
 	if (p->es_port < 0 || p->es_port >= RTL8366_NUM_PORTS)
 		return (ENXIO);
-	sc = device_get_softc(dev);
 	vlangroup = -1;
 	for (i = 0; i < RTL8366_NUM_VLANS; i++) {
 		if ((sc->vid[i] & ETHERSWITCH_VID_MASK) == p->es_pvid) {
@@ -687,14 +680,13 @@ rtl_setport(device_t dev, etherswitch_port_t *p)
 static int
 rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct rtl8366rb_softc *sc;
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	uint16_t vmcr[RTL8366_VMCR_MULT];
 	int i;
 	
 	for (i=0; i<RTL8366_VMCR_MULT; i++)
 		vmcr[i] = rtl_readreg(dev, RTL8366_VMCR(i, vg->es_vlangroup));
 		
-	sc = device_get_softc(dev);
 	vg->es_vid = sc->vid[vg->es_vlangroup];
 	vg->es_member_ports = RTL8366_VMCR_MEMBER(vmcr);
 	vg->es_untagged_ports = RTL8366_VMCR_UNTAG(vmcr);
@@ -705,10 +697,9 @@ rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 rtl_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct rtl8366rb_softc *sc;
+	struct rtl8366rb_softc *sc = device_get_softc(dev);
 	int g = vg->es_vlangroup;
 
-	sc = device_get_softc(dev);
 	sc->vid[g] = vg->es_vid;
 	/* VLAN group disabled ? */
 	if (vg->es_member_ports == 0 && vg->es_untagged_ports == 0 && vg->es_vid == 0)
