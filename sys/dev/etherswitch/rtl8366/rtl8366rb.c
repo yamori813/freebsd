@@ -139,7 +139,9 @@ rtl8366rb_identify(driver_t *driver, device_t parent)
 static int
 rtl8366rb_probe(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	bzero(sc, sizeof(*sc));
 	if (smi_probe(dev) != 0)
@@ -154,8 +156,10 @@ rtl8366rb_probe(device_t dev)
 static void
 rtl8366rb_init(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int i;
+
+	sc = device_get_softc(dev);
 
 	/* Initialisation for TL-WR1043ND */
 #ifdef RTL8366_SOFT_RESET
@@ -195,11 +199,13 @@ rtl8366rb_init(device_t dev)
 static int
 rtl8366rb_attach(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	uint16_t rev = 0;
 	char name[IFNAMSIZ];
 	int err = 0;
 	int i;
+
+	sc = device_get_softc(dev);
 
 	sc->dev = dev;
 	mtx_init(&sc->sc_mtx, "rtl8366rb", NULL, MTX_DEF);
@@ -253,8 +259,10 @@ rtl8366rb_attach(device_t dev)
 static int
 rtl8366rb_detach(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int i;
+
+	sc = device_get_softc(dev);
 
 	for (i=0; i < RTL8366_NUM_PHYS; i++) {
 		if (sc->miibus[i])
@@ -335,7 +343,9 @@ rtl833rb_miipollstat(struct rtl8366rb_softc *sc)
 static void
 rtl8366rb_tick(void *arg)
 {
-	struct rtl8366rb_softc *sc = arg;
+	struct rtl8366rb_softc *sc;
+
+	sc = arg;
 
 	rtl833rb_miipollstat(sc);
 	callout_reset(&sc->callout_tick, hz, rtl8366rb_tick, sc);
@@ -344,12 +354,14 @@ rtl8366rb_tick(void *arg)
 static int
 smi_probe(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	device_t iicbus, iicha;
 	int err, i, j;
 	uint16_t chipid;
 	char bytes[2];
 	int xferd;
+
+	sc = device_get_softc(dev);
 
 	iicbus = device_get_parent(dev);
 	iicha = device_get_parent(iicbus);
@@ -447,11 +459,17 @@ smi_release(struct rtl8366rb_softc *sc, int sleep)
 static int
 smi_select(device_t dev, int op, int sleep)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int err, i;
-	device_t iicbus = device_get_parent(dev);
-	struct iicbus_ivar *devi = IICBUS_IVAR(dev);
-	int slave = devi->addr;
+	device_t iicbus;
+	struct iicbus_ivar *devi;
+	int slave;
+
+	sc = device_get_softc(dev);
+
+	iicbus = device_get_parent(dev);
+	devi = IICBUS_IVAR(dev);
+	slave = devi->addr;
 
 	RTL_SMI_ACQUIRED_ASSERT((struct rtl8366rb_softc *)device_get_softc(dev));
 
@@ -481,9 +499,11 @@ static int
 smi_read_locked(struct rtl8366rb_softc *sc, uint16_t addr, uint16_t *data, int sleep)
 {
 	int err;
-	device_t iicbus = device_get_parent(sc->dev);
+	device_t iicbus;
 	char bytes[2];
 	int xferd;
+
+	iicbus = device_get_parent(sc->dev);
 
 	RTL_SMI_ACQUIRED_ASSERT(sc);
 	bytes[0] = addr & 0xff;
@@ -508,9 +528,11 @@ static int
 smi_write_locked(struct rtl8366rb_softc *sc, uint16_t addr, uint16_t data, int sleep)
 {
 	int err;
-	device_t iicbus = device_get_parent(sc->dev);
+	device_t iicbus;
 	char bytes[4];
 	int xferd;
+
+	iicbus = device_get_parent(sc->dev);
 
 	RTL_SMI_ACQUIRED_ASSERT(sc);
 	bytes[0] = addr & 0xff;
@@ -529,8 +551,10 @@ smi_write_locked(struct rtl8366rb_softc *sc, uint16_t addr, uint16_t data, int s
 static int
 smi_read(device_t dev, uint16_t addr, uint16_t *data, int sleep)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int err;
+
+	sc = device_get_softc(dev);
 
 	err = smi_acquire(sc, sleep);
 	if (err != 0)
@@ -544,9 +568,11 @@ smi_read(device_t dev, uint16_t addr, uint16_t *data, int sleep)
 static int
 smi_write(device_t dev, uint16_t addr, uint16_t data, int sleep)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int err;
 	
+	sc = device_get_softc(dev);
+
 	err = smi_acquire(sc, sleep);
 	if (err != 0)
 		return (EBUSY);
@@ -559,10 +585,12 @@ smi_write(device_t dev, uint16_t addr, uint16_t data, int sleep)
 static int
 smi_rmw(device_t dev, uint16_t addr, uint16_t mask, uint16_t data, int sleep)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int err;
 	uint16_t oldv, newv;
 	
+	sc = device_get_softc(dev);
+
 	err = smi_acquire(sc, sleep);
 	if (err != 0)
 		return (EBUSY);
@@ -583,7 +611,9 @@ smi_rmw(device_t dev, uint16_t addr, uint16_t mask, uint16_t data, int sleep)
 static etherswitch_info_t *
 rtl_getinfo(device_t dev)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	return (&sc->info);
 }
@@ -591,7 +621,9 @@ rtl_getinfo(device_t dev)
 static int
 rtl_readreg(device_t dev, int reg)
 {
-	uint16_t data = 0;
+	uint16_t data;
+
+	data = 0;
 
 	smi_read(dev, reg, &data, RTL_WAITOK);
 	return (data);
@@ -606,13 +638,17 @@ rtl_writereg(device_t dev, int reg, int value)
 static int
 rtl_getport(device_t dev, etherswitch_port_t *p)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	struct ifmedia *ifm;
 	struct mii_data *mii;
-	struct ifmediareq *ifmr = &p->es_ifmr;
+	struct ifmediareq *ifmr;
 	uint16_t v;
 	int err, vlangroup;
 	
+	sc = device_get_softc(dev);
+
+	ifmr = &p->es_ifmr;
+
 	if (p->es_port < 0 || p->es_port >= RTL8366_NUM_PORTS)
 		return (ENXIO);
 	vlangroup = RTL8366_PVCR_GET(p->es_port,
@@ -648,10 +684,12 @@ rtl_getport(device_t dev, etherswitch_port_t *p)
 static int
 rtl_setport(device_t dev, etherswitch_port_t *p)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int i, err, vlangroup;
 	struct ifmedia *ifm;
 	struct mii_data *mii;
+
+	sc = device_get_softc(dev);
 
 	if (p->es_port < 0 || p->es_port >= RTL8366_NUM_PORTS)
 		return (ENXIO);
@@ -680,10 +718,12 @@ rtl_setport(device_t dev, etherswitch_port_t *p)
 static int
 rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
-	uint16_t vmcr[RTL8366_VMCR_MULT];
+	struct rtl8366rb_softc *sc;
+	uint16_t vmcr[3];
 	int i;
 	
+	sc = device_get_softc(dev);
+
 	for (i=0; i<RTL8366_VMCR_MULT; i++)
 		vmcr[i] = rtl_readreg(dev, RTL8366_VMCR(i, vg->es_vlangroup));
 		
@@ -697,8 +737,12 @@ rtl_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 rtl_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
-	int g = vg->es_vlangroup;
+	struct rtl8366rb_softc *sc;
+	int g;
+
+	sc = device_get_softc(dev);
+
+	g = vg->es_vlangroup;
 
 	sc->vid[g] = vg->es_vid;
 	/* VLAN group disabled ? */
@@ -736,9 +780,13 @@ rtl_getconf(device_t dev, etherswitch_conf_t *conf)
 static int
 rtl_readphy(device_t dev, int phy, int reg)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
-	uint16_t data = 0;
+	struct rtl8366rb_softc *sc;
+	uint16_t data;
 	int err, i, sleep;
+
+	sc = device_get_softc(dev);
+
+	data = 0;
 
 	if (phy < 0 || phy >= RTL8366_NUM_PHYS)
 		return (ENXIO);
@@ -768,9 +816,11 @@ rtl_readphy(device_t dev, int phy, int reg)
 static int
 rtl_writephy(device_t dev, int phy, int reg, int data)
 {
-	struct rtl8366rb_softc *sc = device_get_softc(dev);
+	struct rtl8366rb_softc *sc;
 	int err, i, sleep;
 	
+	sc = device_get_softc(dev);
+
 	if (phy < 0 || phy >= RTL8366_NUM_PHYS)
 		return (ENXIO);
 	if (reg < 0 || reg >= RTL8366_NUM_PHY_REG)
@@ -798,8 +848,11 @@ rtl_writephy(device_t dev, int phy, int reg, int data)
 static int
 rtl8366rb_ifmedia_upd(struct ifnet *ifp)
 {
-	struct rtl8366rb_softc *sc = ifp->if_softc;
-	struct mii_data *mii = device_get_softc(sc->miibus[ifp->if_dunit]);
+	struct rtl8366rb_softc *sc;
+	struct mii_data *mii;
+	
+	sc = ifp->if_softc;
+	mii = device_get_softc(sc->miibus[ifp->if_dunit]);
 	
 	mii_mediachg(mii);
 	return (0);
@@ -808,8 +861,11 @@ rtl8366rb_ifmedia_upd(struct ifnet *ifp)
 static void
 rtl8366rb_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
-	struct rtl8366rb_softc *sc = ifp->if_softc;
-	struct mii_data *mii = device_get_softc(sc->miibus[ifp->if_dunit]);
+	struct rtl8366rb_softc *sc;
+	struct mii_data *mii;
+
+	sc = ifp->if_softc;
+	mii = device_get_softc(sc->miibus[ifp->if_dunit]);
 
 	mii_pollstat(mii);
 	ifmr->ifm_active = mii->mii_media_active;
