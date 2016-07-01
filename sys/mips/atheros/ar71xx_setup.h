@@ -48,7 +48,6 @@ enum ar71xx_soc_type {
 	AR71XX_SOC_QCA9558,
 	AR71XX_SOC_QCA9533,
 	AR71XX_SOC_QCA9533_V2,
-	AR71XX_SOC_AR5315,
 };
 extern enum ar71xx_soc_type ar71xx_soc;
 
