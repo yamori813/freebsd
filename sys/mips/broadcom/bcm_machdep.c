@@ -187,6 +187,7 @@ platform_start(__register_t a0, __register_t a1, __register_t a2,
 {
 	vm_offset_t 		 kernend;
 	uint64_t		 platform_counter_freq;
+	uint32_t		socid;
 	struct bcm_socinfo	*socinfo;
 
 	/* clear the BSS and SBSS segments */
@@ -253,4 +254,7 @@ platform_start(__register_t a0, __register_t a1, __register_t a2,
 	mips_init();
 
 	mips_timer_init_params(platform_counter_freq, socinfo->double_count);
+	
+	socid = bcm_get_socid();
+	printf("socid = 0x%08x\n", socid);
 }

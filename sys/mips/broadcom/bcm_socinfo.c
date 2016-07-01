@@ -37,6 +37,7 @@ struct bcm_socinfo bcm_socinfos[] = {
 		{0x0022B83A, 300, 20000000, 1}, /* BCM4716B0 ASUS RT-N12  */
 		{0x00914716, 354, 20000000, 1}, /* BCM4717A1 to check  */
 		{0x00A14716, 480, 20000000, 1}, /* BCM4718A1 ASUS RT-N16 */
+		{0x00025354, 240, 25804800, 1}, /* BCM5354 Buffalo WHR-G */
 		{0x00435356, 300, 25000000, 1}, /* BCM5356A1 (RT-N10, WNR1000v3) */
 		{0x00825357, 500, 20000000, 1}, /* BCM5358UB0 ASUS RT-N53A1 */
 		{0x00845357, 300, 20000000, 1}, /* BCM5357B0 to check */
@@ -50,6 +51,16 @@ struct bcm_socinfo bcm_socinfos[] = {
 
 /* Most popular BCM SoC info */
 struct bcm_socinfo BCM_DEFAULT_SOCINFO = {0x0, 300, 20000000, 0};
+
+uint32_t
+bcm_get_socid(void)
+{
+	uint32_t		socid;
+
+	socid = BCM_READ_REG32(BCM_REG_CHIPC_ID) & 0x00FFFFFF;
+	
+	return socid;
+}
 
 struct bcm_socinfo*
 bcm_get_socinfo_by_socid(uint32_t key)
@@ -85,7 +96,7 @@ bcm_get_socinfo(void)
 	 * --------------------------------------------------------------
 	 */
 
-	socid = BCM_READ_REG32(BCM_REG_CHIPC_ID) & 0x00FFFFFF;
+	socid = bcm_get_socid();
 	socinfo = bcm_get_socinfo_by_socid(socid);
 	return (socinfo != NULL) ? socinfo : &BCM_DEFAULT_SOCINFO;
 }

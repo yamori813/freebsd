@@ -41,6 +41,7 @@ struct bcm_socinfo {
 	int		double_count;
 };
 
+uint32_t		bcm_get_socid(void);
 struct bcm_socinfo*	bcm_get_socinfo_by_socid(uint32_t key);
 struct bcm_socinfo*	bcm_get_socinfo(void);
 
