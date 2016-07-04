@@ -83,12 +83,16 @@
 				label = "uboot_env";
 			};
 			partition@2 {
-				reg = <0x00010000 0x00100000>;
+				reg = <0x00010000 0x000f0000>;
 				label = "kernel";
 			};
 			partition@3 {
-				reg = <0x00110000 0x002c0000>;
+				reg = <0x00100000 0x002d0000>;
 				label = "rootfs";
+			};
+			partition@4 {
+				reg = <0x003d0000 0x00010000>;
+				label = "config";
 			};
 		};
 	};
