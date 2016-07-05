@@ -135,11 +135,16 @@ static struct rt1310_gpio_softc *rt1310_gpio_sc = NULL;
 static int
 rt1310_gpio_probe(device_t dev)
 {
+	phandle_t node;
 
 	if (!ofw_bus_status_okay(dev))
 		return (ENXIO);
 
-	if (!ofw_bus_is_compatible(dev, "gpio"))
+	if (!ofw_bus_is_compatible(dev, "ralink,rt1310-gpio"))
+		return (ENXIO);
+		
+	node = ofw_bus_get_node(dev);
+	if (!OF_hasprop(node, "gpio-controller"))
 		return (ENXIO);
 
 	device_set_desc(dev, "RT1310 GPIO");
