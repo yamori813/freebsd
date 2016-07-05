@@ -724,6 +724,7 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 {
 	struct fv_txdesc	*txd;
 	struct fv_desc		*desc, *prev_desc;
+	struct mbuf		*m;
 	bus_dma_segment_t	txsegs[FV_MAXFRAGS];
 	uint32_t		link_addr;
 	int			error, i, nsegs, prod, si, prev_prod;
@@ -736,7 +737,22 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	error = bus_dmamap_load_mbuf_sg(sc->fv_cdata.fv_tx_tag, txd->tx_dmamap,
 	    *m_head, txsegs, &nsegs, BUS_DMA_NOWAIT);
 	if (error == EFBIG) {
-		panic("EFBIG");
+//		panic("EFBIG");
+		m = m_collapse(*m_head, M_NOWAIT, FV_MAXFRAGS);
+		if (m == NULL) {
+			m_freem(*m_head);
+			*m_head = NULL;
+			return (ENOBUFS);
+		}
+		*m_head = m;
+		error = bus_dmamap_load_mbuf_sg(sc->fv_cdata.fv_tx_tag,
+		    txd->tx_dmamap, *m_head, txsegs, &nsegs, BUS_DMA_NOWAIT);
+		if (error != 0) {
+			m_freem(*m_head);
+			*m_head = NULL;
+			return (error);
+		}
+
 	} else if (error != 0)
 		return (error);
 	if (nsegs == 0) {
