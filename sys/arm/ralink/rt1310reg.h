@@ -30,11 +30,6 @@
 #ifndef	_ARM_RT_RTREG_H
 #define	_ARM_RT_RTREG_H
 
-#define	LPC_DEV_PHYS_BASE		0x40000000
-#define	LPC_DEV_P5_PHYS_BASE		0x20000000
-#define	LPC_DEV_P6_PHYS_BASE		0x30000000
-#define	LPC_DEV_SIZE			0x10000000
-
 /*
  * Interrupt controller
  */

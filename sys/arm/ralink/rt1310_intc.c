@@ -318,27 +318,6 @@ rt1310_map_intr(device_t dev, struct intr_map_data *data,
 	return (0);
 }
 
-/*
-static int
-rt1310_setup_intr(device_t dev, struct intr_irqsrc *isrc,
-    struct resource *res, struct intr_map_data *data)
-{
-	return (0);
-}
-
-static int
-rt1310_teardown_intr(device_t dev, struct intr_irqsrc *isrc,
-    struct resource *res, struct intr_map_data *data)
-{
-
-	if (isrc->isrc_handlers == 0) {
-		rt1310_disable_intr(dev, isrc);
-	}
-
-	return (0);
-}
-*/
-
 static void
 rt1310_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
@@ -444,10 +423,6 @@ static device_method_t rt1310_intc_methods[] = {
 	DEVMETHOD(pic_disable_intr,	rt1310_disable_intr),
 	DEVMETHOD(pic_enable_intr,	rt1310_enable_intr),
 	DEVMETHOD(pic_map_intr,		rt1310_map_intr),
-/*
-	DEVMETHOD(pic_setup_intr,	rt1310_setup_intr),
-	DEVMETHOD(pic_teardown_intr,	rt1310_teardown_intr),
-*/
 	DEVMETHOD(pic_post_filter,	rt1310_post_filter),
 	DEVMETHOD(pic_post_ithread,	rt1310_post_ithread),
 	DEVMETHOD(pic_pre_ithread,	rt1310_pre_ithread),
