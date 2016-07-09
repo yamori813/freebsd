@@ -242,6 +242,7 @@ struct fv_softc {
 #define	ADCTL_Tx_FS	0x20000000	/* First Segment */
 #define	ADCTL_Tx_SETUP	0x08000000	/* Setup frame */
 #define	ADCTL_Tx_AC	0x04000000	/* Add CRC Disable */
+#define	ADCTL_Tx_TER	0x02000000	/* Add CRC Disable */
 #define	ADCTL_Tx_DPD	0x00800000	/* Disabled Padding */
 
 /*
@@ -279,6 +280,15 @@ struct fv_softc {
 
 #define	CSR_MIIMNG	(0x08*9)	/* MII Management Register */
 #define	CSR_FULLDUP	(0x08*11)	/* Full Duplex Register */
+
+/* 21143 like register */
+#define FULLDUP_CS		0x80000000	/* Cycle Size */
+#define FULLDUP_TT_SHIFT	27	/* Transmit Timer */
+#define FULLDUP_NTP_SHIFT	24	/* Number of Transmit Packets */
+#define FULLDUP_RT_SHIFT	20	/* Receive Timer */
+#define FULLDUP_NRP_SHIFT	17	/* Number of Receive Packets */
+#define FULLDUP_CON_MODE	0x00010000	/* Continuous Mode */
+#define FULLDUP_TIM_SHIFT	0	/* Timer Value */
 
 /* CSR_MACCTL - Mac Control */
 #define	MACCTL_RE		0x00000004	/* rx enable */
@@ -337,6 +347,7 @@ struct fv_softc {
 #define	BUSMODE_PBL_8LW		0x00000800	/*     8 longwords */
 #define	BUSMODE_PBL_16LW	0x00001000	/*    16 longwords */
 #define	BUSMODE_PBL_32LW	0x00002000	/*    32 longwords */
+#define	BUSMODE_TAP_SHIFT	17		/* Transmit Automatic Polling */
 #define	BUSMODE_DBO		0x00100000	/* descriptor endian */
 #define	BUSMODE_ALIGN_16B	0x01000000	/* force oddhw rx buf align */
 

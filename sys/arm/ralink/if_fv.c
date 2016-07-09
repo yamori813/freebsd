@@ -1,7 +1,7 @@
 /*-
+ * Copyright (c) 2016 Hiroki Mori. All rights reserved.
  * Copyright (C) 2007 
  *	Oleksandr Tymoshenko <gonzo@freebsd.org>. All rights reserved.
- * Copyright (c) 2016 Hiroki Mori. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -202,7 +202,10 @@ fv_setfilt(struct fv_softc *sc)
 	struct fv_desc *sframe;
 	int i;
 	struct ifnet *ifp;
+	struct ifmultiaddr *ifma;
 	uint16_t *sp;
+	uint8_t *ma;
+printf("MORI MORI fv_setfilt\n");
 
 	ifp = sc->fv_ifp;
 
@@ -215,6 +218,25 @@ fv_setfilt(struct fv_softc *sc)
 	
 	sframe->fv_addr = sc->fv_rdata.fv_sf_paddr;
 	sframe->fv_devcs = ADCTL_Tx_SETUP | FV_DMASIZE(FV_SFRAME_LEN);
+
+	i = 0;
+	if_maddr_rlock(ifp);
+	TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+		if (ifma->ifma_addr->sa_family != AF_LINK)
+			continue;
+		ma = LLADDR((struct sockaddr_dl *)ifma->ifma_addr);
+		sp[i] = sp[i+1] = (ma[1] << 8 | ma[0]);
+printf("MORI MORI %02x:",sp[i]);
+		i += 2;
+		sp[i] = sp[i+1] = (ma[3] << 8 | ma[2]);
+printf("%02x:",sp[i]);
+		i += 2;
+		sp[i] = sp[i+1] = (ma[5] << 8 | ma[4]);
+printf("%02x\n",sp[i]);
+		i += 2;
+		
+	}
+	if_maddr_runlock(ifp);
 
 	bcopy(IF_LLADDR(sc->fv_ifp), eaddr, ETHER_ADDR_LEN);
 	sp[90] = sp[91] = eaddr[0];
@@ -640,7 +662,8 @@ fv_init_locked(struct fv_softc *sc)
 	    /* XXX: not sure if this is a good thing or not... */
 	    //BUSMODE_ALIGN_16B |
 //	    BUSMODE_BAR | BUSMODE_BLE | BUSMODE_PBL_4LW);
-	    BUSMODE_BAR | BUSMODE_PBL_4LW);
+//	    BUSMODE_BAR | BUSMODE_PBL_4LW);
+	    BUSMODE_BAR | BUSMODE_PBL_32LW);
 
 	/*
 	 * Initialize the interrupt mask and enable interrupts.
@@ -686,7 +709,8 @@ fv_init_locked(struct fv_softc *sc)
 	 */
 	CSR_WRITE_4(sc, CSR_OPMODE, OPMODE_SR | OPMODE_ST |
 //	    ae_txthresh[sc->sc_txthresh].txth_opmode);
-	    OPMODE_TR_64);
+//	    OPMODE_TR_64);
+	    OPMODE_TR_128);
 	/*
 	 * Start the receive process.
 	 */
@@ -727,18 +751,76 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	struct mbuf		*m;
 	bus_dma_segment_t	txsegs[FV_MAXFRAGS];
 	uint32_t		link_addr;
-	int			error, i, nsegs, prod, si, prev_prod;
-	int			txstat;
+	int			error, i, nsegs, prod, si;
+	int			padlen;
+	int			isfirst;
 
 	FV_LOCK_ASSERT(sc);
+
+	isfirst = sc->fv_cdata.fv_tx_cnt <= 1 ? 1 : 0;
+
+	/*
+	 * Some VIA Rhine wants packet buffers to be longword
+	 * aligned, but very often our mbufs aren't. Rather than
+	 * waste time trying to decide when to copy and when not
+	 * to copy, just do it all the time.
+	 */
+	m = m_defrag(*m_head, M_NOWAIT);
+	if (m == NULL) {
+		device_printf(sc->fv_dev, "fv_encap m_defrag error\n");
+		m_freem(*m_head);
+		*m_head = NULL;
+		return (ENOBUFS);
+	}
+	*m_head = m;
+
+	/*
+	 * The Rhine chip doesn't auto-pad, so we have to make
+	 * sure to pad short frames out to the minimum frame length
+	 * ourselves.
+	 */
+	if ((*m_head)->m_pkthdr.len < FV_MIN_FRAMELEN) {
+		m = *m_head;
+		padlen = FV_MIN_FRAMELEN - m->m_pkthdr.len;
+		if (M_WRITABLE(m) == 0) {
+			/* Get a writable copy. */
+			m = m_dup(*m_head, M_NOWAIT);
+			m_freem(*m_head);
+			if (m == NULL) {
+				device_printf(sc->fv_dev, "fv_encap m_dup error\n");
+				*m_head = NULL;
+				return (ENOBUFS);
+			}
+			*m_head = m;
+		}
+		if (m->m_next != NULL || M_TRAILINGSPACE(m) < padlen) {
+			m = m_defrag(m, M_NOWAIT);
+			if (m == NULL) {
+				device_printf(sc->fv_dev, "fv_encap m_defrag error\n");
+				m_freem(*m_head);
+				*m_head = NULL;
+				return (ENOBUFS);
+			}
+		}
+		/*
+		 * Manually pad short frames, and zero the pad space
+		 * to avoid leaking data.
+		 */
+		bzero(mtod(m, char *) + m->m_pkthdr.len, padlen);
+		m->m_pkthdr.len += padlen;
+		m->m_len = m->m_pkthdr.len;
+		*m_head = m;
+	}
 
 	prod = sc->fv_cdata.fv_tx_prod;
 	txd = &sc->fv_cdata.fv_txdesc[prod];
 	error = bus_dmamap_load_mbuf_sg(sc->fv_cdata.fv_tx_tag, txd->tx_dmamap,
 	    *m_head, txsegs, &nsegs, BUS_DMA_NOWAIT);
 	if (error == EFBIG) {
+	device_printf(sc->fv_dev, "fv_encap EFBIG error\n");
 //		panic("EFBIG");
-		m = m_collapse(*m_head, M_NOWAIT, FV_MAXFRAGS);
+//		m = m_collapse(*m_head, M_NOWAIT, FV_MAXFRAGS);
+		m = m_defrag(*m_head, M_NOWAIT);
 		if (m == NULL) {
 			m_freem(*m_head);
 			*m_head = NULL;
@@ -778,19 +860,15 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	 * walk through it while fv_link is not zero. The last one should
 	 * have COF flag set, to pickup next chain from NDPTR
 	 */
-	prev_prod = prod;
 	desc = prev_desc = NULL;
 	for (i = 0; i < nsegs; i++) {
 		desc = &sc->fv_rdata.fv_tx_ring[prod];
 		desc->fv_stat = ADSTAT_OWN;
-		desc->fv_devcs = FV_DMASIZE(txsegs[i].ds_len) | ADCTL_CH;
-		if (i == 0)
-			desc->fv_devcs |= ADCTL_Tx_FS;
-		desc->fv_addr = txsegs[i].ds_addr;
-//		desc->fv_link = 0;
+		desc->fv_devcs = txsegs[i].ds_len;
 		/* link with previous descriptor */
-		if (prev_desc)
-			prev_desc->fv_link = FV_TX_RING_ADDR(sc, prod);
+		if(prod == FV_TX_RING_CNT - 1)
+			desc->fv_devcs |= ADCTL_Tx_TER;
+		desc->fv_addr = txsegs[i].ds_addr;
 
 		sc->fv_cdata.fv_tx_cnt++;
 		prev_desc = desc;
@@ -815,18 +893,21 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 
 	/* Start transmitting */
 	/* Check if new list is queued in NDPTR */
-	txstat = (CSR_READ_4(sc, CSR_STATUS) >> 20) & 7;
-	if (txstat == 0 || txstat == 6) {
+	if (isfirst) {
 		/* Transmit Process Stat is stop or suspended */
-		CSR_WRITE_4(sc, CSR_TXPOLL, TXPOLL_TPD);
+		desc = &sc->fv_rdata.fv_tx_ring[si];
+		desc->fv_devcs |= ADCTL_Tx_FS;
 	}
 	else {
 		link_addr = FV_TX_RING_ADDR(sc, si);
 		/* Get previous descriptor */
 		si = (si + FV_TX_RING_CNT - 1) % FV_TX_RING_CNT;
 		desc = &sc->fv_rdata.fv_tx_ring[si];
-		desc->fv_link = link_addr;
+		/* join remain data and flugs */
+		desc->fv_devcs &= ~ADCTL_Tx_IC;
+		desc->fv_devcs &= ~ADCTL_Tx_LS;
 	}
+
 
 	return (0);
 }
@@ -837,6 +918,7 @@ fv_start_locked(struct ifnet *ifp)
 	struct fv_softc		*sc;
 	struct mbuf		*m_head;
 	int			enq;
+	int			txstat;
 
 	sc = ifp->if_softc;
 
@@ -870,6 +952,12 @@ fv_start_locked(struct ifnet *ifp)
 		 * to him.
 		 */
 		ETHER_BPF_MTAP(ifp, m_head);
+	}
+
+	if(enq > 0) {
+		txstat = (CSR_READ_4(sc, CSR_STATUS) >> 20) & 7;
+		if (txstat == 0 || txstat == 6)
+			CSR_WRITE_4(sc, CSR_TXPOLL, TXPOLL_TPD);
 	}
 }
 
@@ -1106,7 +1194,8 @@ fv_dma_alloc(struct fv_softc *sc)
 	/* Create tag for Tx buffers. */
 	error = bus_dma_tag_create(
 	    sc->fv_cdata.fv_parent_tag,	/* parent */
-	    sizeof(uint32_t), 0,	/* alignment, boundary */
+//	    sizeof(uint32_t), 0,	/* alignment, boundary */
+	    1, 0,		/* alignment, boundary */
 	    BUS_SPACE_MAXADDR,		/* lowaddr */
 	    BUS_SPACE_MAXADDR,		/* highaddr */
 	    NULL, NULL,			/* filter, filterarg */
@@ -1487,7 +1576,7 @@ fv_tx(struct fv_softc *sc)
 	struct fv_desc		*cur_tx;
 	struct ifnet		*ifp;
 	uint32_t		ctl, devcs;
-	int			cons, prod;
+	int			cons, prod, prev_cons;
 
 	FV_LOCK_ASSERT(sc);
 
@@ -1505,6 +1594,7 @@ fv_tx(struct fv_softc *sc)
 	 * Go through our tx list and free mbufs for those
 	 * frames that have been transmitted.
 	 */
+	prev_cons = cons;
 	for (; cons != prod; FV_INC(cons, FV_TX_RING_CNT)) {
 		cur_tx = &sc->fv_rdata.fv_tx_ring[cons];
 		ctl = cur_tx->fv_stat;
@@ -1520,8 +1610,10 @@ fv_tx(struct fv_softc *sc)
 
 		if ((ctl & ADSTAT_Tx_ES) == 0)
 			if_inc_counter(ifp, IFCOUNTER_OPACKETS, 1);
-		else {
+		else if(ctl & ADSTAT_Tx_UF) {   // only underflow not check collision
 			if_inc_counter(ifp, IFCOUNTER_OERRORS, 1);
+printf("MORI MORI UF %d %08x %08x %08x %d %d\n", cons, cur_tx->fv_devcs,
+cur_tx->fv_addr, cur_tx->fv_link, prev_cons, prod);
 		}
 
 		bus_dmamap_sync(sc->fv_cdata.fv_tx_tag, txd->tx_dmamap,
@@ -1639,22 +1731,32 @@ fv_intr(void *arg)
 
 	FV_LOCK(sc);
 
-	/* mask out interrupts */
-
 	status = CSR_READ_4(sc, CSR_STATUS);
-	if (status) {
-		CSR_WRITE_4(sc, CSR_STATUS, status);
+	/* mask out interrupts */
+	while((status & sc->sc_inten) != 0) {
+		if (status) {
+			CSR_WRITE_4(sc, CSR_STATUS, status);
+		}
+		if (status & STATUS_UNF) {
+			device_printf(sc->fv_dev, "Transmit Underflow\n");
+		}
+		if (status & sc->sc_rxint_mask) {
+			fv_rx(sc);
+		}
+		if (status & sc->sc_txint_mask) {
+			fv_tx(sc);
+		}
+		CSR_WRITE_4(sc, CSR_FULLDUP, FULLDUP_CS | 
+		    (1 << FULLDUP_TT_SHIFT) | (3 << FULLDUP_NTP_SHIFT) | 
+		    (2 << FULLDUP_RT_SHIFT) | (2 << FULLDUP_NRP_SHIFT));
+
+
+		status = CSR_READ_4(sc, CSR_STATUS);
 	}
-	if (status & sc->sc_rxint_mask) {
-		fv_rx(sc);
-	}
-	if (status & sc->sc_txint_mask) {
-		fv_tx(sc);
-	}
-	CSR_WRITE_4(sc, CSR_FULLDUP, 0x8b240000);
 
 	/* Try to get more packets going. */
-	fv_start(ifp);
+	if (!IFQ_DRV_IS_EMPTY(&ifp->if_snd))
+		fv_start_locked(ifp);
 
 	FV_UNLOCK(sc);
 }
@@ -1662,16 +1764,17 @@ fv_intr(void *arg)
 static void
 fv_tick(void *xsc)
 {
-#ifdef MII
 	struct fv_softc		*sc = xsc;
+#ifdef MII
 	struct mii_data		*mii;
 
 	FV_LOCK_ASSERT(sc);
 
 	mii = device_get_softc(sc->fv_miibus);
 	mii_tick(mii);
-	callout_reset(&sc->fv_stat_callout, hz, fv_tick, sc);
 #endif
+//dump_status_reg(sc);
+	callout_reset(&sc->fv_stat_callout, hz, fv_tick, sc);
 }
 
 static void
