@@ -205,7 +205,6 @@ fv_setfilt(struct fv_softc *sc)
 	struct ifmultiaddr *ifma;
 	uint16_t *sp;
 	uint8_t *ma;
-printf("MORI MORI fv_setfilt\n");
 
 	ifp = sc->fv_ifp;
 
@@ -226,15 +225,11 @@ printf("MORI MORI fv_setfilt\n");
 			continue;
 		ma = LLADDR((struct sockaddr_dl *)ifma->ifma_addr);
 		sp[i] = sp[i+1] = (ma[1] << 8 | ma[0]);
-printf("MORI MORI %02x:",sp[i]);
 		i += 2;
 		sp[i] = sp[i+1] = (ma[3] << 8 | ma[2]);
-printf("%02x:",sp[i]);
 		i += 2;
 		sp[i] = sp[i+1] = (ma[5] << 8 | ma[4]);
-printf("%02x\n",sp[i]);
 		i += 2;
-		
 	}
 	if_maddr_runlock(ifp);
 
@@ -1612,8 +1607,6 @@ fv_tx(struct fv_softc *sc)
 			if_inc_counter(ifp, IFCOUNTER_OPACKETS, 1);
 		else if(ctl & ADSTAT_Tx_UF) {   // only underflow not check collision
 			if_inc_counter(ifp, IFCOUNTER_OERRORS, 1);
-printf("MORI MORI UF %d %08x %08x %08x %d %d\n", cons, cur_tx->fv_devcs,
-cur_tx->fv_addr, cur_tx->fv_link, prev_cons, prod);
 		}
 
 		bus_dmamap_sync(sc->fv_cdata.fv_tx_tag, txd->tx_dmamap,

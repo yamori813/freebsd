@@ -104,9 +104,6 @@ rt1310_rtc_attach(device_t dev)
 	bus_space_write_4(sc->lr_bst, sc->lr_bsh, 0x00, 2 << 24);
 	bus_space_write_4(sc->lr_bst, sc->lr_bsh, 0x10, 0x80000000 | ctrl);
 
-printf("MORI MORI RTC %x\n", bus_space_read_4(sc->lr_bst, sc->lr_bsh, 0x00));
-printf("MORI MORI RTC %x\n", bus_space_read_4(sc->lr_bst, sc->lr_bsh, 0x04));
-
 	return (0);
 }
 
@@ -117,8 +114,6 @@ rt1310_rtc_gettime(device_t dev, struct timespec *ts)
 
 	ts->tv_sec = bus_space_read_4(sc->lr_bst, sc->lr_bsh, 0x00);
 	ts->tv_nsec = 0;
-printf("MORI MORI RTC %x\n", bus_space_read_4(sc->lr_bst, sc->lr_bsh, 0x00));
-printf("MORI MORI RTC %x\n", bus_space_read_4(sc->lr_bst, sc->lr_bsh, 0x04));
 
 	return (0);
 }
