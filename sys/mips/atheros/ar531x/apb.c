@@ -29,6 +29,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonzo $");
 
+#include "opt_platform.h"
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
@@ -43,9 +45,19 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonz
 #include <sys/pmckern.h>
 
 #include <machine/bus.h>
+#ifdef INTRNG
+#include <machine/intr.h>
+#else
 #include <machine/intr_machdep.h>
+#endif
 
-#include <mips/atheros/apbvar.h>
+#ifdef INTRNG
+#include "pic_if.h"
+
+#define PIC_INTR_ISRC(sc, irq)	(&(sc)->pic_irqs[(irq)].isrc)
+#endif
+
+#include <mips/atheros/ar531x/apbvar.h>
 #include <mips/atheros/ar531x/ar5315reg.h>
 #include <mips/atheros/ar531x/ar5312reg.h>
 #include <mips/atheros/ar531x/ar5315_setup.h>
@@ -74,10 +86,12 @@ static int	apb_filter(void *);
 static int	apb_probe(device_t);
 static int	apb_release_resource(device_t, device_t, int, int,
 		    struct resource *);
+#ifndef INTRNG
 static int	apb_setup_intr(device_t, device_t, struct resource *, int,
 		    driver_filter_t *, driver_intr_t *, void *, void **);
 static int	apb_teardown_intr(device_t, device_t, struct resource *,
 		    void *);
+#endif
 
 static void 
 apb_mask_irq(void *source)
@@ -117,9 +131,45 @@ apb_unmask_irq(void *source)
 	}
 }
 
+#ifdef INTRNG
+static int
+apb_pic_register_isrcs(struct apb_softc *sc)
+{
+	int error;
+	uint32_t irq;
+	struct intr_irqsrc *isrc;
+	const char *name;
+
+	name = device_get_nameunit(sc->apb_dev);
+	for (irq = 0; irq < APB_NIRQS; irq++) {
+		sc->pic_irqs[irq].irq = irq;
+		isrc = PIC_INTR_ISRC(sc, irq);
+		error = intr_isrc_register(isrc, sc->apb_dev, 0, "%s", name);
+		if (error != 0) {
+			/* XXX call intr_isrc_deregister */
+			device_printf(sc->apb_dev, "%s failed", __func__);
+			return (error);
+		}
+	}
+
+	return (0);
+}
+
+static inline intptr_t
+pic_xref(device_t dev)
+{
+        return (0);
+}
+#endif
+
 static int
 apb_probe(device_t dev)
 {
+#ifdef INTRNG
+	device_set_desc(dev, "APB Bus bridge(INTRNG)");
+#else
+	device_set_desc(dev, "APB Bus bridge");
+#endif
 
 	return (0);
 }
@@ -129,8 +179,12 @@ apb_attach(device_t dev)
 {
 	struct apb_softc *sc = device_get_softc(dev);
 	int rid = 0;
+#ifdef INTRNG
+	intptr_t xref = pic_xref(dev);
+#endif
 
-	device_set_desc(dev, "APB Bus bridge");
+
+	sc->apb_dev = dev;
 
 	sc->apb_mem_rman.rm_type = RMAN_ARRAY;
 	sc->apb_mem_rman.rm_descr = "APB memory window";
@@ -163,10 +217,30 @@ apb_attach(device_t dev)
 		return (ENXIO);
 	}
 
+#ifdef INTRNG
+	/* Register the interrupts */
+	if (apb_pic_register_isrcs(sc) != 0) {
+		device_printf(dev, "could not register PIC ISRCs?n");
+		return (ENXIO);
+	}
+
+	/*
+	 * Now, when everything is initialized, it's right time to
+	 * register interrupt controller to interrupt framefork.
+	 */
+	if (intr_pic_register(dev, xref) == NULL) {
+		device_printf(dev, "could not register PIC?n");
+		return (ENXIO);
+	}
+#endif
+
 	if ((bus_setup_intr(dev, sc->sc_misc_irq, INTR_TYPE_MISC, 
 	    apb_filter, NULL, sc, &sc->sc_misc_ih))) {
 		device_printf(dev,
 		    "WARNING: unable to register interrupt handler\n");
+#ifdef INTRNG
+		intr_pic_deregister(dev, xref);
+#endif
 		return (ENXIO);
 	}
 
@@ -298,6 +372,7 @@ apb_release_resource(device_t dev, device_t child, int type,
 	return (0);
 }
 
+#ifndef INTRNG
 static int
 apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 		int flags, driver_filter_t *filt, driver_intr_t *handler,
@@ -409,6 +484,48 @@ apb_filter(void *arg)
 
 	return (FILTER_HANDLED);
 }
+#else
+
+static int
+apb_filter(void *arg)
+{
+	struct apb_softc *sc = arg;
+	struct thread *td;
+	uint32_t i, intr;
+
+	td = curthread;
+	/* Workaround: do not inflate intr nesting level */
+	td->td_intr_nesting_level--;
+
+	if(ar531x_soc >= AR531X_SOC_AR5315)
+		intr = ATH_READ_REG(AR5315_SYSREG_BASE +
+			AR5315_SYSREG_MISC_INTSTAT);
+	else
+		intr = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTSTAT);
+
+	while ((i = fls(intr)) != 0) {
+		i--;
+		intr &= ~(1u << i);
+
+		if (intr_isrc_dispatch(PIC_INTR_ISRC(sc, i),
+		    curthread->td_intr_frame) != 0) {
+			device_printf(sc->apb_dev,
+			    "Stray interrupt %u detected?n", i);
+			apb_mask_irq(&i);
+			continue;
+		}
+	}
+
+	KASSERT(i == 0, ("all interrupts handled"));
+
+	td->td_intr_nesting_level++;
+
+	return (FILTER_HANDLED);
+
+}
+
+#endif
 
 static void
 apb_hinted_child(device_t bus, const char *dname, int dunit)
@@ -489,6 +606,51 @@ apb_get_resource_list(device_t dev, device_t child)
 	return (&(ivar->resources));
 }
 
+#ifdef INTRNG
+static void
+apb_pic_enable_intr(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq;
+
+	irq = ((struct apb_pic_irqsrc *)isrc)->irq;
+	apb_unmask_irq(&irq);
+}
+
+static void
+apb_pic_disable_intr(device_t dev, struct intr_irqsrc *isrc)
+{
+	u_int irq;
+
+	irq = ((struct apb_pic_irqsrc *)isrc)->irq;
+	apb_mask_irq(&irq);
+}
+
+static void
+apb_pic_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
+{
+	apb_pic_disable_intr(dev, isrc);
+}
+
+static void
+apb_pic_post_ithread(device_t dev, struct intr_irqsrc *isrc)
+{
+	apb_pic_enable_intr(dev, isrc);
+}
+
+static void
+apb_pic_post_filter(device_t dev, struct intr_irqsrc *isrc)
+{
+}
+
+static int
+apb_pic_map_intr(device_t dev, struct intr_map_data *data,
+    struct intr_irqsrc **isrcp)
+{
+	return (ENOTSUP);
+}
+
+#endif
+
 static device_method_t apb_methods[] = {
 	DEVMETHOD(bus_activate_resource,	apb_activate_resource),
 	DEVMETHOD(bus_add_child,		apb_add_child),
@@ -497,12 +659,21 @@ static device_method_t apb_methods[] = {
 	DEVMETHOD(bus_get_resource_list,	apb_get_resource_list),
 	DEVMETHOD(bus_hinted_child,		apb_hinted_child),
 	DEVMETHOD(bus_release_resource,		apb_release_resource),
-	DEVMETHOD(bus_setup_intr,		apb_setup_intr),
-	DEVMETHOD(bus_teardown_intr,		apb_teardown_intr),
 	DEVMETHOD(device_attach,		apb_attach),
 	DEVMETHOD(device_probe,			apb_probe),
 	DEVMETHOD(bus_get_resource,		bus_generic_rl_get_resource),
 	DEVMETHOD(bus_set_resource,		bus_generic_rl_set_resource),
+#ifdef INTRNG
+	DEVMETHOD(pic_disable_intr,		apb_pic_disable_intr),
+	DEVMETHOD(pic_enable_intr,		apb_pic_enable_intr),
+	DEVMETHOD(pic_map_intr,			apb_pic_map_intr),
+	DEVMETHOD(pic_post_filter,		apb_pic_post_filter),
+	DEVMETHOD(pic_post_ithread,		apb_pic_post_ithread),
+	DEVMETHOD(pic_pre_ithread,		apb_pic_pre_ithread),
+#else
+	DEVMETHOD(bus_setup_intr,		apb_setup_intr),
+	DEVMETHOD(bus_teardown_intr,		apb_teardown_intr),
+#endif
 
 	DEVMETHOD_END
 };
@@ -514,4 +685,5 @@ static driver_t apb_driver = {
 };
 static devclass_t apb_devclass;
 
-DRIVER_MODULE(apb, nexus, apb_driver, apb_devclass, 0, 0);
+EARLY_DRIVER_MODULE(apb, nexus, apb_driver, apb_devclass, 0, 0,
+    BUS_PASS_INTERRUPT + BUS_PASS_ORDER_MIDDLE);
