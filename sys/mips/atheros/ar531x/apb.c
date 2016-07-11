@@ -61,7 +61,7 @@ __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonz
 #include <mips/atheros/ar531x/ar5315reg.h>
 #include <mips/atheros/ar531x/ar5312reg.h>
 #include <mips/atheros/ar531x/ar5315_setup.h>
-#include <mips/atheros/ar71xxreg.h>
+//#include <mips/atheros/ar71xxreg.h>
 
 #undef APB_DEBUG
 #ifdef APB_DEBUG

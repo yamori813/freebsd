@@ -91,6 +91,9 @@ MODULE_DEPEND(are, miibus, 1, 1, 1);
 
 #include "miibus_if.h"
 
+#include <mips/atheros/ar531x/ar5315reg.h>
+#include <mips/atheros/ar531x/ar5312reg.h>
+#include <mips/atheros/ar531x/ar5315_setup.h>
 #include <mips/atheros/ar531x/if_arereg.h>
 
 //#define ARE_DEBUG
@@ -215,7 +218,9 @@ are_attach(device_t dev)
 	struct ifnet		*ifp;
 	struct are_softc		*sc;
 	int			error = 0;
-#ifndef INTRNG
+#ifdef INTRNG
+	int			enetirq;
+#else
 	int			rid;
 #endif
 	int			unit;
@@ -350,6 +355,14 @@ are_attach(device_t dev)
 	ether_ifattach(ifp, sc->are_eaddr);
 
 #ifdef INTRNG
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
+		enetirq = AR5315_CPU_IRQ_ENET;
+	} else {
+		if(device_get_unit(dev) == 0)
+			enetirq = AR5312_IRQ_ENET0;
+		else
+			enetirq = AR5312_IRQ_ENET1;
+	}
 	cpu_establish_hardintr("net", NULL, are_intr, sc, 2, INTR_TYPE_NET,
 	    NULL);
 #else
