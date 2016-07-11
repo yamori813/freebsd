@@ -31,6 +31,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include "opt_platform.h"
+
 /*
  * AR231x Ethernet interface driver
  * copy from mips/idt/if_kr.c and netbsd code
@@ -63,6 +65,10 @@ __FBSDID("$FreeBSD$");
 #include <machine/resource.h>
 #include <sys/bus.h>
 #include <sys/rman.h>
+
+#ifdef INTRNG
+#include <machine/intr.h>
+#endif
 
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
@@ -208,7 +214,10 @@ are_attach(device_t dev)
 {
 	struct ifnet		*ifp;
 	struct are_softc		*sc;
-	int			error = 0, rid;
+	int			error = 0;
+#ifndef INTRNG
+	int			rid;
+#endif
 	int			unit;
 	char *			local_macstr;
 	int			count;
@@ -267,6 +276,7 @@ are_attach(device_t dev)
 	sc->are_btag = rman_get_bustag(sc->are_res);
 	sc->are_bhandle = rman_get_bushandle(sc->are_res);
 
+#ifndef INTRNG
 	/* Allocate interrupts */
 	rid = 0;
 	sc->are_irq = bus_alloc_resource_any(dev, SYS_RES_IRQ, &rid, 
@@ -277,6 +287,7 @@ are_attach(device_t dev)
 		error = ENXIO;
 		goto fail;
 	}
+#endif
 
 	/* Allocate ifnet structure. */
 	ifp = sc->are_ifp = if_alloc(IFT_ETHER);
@@ -338,6 +349,10 @@ are_attach(device_t dev)
 	/* Call MI attach routine. */
 	ether_ifattach(ifp, sc->are_eaddr);
 
+#ifdef INTRNG
+	cpu_establish_hardintr("net", NULL, are_intr, sc, 2, INTR_TYPE_NET,
+	    NULL);
+#else
 	/* Hook interrupt last to avoid having to lock softc */
 	error = bus_setup_intr(dev, sc->are_irq, INTR_TYPE_NET | INTR_MPSAFE,
 	    NULL, are_intr, sc, &sc->are_intrhand);
@@ -347,6 +362,7 @@ are_attach(device_t dev)
 		ether_ifdetach(ifp);
 		goto fail;
 	}
+#endif
 
 fail:
 	if (error) 

@@ -86,12 +86,10 @@ static int	apb_filter(void *);
 static int	apb_probe(device_t);
 static int	apb_release_resource(device_t, device_t, int, int,
 		    struct resource *);
-#ifndef INTRNG
 static int	apb_setup_intr(device_t, device_t, struct resource *, int,
 		    driver_filter_t *, driver_intr_t *, void *, void **);
 static int	apb_teardown_intr(device_t, device_t, struct resource *,
 		    void *);
-#endif
 
 static void 
 apb_mask_irq(void *source)
@@ -166,7 +164,7 @@ static int
 apb_probe(device_t dev)
 {
 #ifdef INTRNG
-	device_set_desc(dev, "APB Bus bridge(INTRNG)");
+	device_set_desc(dev, "APB Bus bridge INTRNG");
 #else
 	device_set_desc(dev, "APB Bus bridge");
 #endif
@@ -178,11 +176,12 @@ static int
 apb_attach(device_t dev)
 {
 	struct apb_softc *sc = device_get_softc(dev);
-	int rid = 0;
 #ifdef INTRNG
 	intptr_t xref = pic_xref(dev);
+	int miscirq;
+#else
+	int rid = 0;
 #endif
-
 
 	sc->apb_dev = dev;
 
@@ -211,16 +210,23 @@ apb_attach(device_t dev)
 			APB_IRQ_BASE, APB_IRQ_END) != 0)
 		panic("apb_attach: failed to set up IRQ rman");
 
+#ifndef INTRNG
 	if ((sc->sc_misc_irq = bus_alloc_resource_any(dev, SYS_RES_IRQ, &rid, 
 	    RF_SHAREABLE | RF_ACTIVE)) == NULL) {
 		device_printf(dev, "unable to allocate IRQ resource\n");
 		return (ENXIO);
 	}
 
-#ifdef INTRNG
+	if ((bus_setup_intr(dev, sc->sc_misc_irq, INTR_TYPE_MISC, 
+	    apb_filter, NULL, sc, &sc->sc_misc_ih))) {
+		device_printf(dev,
+		    "WARNING: unable to register interrupt handler\n");
+		return (ENXIO);
+	}
+#else
 	/* Register the interrupts */
 	if (apb_pic_register_isrcs(sc) != 0) {
-		device_printf(dev, "could not register PIC ISRCs?n");
+		device_printf(dev, "could not register PIC ISRCs\n");
 		return (ENXIO);
 	}
 
@@ -229,20 +235,18 @@ apb_attach(device_t dev)
 	 * register interrupt controller to interrupt framefork.
 	 */
 	if (intr_pic_register(dev, xref) == NULL) {
-		device_printf(dev, "could not register PIC?n");
+		device_printf(dev, "could not register PIC\n");
 		return (ENXIO);
 	}
-#endif
 
-	if ((bus_setup_intr(dev, sc->sc_misc_irq, INTR_TYPE_MISC, 
-	    apb_filter, NULL, sc, &sc->sc_misc_ih))) {
-		device_printf(dev,
-		    "WARNING: unable to register interrupt handler\n");
-#ifdef INTRNG
-		intr_pic_deregister(dev, xref);
-#endif
-		return (ENXIO);
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
+		miscirq = AR5315_CPU_IRQ_MISC;
+	} else {
+		miscirq = AR5312_IRQ_MISC;
 	}
+	cpu_establish_hardintr("aric", apb_filter, NULL, sc, miscirq,
+	    INTR_TYPE_CLK, NULL);
+#endif
 
 	bus_generic_probe(dev);
 	bus_enumerate_hinted_children(dev);
@@ -297,7 +301,7 @@ apb_alloc_resource(device_t bus, device_t child, int type, int *rid,
 		end = rle->end;
 		count = rle->count;
 
-		dprintf("%s: default resource (%p, %p, %ld)\n",
+		dprintf("%s: default resource (%p, %p, %jd)\n",
 		    __func__, (void *)(intptr_t)start,
 		    (void *)(intptr_t)end, count);
 	}
@@ -372,7 +376,6 @@ apb_release_resource(device_t dev, device_t child, int type,
 	return (0);
 }
 
-#ifndef INTRNG
 static int
 apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 		int flags, driver_filter_t *filt, driver_intr_t *handler,
@@ -396,8 +399,10 @@ apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 		if (error == 0) {
 			sc->sc_eventstab[irq] = event;
+#ifndef INTRNG
 			sc->sc_intr_counter[irq] =
 			    mips_intrcnt_create(event->ie_name);
+#endif
 		}
 		else
 			return (error);
@@ -405,7 +410,9 @@ apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 	intr_event_add_handler(event, device_get_nameunit(child), filt,
 	    handler, arg, intr_priority(flags), flags, cookiep);
+#ifndef INTRNG
 	mips_intrcnt_setname(sc->sc_intr_counter[irq], event->ie_fullname);
+#endif
 
 	apb_unmask_irq((void*)irq);
 
@@ -434,6 +441,8 @@ apb_teardown_intr(device_t dev, device_t child, struct resource *ires,
 
 	return (result);
 }
+
+#ifndef INTRNG
 
 static int
 apb_filter(void *arg)
@@ -670,10 +679,10 @@ static device_method_t apb_methods[] = {
 	DEVMETHOD(pic_post_filter,		apb_pic_post_filter),
 	DEVMETHOD(pic_post_ithread,		apb_pic_post_ithread),
 	DEVMETHOD(pic_pre_ithread,		apb_pic_pre_ithread),
-#else
+
+#endif
 	DEVMETHOD(bus_setup_intr,		apb_setup_intr),
 	DEVMETHOD(bus_teardown_intr,		apb_teardown_intr),
-#endif
 
 	DEVMETHOD_END
 };
