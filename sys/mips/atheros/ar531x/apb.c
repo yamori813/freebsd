@@ -86,10 +86,12 @@ static int	apb_filter(void *);
 static int	apb_probe(device_t);
 static int	apb_release_resource(device_t, device_t, int, int,
 		    struct resource *);
+#ifndef INTRNG
 static int	apb_setup_intr(device_t, device_t, struct resource *, int,
 		    driver_filter_t *, driver_intr_t *, void *, void **);
 static int	apb_teardown_intr(device_t, device_t, struct resource *,
 		    void *);
+#endif
 
 static void 
 apb_mask_irq(void *source)
@@ -245,8 +247,17 @@ apb_attach(device_t dev)
 		miscirq = AR5312_IRQ_MISC;
 	}
 	cpu_establish_hardintr("aric", apb_filter, NULL, sc, miscirq,
-	    INTR_TYPE_CLK, NULL);
+	    INTR_TYPE_MISC, NULL);
 #endif
+
+	/* mask all misc interrupt */
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
+		ATH_WRITE_REG(AR5315_SYSREG_BASE
+			+ AR5315_SYSREG_MISC_INTMASK, 0);
+	} else {
+		ATH_WRITE_REG(AR5312_SYSREG_BASE
+			+ AR5312_SYSREG_MISC_INTMASK, 0);
+	}
 
 	bus_generic_probe(dev);
 	bus_enumerate_hinted_children(dev);
@@ -376,15 +387,40 @@ apb_release_resource(device_t dev, device_t child, int type,
 	return (0);
 }
 
+
 static int
 apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 		int flags, driver_filter_t *filt, driver_intr_t *handler,
 		void *arg, void **cookiep)
 {
 	struct apb_softc *sc = device_get_softc(bus);
+	int error;
+	int irq;
+#ifndef INTRNG
 	struct intr_event *event;
-	int irq, error;
+#endif
 
+#ifdef INTRNG
+	struct intr_irqsrc *isrc;
+	const char *name;
+	
+	if ((rman_get_flags(ires) & RF_SHAREABLE) == 0)
+		flags |= INTR_EXCL;
+
+	irq = rman_get_start(ires);
+	isrc = PIC_INTR_ISRC(sc, irq);
+	if(isrc->isrc_event == 0) {
+		error = intr_event_create(&isrc->isrc_event, (void *)irq,
+		    0, irq, apb_mask_irq, apb_unmask_irq,
+		    NULL, NULL, "apb intr%d:", irq);
+		if(error != 0)
+			return(error);
+	}
+	name = device_get_nameunit(child);
+	error = intr_event_add_handler(isrc->isrc_event, name, filt, handler,
+            arg, intr_priority(flags), flags, cookiep);
+	return(error);
+#else
 	irq = rman_get_start(ires);
 
 	if (irq > APB_IRQ_END)
@@ -399,10 +435,8 @@ apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 		if (error == 0) {
 			sc->sc_eventstab[irq] = event;
-#ifndef INTRNG
 			sc->sc_intr_counter[irq] =
 			    mips_intrcnt_create(event->ie_name);
-#endif
 		}
 		else
 			return (error);
@@ -410,19 +444,22 @@ apb_setup_intr(device_t bus, device_t child, struct resource *ires,
 
 	intr_event_add_handler(event, device_get_nameunit(child), filt,
 	    handler, arg, intr_priority(flags), flags, cookiep);
-#ifndef INTRNG
 	mips_intrcnt_setname(sc->sc_intr_counter[irq], event->ie_fullname);
-#endif
 
 	apb_unmask_irq((void*)irq);
 
 	return (0);
+#endif
 }
 
+#ifndef INTRNG
 static int
 apb_teardown_intr(device_t dev, device_t child, struct resource *ires,
     void *cookie)
 {
+#ifdef INTRNG
+	 return (intr_teardown_irq(child, ires, cookie));
+#else
 	struct apb_softc *sc = device_get_softc(dev);
 	int irq, result;
 
@@ -440,9 +477,9 @@ apb_teardown_intr(device_t dev, device_t child, struct resource *ires,
 		sc->sc_eventstab[irq] = NULL;
 
 	return (result);
+#endif
 }
 
-#ifndef INTRNG
 
 static int
 apb_filter(void *arg)
@@ -494,7 +531,6 @@ apb_filter(void *arg)
 	return (FILTER_HANDLED);
 }
 #else
-
 static int
 apb_filter(void *arg)
 {
@@ -517,11 +553,18 @@ apb_filter(void *arg)
 		i--;
 		intr &= ~(1u << i);
 
+		if(i == 1 && ar531x_soc < AR531X_SOC_AR5315) {
+			ATH_READ_REG(AR5312_SYSREG_BASE +
+			    AR5312_SYSREG_AHBPERR);
+			ATH_READ_REG(AR5312_SYSREG_BASE +
+			    AR5312_SYSREG_AHBDMAE);
+		}
+
 		if (intr_isrc_dispatch(PIC_INTR_ISRC(sc, i),
 		    curthread->td_intr_frame) != 0) {
 			device_printf(sc->apb_dev,
-			    "Stray interrupt %u detected?n", i);
-			apb_mask_irq(&i);
+			    "Stray interrupt %u detected\n", i);
+			apb_mask_irq((void*)i);
 			continue;
 		}
 	}
@@ -622,7 +665,7 @@ apb_pic_enable_intr(device_t dev, struct intr_irqsrc *isrc)
 	u_int irq;
 
 	irq = ((struct apb_pic_irqsrc *)isrc)->irq;
-	apb_unmask_irq(&irq);
+	apb_unmask_irq((void*)irq);
 }
 
 static void
@@ -631,7 +674,7 @@ apb_pic_disable_intr(device_t dev, struct intr_irqsrc *isrc)
 	u_int irq;
 
 	irq = ((struct apb_pic_irqsrc *)isrc)->irq;
-	apb_mask_irq(&irq);
+	apb_mask_irq((void*)irq);
 }
 
 static void
@@ -649,6 +692,20 @@ apb_pic_post_ithread(device_t dev, struct intr_irqsrc *isrc)
 static void
 apb_pic_post_filter(device_t dev, struct intr_irqsrc *isrc)
 {
+	uint32_t reg, irq;
+
+	irq = ((struct apb_pic_irqsrc *)isrc)->irq;
+	if(ar531x_soc >= AR531X_SOC_AR5315) {
+		reg = ATH_READ_REG(AR5315_SYSREG_BASE +
+			AR5315_SYSREG_MISC_INTSTAT);
+		ATH_WRITE_REG(AR5315_SYSREG_BASE + AR5315_SYSREG_MISC_INTSTAT,
+		    reg & ~(1 << irq));
+	} else {
+		reg = ATH_READ_REG(AR5312_SYSREG_BASE +
+			AR5312_SYSREG_MISC_INTSTAT);
+		ATH_WRITE_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_MISC_INTSTAT,
+		    reg & ~(1 << irq));
+	}
 }
 
 static int
@@ -680,9 +737,11 @@ static device_method_t apb_methods[] = {
 	DEVMETHOD(pic_post_ithread,		apb_pic_post_ithread),
 	DEVMETHOD(pic_pre_ithread,		apb_pic_pre_ithread),
 
+//	DEVMETHOD(bus_setup_intr,		bus_generic_setup_intr),
+#else
+	DEVMETHOD(bus_teardown_intr,		apb_teardown_intr),
 #endif
 	DEVMETHOD(bus_setup_intr,		apb_setup_intr),
-	DEVMETHOD(bus_teardown_intr,		apb_teardown_intr),
 
 	DEVMETHOD_END
 };

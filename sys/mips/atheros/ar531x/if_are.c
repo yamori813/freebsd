@@ -355,16 +355,21 @@ are_attach(device_t dev)
 	ether_ifattach(ifp, sc->are_eaddr);
 
 #ifdef INTRNG
+	char *name;
 	if(ar531x_soc >= AR531X_SOC_AR5315) {
 		enetirq = AR5315_CPU_IRQ_ENET;
+		name = "enet";
 	} else {
-		if(device_get_unit(dev) == 0)
+		if(device_get_unit(dev) == 0) {
 			enetirq = AR5312_IRQ_ENET0;
-		else
+			name = "enet0";
+		} else {
 			enetirq = AR5312_IRQ_ENET1;
+			name = "enet1";
+		}
 	}
-	cpu_establish_hardintr("net", NULL, are_intr, sc, 2, INTR_TYPE_NET,
-	    NULL);
+	cpu_establish_hardintr(name, NULL, are_intr, sc, enetirq,
+	    INTR_TYPE_NET, NULL);
 #else
 	/* Hook interrupt last to avoid having to lock softc */
 	error = bus_setup_intr(dev, sc->are_irq, INTR_TYPE_NET | INTR_MPSAFE,
