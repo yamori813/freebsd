@@ -31,7 +31,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include "opt_platform.h"
+#include "opt_global.h"
 
 /*
  * AR231x Ethernet interface driver

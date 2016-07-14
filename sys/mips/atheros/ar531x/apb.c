@@ -29,7 +29,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD: head/sys/mips/atheros/apb.c 233318 2012-03-22 17:47:52Z gonzo $");
 
-#include "opt_platform.h"
+#include "opt_global.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
