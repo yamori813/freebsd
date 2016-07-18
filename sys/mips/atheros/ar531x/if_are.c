@@ -462,7 +462,6 @@ are_miibus_readreg(device_t dev, int phy, int reg)
 	struct are_softc * sc = device_get_softc(dev);
 	uint32_t	addr;
 	int		i;
-printf("MORI MORI read reg %d %d\n", phy, reg);
 
 	addr = (phy << MIIADDR_PHY_SHIFT) | (reg << MIIADDR_REG_SHIFT);
 	CSR_WRITE_4(sc, CSR_MIIADDR, addr);
