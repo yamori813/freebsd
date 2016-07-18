@@ -197,20 +197,20 @@ clear_timer_interrupt_status(unsigned int irq)
 
 	interrupt_status =   read_4(TIMER_TM_INTR_STATUS_REG);
 	if (irq == 0) {
-		if (interrupt_status & (TIMER2_MATCH1_INTR))
-			interrupt_status &= ~(TIMER2_MATCH1_INTR);
-		if (interrupt_status & (TIMER2_MATCH2_INTR))
-			interrupt_status &= ~(TIMER2_MATCH2_INTR);
-		if (interrupt_status & (TIMER2_OVERFLOW_INTR))
-			interrupt_status &= ~(TIMER2_OVERFLOW_INTR);
-	}
-	if (irq == 1) {
 		if (interrupt_status & (TIMER1_MATCH1_INTR))
 			interrupt_status &= ~(TIMER1_MATCH1_INTR);
 		if (interrupt_status & (TIMER1_MATCH2_INTR))
 			interrupt_status &= ~(TIMER1_MATCH2_INTR);
 		if (interrupt_status & (TIMER1_OVERFLOW_INTR))
 			interrupt_status &= ~(TIMER1_OVERFLOW_INTR);
+	}
+	if (irq == 1) {
+		if (interrupt_status & (TIMER2_MATCH1_INTR))
+			interrupt_status &= ~(TIMER2_MATCH1_INTR);
+		if (interrupt_status & (TIMER2_MATCH2_INTR))
+			interrupt_status &= ~(TIMER2_MATCH2_INTR);
+		if (interrupt_status & (TIMER2_OVERFLOW_INTR))
+			interrupt_status &= ~(TIMER2_OVERFLOW_INTR);
 	}
 
 	write_4(interrupt_status, TIMER_TM_INTR_STATUS_REG);
@@ -243,7 +243,7 @@ ec_hardclock(void *arg)
 
 	TIMER_LOCK(sc);
 
-	clear_timer_interrupt_status(0);
+	clear_timer_interrupt_status(1);
 
 	control_value = read_4(TIMER_TM_CR_REG);
 	control_value &= ~TIMER2_ENABLE;
@@ -251,8 +251,8 @@ ec_hardclock(void *arg)
 
 	/* Start timer again */
 	if (!sc->ec_oneshot) {
-		write_4(sc->ec_period*10, TIMER_TM2_COUNTER_REG);
-		write_4(sc->ec_period*10, TIMER_TM2_LOAD_REG);
+		write_4(sc->ec_period, TIMER_TM2_COUNTER_REG);
+		write_4(sc->ec_period, TIMER_TM2_LOAD_REG);
 		control_value = read_4(TIMER_TM_CR_REG);
 		control_value |= TIMER2_OVERFLOW_ENABLE;
 		control_value |= TIMER2_ENABLE;
@@ -358,10 +358,10 @@ ec_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
 	
 	// Timer2 is eventtimer (count down)
 	// ticks -> 0
-	write_4(ticks*10, TIMER_TM2_COUNTER_REG);
-	write_4(ticks*10, TIMER_TM2_LOAD_REG);
-	write_4(0, TIMER_TM1_MATCH2_REG);
-	write_4(0,TIMER_TM2_MATCH2_REG);
+	write_4(ticks, TIMER_TM2_COUNTER_REG);
+	write_4(ticks, TIMER_TM2_LOAD_REG);
+	write_4(0, TIMER_TM2_MATCH1_REG);
+	write_4(0, TIMER_TM2_MATCH2_REG);
 
 	unsigned int control_value;
 

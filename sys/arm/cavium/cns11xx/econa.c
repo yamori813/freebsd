@@ -383,18 +383,14 @@ econa_map_intr(device_t dev, struct intr_map_data *data,
 static void
 econa_pre_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
-	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
-	unsigned int value;
-	
-	value = read_4(econa_softc,INTC_INTERRUPT_MASK_REG_OFFSET) | 1 << irq;
-	write_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET, value);
-	write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
-	    1 << irq);
+	arm_irq_memory_barrier(0);
+	econa_disable_intr(dev, isrc);
 }
 
 static void
 econa_post_ithread(device_t dev, struct intr_irqsrc *isrc)
 {
+	arm_irq_memory_barrier(0);
 	econa_enable_intr(dev, isrc);
 }
 
@@ -403,6 +399,7 @@ econa_post_filter(device_t dev, struct intr_irqsrc *isrc)
 {
 	u_int irq = ((struct econa_irqsrc *)isrc)->ec_irq;
 	
+	arm_irq_memory_barrier(0);
 	write_4(econa_softc, INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET,
 	    1 << irq);
 }
@@ -534,7 +531,7 @@ fdt_pic_decode_t fdt_pic_table[] = {
 
 static device_method_t econa_methods[] = {
 	DEVMETHOD(device_probe,		econa_probe),
-	DEVMETHOD(device_attach,		econa_attach),
+	DEVMETHOD(device_attach,	econa_attach),
 #ifdef INTRNG
 	DEVMETHOD(pic_disable_intr,     econa_disable_intr),
 	DEVMETHOD(pic_enable_intr,      econa_enable_intr),
