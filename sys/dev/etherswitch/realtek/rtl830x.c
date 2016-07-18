@@ -116,7 +116,7 @@ rtl830x_probe(device_t dev)
 	}
 */
 
-	device_set_desc_copy(dev, "REALTECK RTL830X MDIO switch driver");
+	device_set_desc_copy(dev, "REALTEK RTL830X MDIO switch driver");
 	return (BUS_PROBE_DEFAULT);
 }
 
