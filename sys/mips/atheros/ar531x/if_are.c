@@ -28,10 +28,11 @@
  * 
  */
 
+#include "opt_platform.h"
+#include "opt_ar531x.h"
+
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
-
-#include "opt_platform.h"
 
 /*
  * AR231x Ethernet interface driver
@@ -72,13 +73,6 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
-
-// Use etherswitch driver
-#define ARE_MDIO
-// Use normal PHY chip
-//#define ARE_MII 
-// If your switch chip not support on etherswitch then
-// not define ARE_MDIO and ARE_MII
 
 #ifdef ARE_MDIO
 #include <dev/mdio/mdio.h>
@@ -468,6 +462,7 @@ are_miibus_readreg(device_t dev, int phy, int reg)
 	struct are_softc * sc = device_get_softc(dev);
 	uint32_t	addr;
 	int		i;
+printf("MORI MORI read reg %d %d\n", phy, reg);
 
 	addr = (phy << MIIADDR_PHY_SHIFT) | (reg << MIIADDR_REG_SHIFT);
 	CSR_WRITE_4(sc, CSR_MIIADDR, addr);
