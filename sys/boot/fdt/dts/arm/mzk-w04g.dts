@@ -116,7 +116,8 @@
 		};
 
 		uart0: uart@8000000 {
-			compatible = "ns16550";
+//			compatible = "ns16550";
+			compatible = "econa-uart";
 			reg = <0x8000000 0x1000000>;
 			reg-shift = <2>;
 			clock-frequency = <14769230>;
@@ -126,8 +127,10 @@
 //			broken-txfifo = <1>;
 		};
 
-		gpio@c000000 {
+		gpio0: gpio@c000000 {
 			compatible = "gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
 			reg = <0xc000000 0x1000000>;
 		};
 
@@ -178,6 +181,15 @@
                         interrupt-parent = <&PIC>;
                 };
 
+	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		status {
+			label = "status";
+			gpios = <&gpio0 4 0>;
+		};
 	};
 
 };

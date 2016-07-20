@@ -338,6 +338,13 @@ econa_gpio_get_state(device_t dev, int pin, int *state)
 	return econa_gpio_pin_get(econa_gpio_sc->lg_dev, pin, state);
 }
 
+static phandle_t
+econa_gpio_get_node(device_t bus, device_t dev)
+{
+	/* We only have one child, the GPIO bus, which needs our own node. */
+	return (ofw_bus_get_node(bus));
+}
+
 static device_method_t econa_gpio_methods[] = {
 	/* Device interface */
 	DEVMETHOD(device_probe,		econa_gpio_probe),
@@ -355,6 +362,9 @@ static device_method_t econa_gpio_methods[] = {
 	DEVMETHOD(gpio_pin_get,		econa_gpio_pin_get),
 	DEVMETHOD(gpio_pin_toggle,	econa_gpio_pin_toggle),
 
+	/* ofw_bus interface */
+	DEVMETHOD(ofw_bus_get_node,     econa_gpio_get_node),
+
 	{ 0, 0 }
 };
 
@@ -366,5 +376,5 @@ static driver_t econa_gpio_driver = {
 	sizeof(struct econa_gpio_softc),
 };
 
-DRIVER_MODULE(econagpio, simplebus, econa_gpio_driver, econa_gpio_devclass, 0, 0);
+EARLY_DRIVER_MODULE(econagpio, simplebus, econa_gpio_driver, econa_gpio_devclass, 0, 0, BUS_PASS_INTERRUPT + BUS_PASS_ORDER_LATE);
 MODULE_VERSION(econagpio, 1);
