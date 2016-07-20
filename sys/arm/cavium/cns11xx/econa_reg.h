@@ -173,6 +173,11 @@
 #define	SYSTEM_CLOCK			0x14
 #define	RESET_CONTROL			0x4
 #define	GLOBAL_RESET			0x1
+#define	PCMCIA_RESET			(0x1 << 1)
+#define	PCI_RESET			(0x1 << 2)
+#define	DMA_RESET			(0x1 << 3)
 #define	NET_INTERFACE_RESET		(0x1 << 4)
+#define	USB_RESET			(0x1 << 5)
+#define	UART_RESET			(0x1 << 6)
 
 #endif
