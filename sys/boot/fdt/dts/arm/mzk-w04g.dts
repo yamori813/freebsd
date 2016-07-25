@@ -49,8 +49,8 @@
 			reg = <0x0>;
 			d-cache-line-size = <16>;	// 16 bytes
 			i-cache-line-size = <16>;	// 16 bytes
-			d-cache-size = <0x4000>;	// L1, 8K
-			i-cache-size = <0x4000>;	// L1, 8K
+			d-cache-size = <0x4000>;	// L1, 16K
+			i-cache-size = <0x4000>;	// L1, 16K
 			timebase-frequency = <0>;
 			bus-frequency = <0>;
 			clock-frequency = <0>;
@@ -78,11 +78,11 @@
 				label = "boot";
 			};
 			partition@1 {
-				reg = <0x00040000 0x00160000>;
+				reg = <0x00040000 0x00170000>;
 				label = "kernel";
 			};
 			partition@2 {
-				reg = <0x001a0000 0x00660000>;
+				reg = <0x001b0000 0x00660000>;
 				label = "rootfs";
 			};
 			partition@3 {
@@ -114,7 +114,6 @@
 			interrupts = <0 1>;
 			interrupt-parent = <&PIC>;
 		};
-
 		uart0: uart@8000000 {
 //			compatible = "ns16550";
 			compatible = "econa-uart";
@@ -188,7 +187,7 @@
 
 		status {
 			label = "status";
-			gpios = <&gpio0 4 0>;
+			gpios = <&gpio0 20 0>;
 		};
 	};
 

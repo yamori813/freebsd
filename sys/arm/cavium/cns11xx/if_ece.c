@@ -165,12 +165,14 @@ static int	ece_ifmedia_upd(struct ifnet *ifp);
 static void	ece_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr);
 static int	ece_get_mac(struct ece_softc *sc, u_char *eaddr);
 static void	ece_set_mac(struct ece_softc *sc, u_char *eaddr);
+#ifdef ECE_MII
 static int	configure_cpu_port(struct ece_softc *sc);
 static int	configure_lan_port(struct ece_softc *sc, int phy_type);
 static void	set_pvid(struct ece_softc *sc, int port0, int port1, int cpu);
 static void	set_vlan_vid(struct ece_softc *sc, int vlan);
 static void	set_vlan_member(struct ece_softc *sc, int vlan);
 static void	set_vlan_tag(struct ece_softc *sc, int vlan);
+#endif
 static int	hardware_init(struct ece_softc *sc);
 static void	ece_intr_rx_locked(struct ece_softc *sc, int count);
 
@@ -237,6 +239,7 @@ phy_write(struct ece_softc *sc, int phy, int reg, int data)
 	}
 }
 
+#ifdef ECE_MII
 static int get_phy_type(struct ece_softc *sc)
 {
 	uint16_t phy0_id = 0, phy1_id = 0;
@@ -259,6 +262,7 @@ static int get_phy_type(struct ece_softc *sc)
 
 	return (NOT_FOUND_PHY);
 }
+#endif
 
 static int
 ece_probe(device_t dev)
@@ -365,12 +369,19 @@ ece_attach(device_t dev)
 	ece_set_mac(sc, eaddr);
 	sc->ifp = ifp = if_alloc(IFT_ETHER);
 	/* Only one PHY at address 0 in this device. */
+#ifdef ECE_MII
 	err = mii_attach(dev, &sc->miibus, ifp, ece_ifmedia_upd,
 	    ece_ifmedia_sts, BMSR_DEFCAPMASK, 0, MII_OFFSET_ANY, 0);
 	if (err != 0) {
 		device_printf(dev, "attaching PHYs failed\n");
 		goto out;
 	}
+#else
+	ifmedia_init(&sc->ece_ifmedia, 0, ece_ifmedia_upd, ece_ifmedia_sts);
+
+	ifmedia_add(&sc->ece_ifmedia, IFM_ETHER | IFM_AUTO, 0, NULL);
+	ifmedia_set(&sc->ece_ifmedia, IFM_ETHER | IFM_AUTO);
+#endif
 	ifp->if_softc = sc;
 	if_initname(ifp, device_get_name(dev), device_get_unit(dev));
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
@@ -884,8 +895,10 @@ ece_deactivate(device_t dev)
 	sc->intrhand_qf = 0;
 
 	bus_generic_detach(sc->dev);
+#ifdef ECE_MII
 	if (sc->miibus)
 		device_delete_child(sc->dev, sc->miibus);
+#endif
 	if (sc->mem_res)
 		bus_release_resource(dev, SYS_RES_IOPORT,
 		    rman_get_rid(sc->mem_res), sc->mem_res);
@@ -921,6 +934,7 @@ ece_deactivate(device_t dev)
 static int
 ece_ifmedia_upd(struct ifnet *ifp)
 {
+#ifdef ECE_MII
 	struct ece_softc *sc = ifp->if_softc;
 	struct mii_data *mii;
 	int error;
@@ -930,6 +944,9 @@ ece_ifmedia_upd(struct ifnet *ifp)
 	error = mii_mediachg(mii);
 	ECE_UNLOCK(sc);
 	return (error);
+#else
+	return (0);
+#endif
 }
 
 /*
@@ -938,6 +955,7 @@ ece_ifmedia_upd(struct ifnet *ifp)
 static void
 ece_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
+#ifdef ECE_MII
 	struct ece_softc *sc = ifp->if_softc;
 	struct mii_data *mii;
 
@@ -947,11 +965,13 @@ ece_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 	ifmr->ifm_active = mii->mii_media_active;
 	ifmr->ifm_status = mii->mii_media_status;
 	ECE_UNLOCK(sc);
+#endif
 }
 
 static void
 ece_tick(void *xsc)
 {
+#ifdef ECE_MII
 	struct ece_softc *sc = xsc;
 	struct mii_data *mii;
 	int active;
@@ -964,6 +984,7 @@ ece_tick(void *xsc)
 	 * Schedule another timeout one second from now.
 	 */
 	callout_reset(&sc->tick_ch, hz, ece_tick, sc);
+#endif
 }
 
 static uint32_t
@@ -1112,6 +1133,7 @@ clear_mac_entries(struct ece_softc *ec, int include_this_mac)
 	}
 }
 
+#ifdef ECE_MII
 static int
 configure_lan_port(struct ece_softc *sc, int phy_type)
 {
@@ -1288,10 +1310,12 @@ configure_cpu_port(struct ece_softc *sc)
 	write_4(sc, FS_DMA_CONTROL, 0);
 	return (0);
 }
+#endif
 
 static int
 hardware_init(struct ece_softc *sc)
 {
+#ifdef ECE_MII
 	int status = 0;
 	static int gw_phy_type;
 
@@ -1304,6 +1328,7 @@ hardware_init(struct ece_softc *sc)
 	}
 	status = configure_lan_port(sc, gw_phy_type);
 	configure_cpu_port(sc);
+#endif
 	return (0);
 }
 
@@ -1567,7 +1592,9 @@ eceinit_locked(void *xsc)
 {
 	struct ece_softc *sc = xsc;
 	struct ifnet *ifp = sc->ifp;
+#ifdef ECE_MII
 	struct mii_data *mii;
+#endif
 	uint32_t cfg_reg;
 	uint32_t cpu_port_config;
 	uint32_t mac_port_config;
@@ -1604,8 +1631,10 @@ eceinit_locked(void *xsc)
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
+#ifdef ECE_MII
 	mii = device_get_softc(sc->miibus);
 	mii_pollstat(mii);
+#endif
 	/* Enable DMA. */
 	write_4(sc, FS_DMA_CONTROL, 1);
 
@@ -1816,6 +1845,7 @@ ecestop(struct ece_softc *sc)
 	clear_mac_entries(sc, 1);
 }
 
+#ifdef ECE_MII
 static void
 ece_restart(struct ece_softc *sc)
 {
@@ -1830,6 +1860,7 @@ ece_restart(struct ece_softc *sc)
 	write_4(sc, FS_DMA_CONTROL, 1);
 	callout_reset(&sc->tick_ch, hz, ece_tick, sc);
 }
+#endif
 
 static void
 set_filter(struct ece_softc *sc)
@@ -1862,12 +1893,15 @@ static int
 eceioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
 	struct ece_softc *sc = ifp->if_softc;
+#ifdef ECE_MII
 	struct mii_data *mii;
+#endif
 	struct ifreq *ifr = (struct ifreq *)data;
 	int mask, error = 0;
 
 	switch (cmd) {
 	case SIOCSIFFLAGS:
+#ifdef ECE_MII
 		ECE_LOCK(sc);
 		if ((ifp->if_flags & IFF_UP) == 0 &&
 		    ifp->if_drv_flags & IFF_DRV_RUNNING) {
@@ -1880,6 +1914,7 @@ eceioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				ece_restart(sc);
 		}
 		ECE_UNLOCK(sc);
+#endif
 		break;
 
 	case SIOCADDMULTI:
@@ -1891,8 +1926,12 @@ eceioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 	case SIOCSIFMEDIA:
 	case SIOCGIFMEDIA:
+#ifdef ECE_MII
 		mii = device_get_softc(sc->miibus);
 		error = ifmedia_ioctl(ifp, ifr, &mii->mii_media, cmd);
+#else
+		error = ifmedia_ioctl(ifp, ifr, &sc->ece_ifmedia, cmd);
+#endif
 		break;
 	case SIOCSIFCAP:
 		mask = ifp->if_capenable ^ ifr->ifr_reqcap;
@@ -1913,8 +1952,10 @@ ece_child_detached(device_t dev, device_t child)
 	struct ece_softc *sc;
 
 	sc = device_get_softc(dev);
+#ifdef ECE_MII
 	if (child == sc->miibus)
 		sc->miibus = NULL;
+#endif
 }
 
 /*
@@ -1960,6 +2001,8 @@ static driver_t ece_driver = {
 };
 
 DRIVER_MODULE(ece, simplebus, ece_driver, ece_devclass, 0, 0);
+#ifdef ECE_MII
 DRIVER_MODULE(miibus, ece, miibus_driver, miibus_devclass, 0, 0);
+#endif
 MODULE_DEPEND(ece, miibus, 1, 1, 1);
 MODULE_DEPEND(ece, ether, 1, 1, 1);

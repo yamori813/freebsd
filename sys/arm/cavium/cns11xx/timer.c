@@ -241,8 +241,6 @@ ec_hardclock(void *arg)
 	struct  ec_timer_softc *sc = (struct ec_timer_softc *)arg;
 	unsigned int control_value;
 
-	TIMER_LOCK(sc);
-
 	clear_timer_interrupt_status(1);
 
 	control_value = read_4(TIMER_TM_CR_REG);
@@ -261,8 +259,6 @@ ec_hardclock(void *arg)
 
 	if (sc->ec_et.et_active)
 		sc->ec_et.et_event_cb(&sc->ec_et, sc->ec_et.et_arg);
-
-	TIMER_UNLOCK(sc);
 
 	return (FILTER_HANDLED);
 }

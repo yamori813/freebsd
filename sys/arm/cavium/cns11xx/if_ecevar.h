@@ -116,7 +116,11 @@ struct ece_softc
 	bus_dma_tag_t	sc_parent_tag;	/* parent bus DMA tag */
 
 	device_t dev;			/* Myself */
+#ifdef ECE_MII
 	device_t miibus;		/* My child miibus */
+#else
+	struct ifmedia ece_ifmedia;
+#endif
 	void *intrhand;			/* Interrupt handle */
 	void *intrhand_qf;		/* queue full */
 	void *intrhand_tx;		/* tx complete */

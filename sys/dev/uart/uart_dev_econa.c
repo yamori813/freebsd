@@ -24,7 +24,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* delete MCR_DTR, MCR_DRS, MCR_IE */
+/* delete MCR_DTR, MCR_DRS, MCR_IE, IER_ETXRDY */
 
 #include "opt_platform.h"
 #include "opt_uart.h"
@@ -78,16 +78,19 @@ SYSCTL_INT(_hw, OID_AUTO, broken_txfifo, CTLFLAG_RWTUN,
 static void
 econa_clrint(struct uart_bas *bas)
 {
-	uint8_t iir, lsr;
+//	uint8_t iir, lsr;
+	uint8_t iir;
 
 	iir = uart_getreg(bas, REG_IIR);
 	while ((iir & IIR_NOPEND) == 0) {
 		iir &= IIR_IMASK;
+/*
 		if (iir == IIR_RLS) {
 			lsr = uart_getreg(bas, REG_LSR);
 			if (lsr & (LSR_BI|LSR_FE|LSR_PE))
 				(void)uart_getreg(bas, REG_DATA);
-		} else if (iir == IIR_RXRDY || iir == IIR_RXTOUT)
+		} else */
+		if (iir == IIR_RXRDY || iir == IIR_RXTOUT)
 			(void)uart_getreg(bas, REG_DATA);
 		else if (iir == IIR_MLSC)
 			(void)uart_getreg(bas, REG_MSR);
@@ -163,6 +166,7 @@ econa_drain(struct uart_bas *bas, int what)
 	}
 
 	if (what & UART_DRAIN_RECEIVER) {
+printf("MORI MORI rec\n");
 		/*
 		 * Pick an arbitrary high limit to avoid getting stuck in
 		 * an infinite loop when the hardware is broken. Make the
@@ -308,7 +312,7 @@ econa_init(struct uart_bas *bas, int baudrate, int databits, int stopbits,
 	uart_barrier(bas);
 
 	/* Set RTS & DTR. */
-	uart_setreg(bas, REG_MCR, MCR_IE | MCR_RTS | MCR_DTR);
+	uart_setreg(bas, REG_MCR, MCR_RTS);
 	uart_barrier(bas);
 
 	econa_clrint(bas);
@@ -317,9 +321,8 @@ econa_init(struct uart_bas *bas, int baudrate, int databits, int stopbits,
 static void
 econa_term(struct uart_bas *bas)
 {
-
-	/* Clear RTS & DTR. */
-	uart_setreg(bas, REG_MCR, MCR_IE);
+	/* Clear RTS */
+	uart_setreg(bas, REG_MCR, 0);
 	uart_barrier(bas);
 }
 
@@ -452,6 +455,7 @@ econa_bus_attach(struct uart_softc *sc)
 
 	econa->mcr = uart_getreg(bas, REG_MCR);
 	econa->fcr = FCR_ENABLE;
+#if 0
 	if (!resource_int_value("uart", device_get_unit(sc->sc_dev), "flags",
 	    &ivar)) {
 		if (UART_FLAGS_FCR_RX_LOW(ivar)) 
@@ -464,6 +468,9 @@ econa_bus_attach(struct uart_softc *sc)
 			econa->fcr |= FCR_RX_MEDH;
 	} else 
 		econa->fcr |= FCR_RX_MEDH;
+#else
+	econa->fcr |= FCR_RX_LOW;
+#endif
 	
 	/* Get IER mask */
 	ivar = 0xf0;
@@ -471,25 +478,17 @@ econa_bus_attach(struct uart_softc *sc)
 	    &ivar);
 	econa->ier_mask = (uint8_t)(ivar & 0xff);
 	
-	/* Get IER RX interrupt bits */
-	ivar = IER_EMSC | IER_ERLS | IER_ERXRDY;
-	resource_int_value("uart", device_get_unit(sc->sc_dev), "ier_rxbits",
-	    &ivar);
-	econa->ier_rxbits = (uint8_t)(ivar & 0xff);
-	
 	uart_setreg(bas, REG_FCR, econa->fcr);
 	uart_barrier(bas);
 	econa_bus_flush(sc, UART_FLUSH_RECEIVER|UART_FLUSH_TRANSMITTER);
 
-	if (econa->mcr & MCR_DTR)
-		sc->sc_hwsig |= SER_DTR;
 	if (econa->mcr & MCR_RTS)
 		sc->sc_hwsig |= SER_RTS;
 	econa_bus_getsig(sc);
 
 	econa_clrint(bas);
-	econa->ier = uart_getreg(bas, REG_IER) & econa->ier_mask;
-	econa->ier |= econa->ier_rxbits;
+//	econa->ier = uart_getreg(bas, REG_IER) & econa->ier_mask;
+	econa->ier = IER_ERXRDY;
 	uart_setreg(bas, REG_IER, econa->ier);
 	uart_barrier(bas);
 
@@ -742,8 +741,8 @@ econa_bus_probe(struct uart_softc *sc)
 {
 	struct econa_softc *econa;
 	struct uart_bas *bas;
-	int count, delay, error, limit;
-	uint8_t lsr, mcr, ier;
+	int error;
+	uint8_t mcr;
 
 	econa = (struct econa_softc *)sc;
 	bas = &sc->sc_bas;
@@ -752,116 +751,19 @@ econa_bus_probe(struct uart_softc *sc)
 	if (error)
 		return (error);
 
-	mcr = MCR_IE;
+	mcr = 0;
 	if (sc->sc_sysdev == NULL) {
 		/* By using econa_init() we also set DTR and RTS. */
 		econa_init(bas, 115200, 8, 1, UART_PARITY_NONE);
 	} else
-		mcr |= MCR_DTR | MCR_RTS;
+		mcr |= MCR_RTS;
 
 	error = econa_drain(bas, UART_DRAIN_TRANSMITTER);
 	if (error)
 		return (error);
 
-	/*
-	 * Set loopback mode. This avoids having garbage on the wire and
-	 * also allows us send and receive data. We set DTR and RTS to
-	 * avoid the possibility that automatic flow-control prevents
-	 * any data from being sent.
-	 */
-	uart_setreg(bas, REG_MCR, MCR_LOOPBACK | MCR_IE | MCR_DTR | MCR_RTS);
-	uart_barrier(bas);
-
-	/*
-	 * Enable FIFOs. And check that the UART has them. If not, we're
-	 * done. Since this is the first time we enable the FIFOs, we reset
-	 * them.
-	 */
-	uart_setreg(bas, REG_FCR, FCR_ENABLE);
-	uart_barrier(bas);
-	if (!(uart_getreg(bas, REG_IIR) & IIR_FIFO_MASK)) {
-		/*
-		 * NS16450 or INS8250. We don't bother to differentiate
-		 * between them. They're too old to be interesting.
-		 */
-		uart_setreg(bas, REG_MCR, mcr);
-		uart_barrier(bas);
-		sc->sc_rxfifosz = sc->sc_txfifosz = 1;
-		device_set_desc(sc->sc_dev, "8250 or 16450 or compatible");
-		return (0);
-	}
-
-	uart_setreg(bas, REG_FCR, FCR_ENABLE | FCR_XMT_RST | FCR_RCV_RST);
-	uart_barrier(bas);
-
-	count = 0;
-	delay = econa_delay(bas);
-
-	/* We have FIFOs. Drain the transmitter and receiver. */
-	error = econa_drain(bas, UART_DRAIN_RECEIVER|UART_DRAIN_TRANSMITTER);
-	if (error) {
-		uart_setreg(bas, REG_MCR, mcr);
-		uart_setreg(bas, REG_FCR, 0);
-		uart_barrier(bas);
-		goto describe;
-	}
-
-	/*
-	 * We should have a sufficiently clean "pipe" to determine the
-	 * size of the FIFOs. We send as much characters as is reasonable
-	 * and wait for the overflow bit in the LSR register to be
-	 * asserted, counting the characters as we send them. Based on
-	 * that count we know the FIFO size.
-	 */
-	do {
-		uart_setreg(bas, REG_DATA, 0);
-		uart_barrier(bas);
-		count++;
-
-		limit = 30;
-		lsr = 0;
-		/*
-		 * LSR bits are cleared upon read, so we must accumulate
-		 * them to be able to test LSR_OE below.
-		 */
-		while (((lsr |= uart_getreg(bas, REG_LSR)) & LSR_TEMT) == 0 &&
-		    --limit)
-			DELAY(delay);
-		if (limit == 0) {
-			ier = uart_getreg(bas, REG_IER) & econa->ier_mask;
-			uart_setreg(bas, REG_IER, ier);
-			uart_setreg(bas, REG_MCR, mcr);
-			uart_setreg(bas, REG_FCR, 0);
-			uart_barrier(bas);
-			count = 0;
-			goto describe;
-		}
-	} while ((lsr & LSR_OE) == 0 && count < 130);
-	count--;
-
-	uart_setreg(bas, REG_MCR, mcr);
-
-	/* Reset FIFOs. */
-	econa_flush(bas, UART_FLUSH_RECEIVER|UART_FLUSH_TRANSMITTER);
-
- describe:
-	if (count >= 14 && count <= 16) {
-		sc->sc_rxfifosz = 16;
-		device_set_desc(sc->sc_dev, "16550 or compatible");
-	} else if (count >= 28 && count <= 32) {
-		sc->sc_rxfifosz = 32;
-		device_set_desc(sc->sc_dev, "16650 or compatible");
-	} else if (count >= 56 && count <= 64) {
-		sc->sc_rxfifosz = 64;
-		device_set_desc(sc->sc_dev, "16750 or compatible");
-	} else if (count >= 112 && count <= 128) {
-		sc->sc_rxfifosz = 128;
-		device_set_desc(sc->sc_dev, "16950 or compatible");
-	} else {
-		sc->sc_rxfifosz = 16;
-		device_set_desc(sc->sc_dev,
-		    "Non-standard econa class UART with FIFOs");
-	}
+	sc->sc_rxfifosz = 16;
+	device_set_desc(sc->sc_dev, "econa class UART with FIFOs");
 
 	/*
 	 * Force the Tx FIFO size to 16 bytes for now. We don't program the
@@ -869,20 +771,6 @@ econa_bus_probe(struct uart_softc *sc)
 	 * interrupt happens.
 	 */
 	sc->sc_txfifosz = 16;
-
-#if 0
-	/*
-	 * XXX there are some issues related to hardware flow control and
-	 * it's likely that uart(4) is the cause. This basically needs more
-	 * investigation, but we avoid using for hardware flow control
-	 * until then.
-	 */
-	/* 16650s or higher have automatic flow control. */
-	if (sc->sc_rxfifosz > 16) {
-		sc->sc_hwiflow = 1;
-		sc->sc_hwoflow = 1;
-	}
-#endif
 
 	return (0);
 }
@@ -939,9 +827,7 @@ econa_bus_setsig(struct uart_softc *sc, int sig)
 		}
 	} while (!atomic_cmpset_32(&sc->sc_hwsig, old, new));
 	uart_lock(sc->sc_hwmtx);
-	econa->mcr &= ~(MCR_DTR|MCR_RTS);
-	if (new & SER_DTR)
-		econa->mcr |= MCR_DTR;
+	econa->mcr &= ~MCR_RTS;
 	if (new & SER_RTS)
 		econa->mcr |= MCR_RTS;
 	uart_setreg(bas, REG_MCR, econa->mcr);
