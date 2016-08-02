@@ -110,9 +110,6 @@ unsigned int read_4(unsigned int addr)
 	    timer_softc->timer_bsh, addr);
 }
 
-#define	uSECS_PER_TICK	(1000000 / APB_clock)
-#define	TICKS2USECS(x)	((x) * uSECS_PER_TICK)
-
 static inline unsigned int
 read_second_timer_counter(void)
 {
