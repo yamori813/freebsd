@@ -285,6 +285,7 @@ struct cpu_devs econarm_devs[] =
 		ECONA_CFI_VBASE, ECONA_CFI_SIZE,
 		0
 	},
+/*
 	{
 		"ece", 0,
 		ECONA_IO_BASE + ECONA_NET_BASE, ECONA_NET_SIZE,
@@ -292,6 +293,7 @@ struct cpu_devs econarm_devs[] =
 		ECONA_IRQ_TSTC, ECONA_IRQ_FSRC,
 		ECONA_IRQ_TSQE, ECONA_IRQ_FSQF,
 	},
+*/
 	{	0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
