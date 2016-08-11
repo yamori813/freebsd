@@ -13,4 +13,4 @@ options	KERNVIRTADDR=0xc1000000	# Used in ldscript.arm
 options	FLASHADDR=0xD0000000
 options	LOADERRAMADDR=0x00000000
 
-options	NO_EVENTTIMERS
+#options	NO_EVENTTIMERS

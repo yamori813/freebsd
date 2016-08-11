@@ -49,6 +49,8 @@ __FBSDID("$FreeBSD$");
 #include "econa_reg.h"
 #include "econa_var.h"
 
+static void econa_intc_eoi(void *);
+
 static struct econa_softc *econa_softc;
 
 unsigned int CPU_clock = 200000000;
@@ -285,7 +287,6 @@ struct cpu_devs econarm_devs[] =
 		ECONA_CFI_VBASE, ECONA_CFI_SIZE,
 		0
 	},
-/*
 	{
 		"ece", 0,
 		ECONA_IO_BASE + ECONA_NET_BASE, ECONA_NET_SIZE,
@@ -293,7 +294,6 @@ struct cpu_devs econarm_devs[] =
 		ECONA_IRQ_TSTC, ECONA_IRQ_FSRC,
 		ECONA_IRQ_TSQE, ECONA_IRQ_FSQF,
 	},
-*/
 	{	0, 0, 0, 0, 0, 0, 0, 0, 0 }
 };
 
@@ -504,6 +504,8 @@ econa_attach(device_t dev)
 		}
 	}
 
+	arm_post_filter = econa_intc_eoi;
+
 	get_system_clock();
 
 	econa_cpu_add_builtin_children(dev, sc);
@@ -658,8 +660,8 @@ arm_mask_irq(uintptr_t nb)
 void
 arm_unmask_irq(uintptr_t nb)
 {
-	unsigned int value;
 
+	unsigned int value;
 	value = read_4(econa_softc,
 	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET) | (1 << nb);
 	write_4(econa_softc,
@@ -673,14 +675,25 @@ arm_get_next_irq(int x)
 {
 	int irq;
 
-	irq = read_4(econa_softc, INTC_INTERRUPT_STATUS_REG_OFFSET) &
+//	irq = read_4(econa_softc, INTC_INTERRUPT_STATUS_REG_OFFSET) &
+	irq = read_4(econa_softc, INTC_INTERRUPT_SOURCE_REG_OFFSET) &
 	    ~(read_4(econa_softc, INTC_INTERRUPT_MASK_REG_OFFSET));
 
 	if (irq!=0) {
+printf("MORI MORI next irq %08x\n", irq);
 		return (ffs(irq) - 1);
 	}
 
 	return (-1);
+}
+
+static void
+econa_intc_eoi(void *data)
+{
+	int nb = (int)data;
+	write_4(econa_softc,
+	    INTC_INTERRUPT_CLEAR_EDGE_TRIGGER_REG_OFFSET, 1 << nb);
+	if(nb != 1) printf("MORI MORI eoi %d\n", nb);
 }
 
 void

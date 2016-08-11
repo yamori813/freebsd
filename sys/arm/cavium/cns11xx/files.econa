@@ -11,3 +11,4 @@ arm/cavium/cns11xx/ehci_ebus.c	optional	ehci
 arm/cavium/cns11xx/ohci_ec.c	optional	ohci
 arm/cavium/cns11xx/if_ece.c		standard
 arm/cavium/cns11xx/cfi_bus_econa.c		optional	cfi
+kern/kern_clocksource.c				standard

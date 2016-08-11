@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2016 Hiroki Mori
  * Copyright (c) 2009 Yohanes Nugroho <yohanes@gmail.com>.
  * All rights reserved.
  *
@@ -26,6 +27,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include "opt_timer.h"
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/bus.h>
@@ -34,31 +37,35 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/rman.h>
 #include <sys/timetc.h>
+#include <sys/timeet.h>
 #include <sys/watchdog.h>
 #include <machine/bus.h>
 #include <machine/cpu.h>
 #include <machine/intr.h>
+/*
+#include <dev/fdt/fdt_common.h>
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>
+*/
 
 #include "econa_reg.h"
 #include "econa_var.h"
 
-#define	INITIAL_TIMECOUNTER	(0xffffffff)
-
 static int timers_initialized = 0;
-
-#define	HZ	100
 
 extern unsigned int CPU_clock;
 extern unsigned int AHB_clock;
 extern unsigned int APB_clock;
-
-static unsigned long timer_counter = 0;
 
 struct ec_timer_softc {
 	struct resource	*	timer_res[3];
 	bus_space_tag_t		timer_bst;
 	bus_space_handle_t	timer_bsh;
 	struct mtx		timer_mtx;
+	struct eventtimer	ec_et;
+	int			ec_start;
+	int			ec_oneshot;
+	uint32_t		ec_period;
 };
 
 static struct resource_spec ec_timer_spec[] = {
@@ -68,11 +75,19 @@ static struct resource_spec ec_timer_spec[] = {
 	{ -1, 0 }
 };
 
+#define TIMER_LOCK(_sc)		mtx_lock(&(_sc)->timer_mtx)
+#define TIMER_UNLOCK(_sc)	mtx_unlock(&(_sc)->timer_mtx)
+
 static unsigned ec_timer_get_timecount(struct timecounter *);
+#ifndef NO_EVENTTIMERS
+static int ec_timer_start(struct eventtimer *,
+    sbintime_t first, sbintime_t period);
+static int ec_timer_stop(struct eventtimer *et);
+#endif
 
 static struct timecounter ec_timecounter = {
 	.tc_get_timecount = ec_timer_get_timecount,
-	.tc_name = "CPU Timer",
+	.tc_name = "Timer1",
 	/* This is assigned on the fly in the init sequence */
 	.tc_frequency = 0,
 	.tc_counter_mask = ~0u,
@@ -97,17 +112,11 @@ unsigned int read_4(unsigned int addr)
 	    timer_softc->timer_bsh, addr);
 }
 
-#define	uSECS_PER_TICK	(1000000 / APB_clock)
-#define	TICKS2USECS(x)	((x) * uSECS_PER_TICK)
-
-static unsigned
-read_timer_counter_noint(void)
+static inline unsigned int
+read_second_timer_counter(void)
 {
 
-	arm_mask_irq(0);
-	unsigned int v = read_4(TIMER_TM1_COUNTER_REG);
-	arm_unmask_irq(0);
-	return v;
+	return read_4(TIMER_TM1_COUNTER_REG);
 }
 
 void
@@ -123,15 +132,16 @@ DELAY(int usec)
 		return;
 	}
 
-	val = read_timer_counter_noint();
-	nticks = (((APB_clock / 1000) * usec) / 1000) + 100;
+	// timer2 is count up
+	val = read_second_timer_counter();
+	nticks = (ec_timecounter.tc_frequency / 1000000 + 1) * usec;
 
 	while (nticks > 0) {
-		val_temp = read_timer_counter_noint();
-		if (val > val_temp)
-			nticks -= (val - val_temp);
+		val_temp = read_second_timer_counter();
+		if (val < val_temp)
+			nticks -= (val_temp - val);
 		else
-			nticks -= (val + (timer_counter - val_temp));
+			nticks -= ((~0u - val) + val_temp);
 
 		val = val_temp;
 	}
@@ -142,59 +152,28 @@ DELAY(int usec)
  * Setup timer
  */
 static inline void
-setup_timer(unsigned int counter_value)
+setup_timer(void)
 {
 	unsigned int control_value;
 	unsigned int mask_value;
 
 	control_value = read_4(TIMER_TM_CR_REG);
 
-	mask_value = read_4(TIMER_TM_INTR_MASK_REG);
-	write_4(counter_value, TIMER_TM1_COUNTER_REG);
-	write_4(counter_value, TIMER_TM1_LOAD_REG);
-	write_4(0, TIMER_TM1_MATCH1_REG);
-	write_4(0,TIMER_TM1_MATCH2_REG);
-
-	control_value &= ~(TIMER1_CLOCK_SOURCE);
-	control_value |= TIMER1_UP_DOWN_COUNT;
-
-	write_4(0, TIMER_TM2_COUNTER_REG);
-	write_4(0, TIMER_TM2_LOAD_REG);
-	write_4(~0u, TIMER_TM2_MATCH1_REG);
-	write_4(~0u,TIMER_TM2_MATCH2_REG);
-
+	// Timer2 is eventtimer (count down)
 	control_value &= ~(TIMER2_CLOCK_SOURCE);
-	control_value &= ~(TIMER2_UP_DOWN_COUNT);
+	control_value |= TIMER2_UP_DOWN_COUNT;
 
-	mask_value &= ~(63);
+	// Timer1 is timecounter (count up)
+	// 0 -> 0xffffffff -> 0 -> ...
+	control_value &= ~(TIMER1_CLOCK_SOURCE);
+	control_value &= ~(TIMER1_UP_DOWN_COUNT);
 
 	write_4(control_value, TIMER_TM_CR_REG);
+
+	// only use timer2 interrupt
+	mask_value = 0x07;   // 000000111
+
 	write_4(mask_value, TIMER_TM_INTR_MASK_REG);
-}
-
-/*
- * Enable timer
- */
-static inline void
-timer_enable(void)
-{
-	unsigned int control_value;
-
-	control_value = read_4(TIMER_TM_CR_REG);
-
-	control_value |= TIMER1_OVERFLOW_ENABLE;
-	control_value |= TIMER1_ENABLE;
-	control_value |= TIMER2_OVERFLOW_ENABLE;
-	control_value |= TIMER2_ENABLE;
-
-	write_4(control_value, TIMER_TM_CR_REG);
-}
-
-static inline unsigned int
-read_second_timer_counter(void)
-{
-
-	return read_4(TIMER_TM2_COUNTER_REG);
 }
 
 /*
@@ -239,84 +218,53 @@ clear_timer_interrupt_status(unsigned int irq)
 static unsigned
 ec_timer_get_timecount(struct timecounter *a)
 {
-	unsigned int ticks1;
-	arm_mask_irq(1);
-	ticks1 = read_second_timer_counter();
-	arm_unmask_irq(1);
-	return ticks1;
-}
-
-/*
- * Setup timer
- */
-static inline void
-do_setup_timer(void)
-{
-
-	timer_counter = APB_clock/HZ;
-	/*
-	 * setup timer-related values
-	 */
-	setup_timer(timer_counter);
-}
-
-void
-cpu_initclocks(void)
-{
-
-	ec_timecounter.tc_frequency = APB_clock;
-	tc_init(&ec_timecounter);
-	timer_enable();
-	timers_initialized = 1;
-}
-
-void
-cpu_startprofclock(void)
-{
-
-}
-
-void
-cpu_stopprofclock(void)
-{
-
+	return read_second_timer_counter();
 }
 
 static int
 ec_timer_probe(device_t dev)
 {
+/*
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "econa,timer"))
+		return (ENXIO);
+*/
 
 	device_set_desc(dev, "Econa CPU Timer");
 	return (0);
 }
 
 static int
-ec_reset(void *arg)
-{
-
-	arm_mask_irq(1);
-	clear_timer_interrupt_status(1);
-	arm_unmask_irq(1);
-	return (FILTER_HANDLED);
-}
-
-static int
 ec_hardclock(void *arg)
 {
-	struct	trapframe *frame;
-	unsigned int val;
-	/*clear timer interrupt status*/
+	struct  ec_timer_softc *sc = (struct ec_timer_softc *)arg;
+	unsigned int control_value;
 
-	arm_mask_irq(0);
+	clear_timer_interrupt_status(1);
 
-	val = read_4(TIMER_INTERRUPT_STATUS_REG);
-	val &= ~(TIMER1_OVERFLOW_INTERRUPT);
-	write_4(val, TIMER_INTERRUPT_STATUS_REG);
+	control_value = read_4(TIMER_TM_CR_REG);
+	control_value &= ~TIMER2_ENABLE;
+	write_4(control_value, TIMER_TM_CR_REG);
 
-	frame = (struct trapframe *)arg;
-	hardclock(TRAPF_USERMODE(frame), TRAPF_PC(frame));
+	if(sc->ec_start == 0)
+		return (FILTER_HANDLED);
 
-	arm_unmask_irq(0);
+	/* Start timer again */
+	if (!sc->ec_oneshot) {
+		write_4(sc->ec_period, TIMER_TM2_COUNTER_REG);
+		write_4(sc->ec_period, TIMER_TM2_LOAD_REG);
+		control_value = read_4(TIMER_TM_CR_REG);
+		control_value |= TIMER2_OVERFLOW_ENABLE;
+		control_value |= TIMER2_ENABLE;
+		write_4(control_value, TIMER_TM_CR_REG);
+	} else {
+		sc->ec_start = 0;
+	}
+
+	if (sc->ec_et.et_active)
+		sc->ec_et.et_event_cb(&sc->ec_et, sc->ec_et.et_arg);
 
 	return (FILTER_HANDLED);
 }
@@ -327,12 +275,15 @@ ec_timer_attach(device_t dev)
 	struct	ec_timer_softc *sc;
 	int	error;
 	void	*ihl;
+	unsigned int control_value;
 
 
 	if (timer_softc != NULL)
 		return (ENXIO);
 
 	sc = (struct ec_timer_softc *)device_get_softc(dev);
+
+	mtx_init(&sc->timer_mtx, device_get_nameunit(dev), NULL, MTX_DEF);
 
 	timer_softc = sc;
 
@@ -345,24 +296,122 @@ ec_timer_attach(device_t dev)
 	sc->timer_bst = rman_get_bustag(sc->timer_res[0]);
 	sc->timer_bsh = rman_get_bushandle(sc->timer_res[0]);
 
-	do_setup_timer();
+	setup_timer();
 
-	if (bus_setup_intr(dev, sc->timer_res[1], INTR_TYPE_CLK,
-	    ec_hardclock, NULL, NULL, &ihl) != 0) {
+	if (bus_setup_intr(dev, sc->timer_res[2], INTR_TYPE_CLK,
+	    ec_hardclock, NULL, sc, &ihl) != 0) {
 		bus_release_resources(dev, ec_timer_spec, sc->timer_res);
 		device_printf(dev, "could not setup hardclock interrupt\n");
 		return (ENXIO);
 	}
 
-	if (bus_setup_intr(dev, sc->timer_res[2], INTR_TYPE_CLK,
-	    ec_reset, NULL, NULL, &ihl) != 0) {
-		bus_release_resources(dev, ec_timer_spec, sc->timer_res);
-		device_printf(dev, "could not setup timer interrupt\n");
-		return (ENXIO);
-	}
+	ec_timecounter.tc_frequency = (uint64_t)APB_clock;
+
+#ifndef NO_EVENTTIMERS
+	sc->ec_et.et_frequency = (uint64_t)APB_clock;
+	sc->ec_et.et_name = "Timer2";
+	sc->ec_et.et_flags = ET_FLAGS_PERIODIC | ET_FLAGS_ONESHOT;
+	sc->ec_et.et_quality = 1000;
+	sc->ec_et.et_min_period = (0x00000002LLU << 32) / sc->ec_et.et_frequency;
+	sc->ec_et.et_max_period = (0xfffffffeLLU << 32) / sc->ec_et.et_frequency;
+	sc->ec_et.et_start = ec_timer_start;
+	sc->ec_et.et_stop = ec_timer_stop;
+	sc->ec_et.et_priv = sc;
+	et_register(&sc->ec_et);
+	sc->ec_start = 0;
+#endif
+	tc_init(&ec_timecounter);
+
+	/* enable timecounter */
+	// Timer1 is timecounter (count up)
+	write_4(0, TIMER_TM1_COUNTER_REG);
+	write_4(0, TIMER_TM1_LOAD_REG);
+	write_4(~0u, TIMER_TM1_MATCH1_REG);
+	write_4(~0u, TIMER_TM1_MATCH2_REG);
+	control_value = read_4(TIMER_TM_CR_REG);
+	control_value |= TIMER1_ENABLE;
+	control_value &= ~TIMER2_ENABLE;
+	write_4(control_value, TIMER_TM_CR_REG);
+
+	/* DELAY() now can work properly */
+	timers_initialized = 1;
 
 	return (0);
 }
+
+#ifndef NO_EVENTTIMERS
+static int
+ec_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
+{
+	struct ec_timer_softc *sc = (struct ec_timer_softc *)et->et_priv;
+
+	uint32_t ticks;
+
+	if (period == 0) {
+		sc->ec_oneshot = 1;
+		sc->ec_period = 0;
+	} else {
+		sc->ec_oneshot = 0;
+		sc->ec_period = ((uint32_t)et->et_frequency * period) >> 32;
+	}
+
+	if (first == 0)
+		ticks = sc->ec_period;
+	else
+		ticks = ((uint32_t)et->et_frequency * first) >> 32;
+	
+	// Timer2 is eventtimer (count down)
+	// ticks -> 0
+	write_4(ticks, TIMER_TM2_COUNTER_REG);
+	write_4(ticks, TIMER_TM2_LOAD_REG);
+	write_4(0, TIMER_TM2_MATCH1_REG);
+	write_4(0, TIMER_TM2_MATCH2_REG);
+
+	unsigned int control_value;
+
+	control_value = read_4(TIMER_TM_CR_REG);
+
+	control_value |= TIMER2_OVERFLOW_ENABLE;
+	control_value |= TIMER2_ENABLE;
+
+	write_4(control_value, TIMER_TM_CR_REG);
+
+	sc->ec_start = 1;
+
+	return (0);
+}
+
+static int
+ec_timer_stop(struct eventtimer *et)
+{
+	struct ec_timer_softc *sc = (struct ec_timer_softc *)et->et_priv;
+
+	unsigned int control_value;
+
+	control_value = read_4(TIMER_TM_CR_REG);
+
+	control_value &= ~TIMER2_ENABLE;
+
+	write_4(control_value, TIMER_TM_CR_REG);
+
+	sc->ec_start = 0;
+
+	return (0);
+}
+
+#else
+void
+cpu_startprofclock(void)
+{}
+
+void
+cpu_initclocks(void)
+{}
+
+void
+cpu_stopprofclock(void)
+{}
+#endif
 
 static device_method_t ec_timer_methods[] = {
 	DEVMETHOD(device_probe, ec_timer_probe),
