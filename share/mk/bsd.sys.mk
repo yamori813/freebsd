@@ -121,6 +121,10 @@ CLANG_OPT_SMALL= -mstack-alignment=8 -mllvm -inline-threshold=3\
 CFLAGS+=	 -Qunused-arguments
 .endif # CLANG
 
+.if ${MACHINE_CPUARCH} == "arm"
+CFLAGS+=	-march=armv4 -mno-thumb-interwork
+.endif
+
 .if ${MK_SSP} != "no" && ${MACHINE_CPUARCH} != "ia64" && \
     ${MACHINE_CPUARCH} != "arm" && ${MACHINE_CPUARCH} != "mips"
 # Don't use -Wstack-protector as it breaks world with -Werror.
