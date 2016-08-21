@@ -65,6 +65,7 @@ SYSCTL_DEBUG	opt_sysctl.h
 EARLY_PRINTF	opt_global.h
 TEXTDUMP_PREFERRED	opt_ddb.h
 TEXTDUMP_VERBOSE	opt_ddb.h
+NUM_CORE_FILES	opt_global.h
 
 # Miscellaneous options.
 ADAPTIVE_LOCKMGRS
@@ -217,8 +218,6 @@ SW_WATCHDOG	opt_watchdog.h
 TURNSTILE_PROFILING
 UMTX_PROFILING
 VERBOSE_SYSINIT
-WLCACHE		opt_wavelan.h
-WLDEBUG		opt_wavelan.h
 
 # POSIX kernel options
 P1003_1B_MQUEUE			opt_posix.h
@@ -417,6 +416,8 @@ IPFILTER_LOOKUP		opt_ipfilter.h
 IPFIREWALL		opt_ipfw.h
 IPFIREWALL_DEFAULT_TO_ACCEPT	opt_ipfw.h
 IPFIREWALL_NAT		opt_ipfw.h
+IPFIREWALL_NAT64	opt_ipfw.h
+IPFIREWALL_NAT64_DIRECT_OUTPUT	opt_ipfw.h
 IPFIREWALL_NPTV6	opt_ipfw.h
 IPFIREWALL_VERBOSE	opt_ipfw.h
 IPFIREWALL_VERBOSE_LIMIT	opt_ipfw.h
