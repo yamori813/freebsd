@@ -218,7 +218,7 @@ __TT=${MACHINE}
 # build Clang without using an external compiler.
 
 .if ${COMPILER_FEATURES:Mc++11} && (${__T} == "aarch64" || \
-    ${__T} == "amd64" || ${__TT} == "arm64" || ${__T} == "i386")
+    ${__T} == "amd64" || ${__TT} == "arm" || ${__T} == "i386")
 # Clang is enabled, and will be installed as the default /usr/bin/cc.
 __DEFAULT_YES_OPTIONS+=CLANG CLANG_BOOTSTRAP CLANG_FULL CLANG_IS_CC
 __DEFAULT_NO_OPTIONS+=GCC GCC_BOOTSTRAP GNUCXX
@@ -318,6 +318,7 @@ MK_KERBEROS:=	no
 MK_CLANG:=	no
 MK_GROFF:=	no
 MK_GNUCXX:=	no
+MK_TESTS:=	no
 .endif
 
 .if ${MK_MAIL} == "no"
@@ -353,10 +354,6 @@ MK_BINUTILS_BOOTSTRAP:= no
 MK_CLANG_BOOTSTRAP:= no
 MK_ELFTOOLCHAIN_BOOTSTRAP:= no
 MK_GCC_BOOTSTRAP:= no
-.endif
-
-.if ${MK_META_MODE} == "yes"
-MK_SYSTEM_COMPILER:= no
 .endif
 
 .if ${MK_TOOLCHAIN} == "no"
