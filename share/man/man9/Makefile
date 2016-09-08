@@ -1354,7 +1354,10 @@ MLINKS+=pci.9 pci_alloc_msi.9 \
 	pci.9 pci_set_max_read_req.9 \
 	pci.9 pci_write_config.9 \
 	pci.9 pcie_adjust_config.9 \
+	pci.9 pcie_flr.9 \
+	pci.9 pcie_max_completion_timeout.9 \
 	pci.9 pcie_read_config.9 \
+	pci.9 pcie_wait_for_pending_transactions.9 \
 	pci.9 pcie_write_config.9
 MLINKS+=pci_iov_schema.9 pci_iov_schema_alloc_node.9 \
 	pci_iov_schema.9 pci_iov_schema_add_bool.9 \
@@ -1391,8 +1394,7 @@ MLINKS+=pmap_quick_enter_page.9 pmap_quick_remove_page.9
 MLINKS+=pmap_remove.9 pmap_remove_all.9 \
 	pmap_remove.9 pmap_remove_pages.9
 MLINKS+=pmap_resident_count.9 pmap_wired_count.9
-MLINKS+=pmap_zero_page.9 pmap_zero_area.9 \
-	pmap_zero_page.9 pmap_zero_idle.9
+MLINKS+=pmap_zero_page.9 pmap_zero_area.9
 MLINKS+=printf.9 log.9 \
 	printf.9 tprintf.9 \
 	printf.9 uprintf.9
