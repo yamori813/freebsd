@@ -30,7 +30,6 @@
 		};
 
 	};
-
 	gpio-keys-polled {
 		compatible = "gpio-keys-polled";
 		#address-cells = <1>;
@@ -43,6 +42,11 @@
 			linux,code = <0x198>;
 		};
 
+	};
+	pps {
+		compatible = "pps-gpio";
+		gpios = <&gpio0 10 1>;
+		status = "okay";
 	};
 };
 
