@@ -36,7 +36,6 @@
 	compatible = "WZR2-G300N", "ralink,rt1310a-soc";
 	model = "WZR2-G300N";
 
-	/* not probe this... why? */
 	gpio-leds {
 		compatible = "gpio-leds";
 
