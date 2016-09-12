@@ -116,7 +116,7 @@ struct fv_softc {
 #else
 	struct ifmedia		fv_ifmedia;
 #endif
-#ifdef MDIO
+#ifdef FV_MDIO
 	device_t		fv_miiproxy;
 #endif
 	bus_dma_tag_t		fv_parent_tag;

@@ -69,9 +69,10 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
-//#define MDIO
+// Todo: move to options.arm
+#define FV_MDIO
 
-#ifdef MDIO
+#ifdef FV_MDIO
 #include <dev/mdio/mdio.h>
 #include <dev/etherswitch/miiproxy.h>
 #include "mdio_if.h"
@@ -162,7 +163,7 @@ DRIVER_MODULE(fv, simplebus, fv_driver, fv_devclass, 0, 0);
 DRIVER_MODULE(miibus, fv, miibus_driver, miibus_devclass, 0, 0);
 #endif
 
-#ifdef MDIO
+#ifdef FV_MDIO
 static int fvmdio_probe(device_t);
 static int fvmdio_attach(device_t);
 static int fvmdio_detach(device_t);
@@ -354,7 +355,7 @@ fv_attach(device_t dev)
 	CSR_WRITE_4(sc, CSR_BUSMODE, BUSMODE_SWR);
 	DELAY(1000);
 
-#ifdef MDIO
+#ifdef FV_MDIO
 	sc->fv_miiproxy = mii_attach_proxy(sc->fv_dev);
 #endif
 
@@ -1777,7 +1778,7 @@ fv_hinted_child(device_t bus, const char *dname, int dunit)
 	device_printf(bus, "hinted child %s%d\n", dname, dunit);
 }
 
-#ifdef MDIO
+#ifdef FV_MDIO
 static int
 fvmdio_probe(device_t dev)
 {
