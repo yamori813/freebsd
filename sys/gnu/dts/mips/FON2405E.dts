@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include "rt3050.dtsi"
+#include "rt3352.dtsi"
 
 / {
 	compatible = "FON2405E", "ralink,rt3050-soc";
@@ -75,12 +75,12 @@
 
 		factory: partition@20000 {
 			label = "kernel";
-			reg = <0x20000 0xf0000>;
+			reg = <0x20000 0x110000>;
 		};
 
 		partition@110000 {
 			label = "rootfs";
-			reg = <0x110000 0x6f0000>;
+			reg = <0x130000 0x6f0000>;
 		};
 
 		partition@800000 {
@@ -120,3 +120,12 @@
 &wmac {
 	ralink,mtd-eeprom = <&factory 0>;
 };
+
+&ehci {
+	status = "okay";
+};
+
+&ohci {
+	status = "okay";
+};
+
