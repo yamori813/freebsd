@@ -1,7 +1,7 @@
 # $FreeBSD: head/sys/mips/atheros/files.ar71xx 234485 2012-04-20 08:26:05Z adrian $
 
 mips/atheros/ar531x/apb.c			standard
-mips/atheros/ar531x/if_are.c			standard
+mips/atheros/ar531x/if_are.c			optional are
 mips/atheros/ar531x/ar5315_spi.c		optional ar5315_spi
 mips/atheros/ar531x/ar5315_wdog.c		optional ar5315_wdog
 mips/atheros/ar531x/ar5315_gpio.c		optional gpio
