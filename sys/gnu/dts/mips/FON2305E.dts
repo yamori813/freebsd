@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include "rt3352.dtsi"
+#include "rt3050.dtsi"
 
 / {
 	compatible = "FON2405E", "ralink,rt3050-soc";
@@ -121,11 +121,7 @@
 	ralink,mtd-eeprom = <&factory 0>;
 };
 
-&ehci {
-	status = "okay";
-};
-
-&ohci {
+&otg {
 	status = "okay";
 };
 
