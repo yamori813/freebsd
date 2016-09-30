@@ -36,6 +36,34 @@
 	compatible = "WZR2-G300N", "ralink,rt1310a-soc";
 	model = "WZR2-G300N";
 
+	flash@1f000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "cfi-flash";
+		reg = <0x1f000000 0x400000>;		// 4M at 0x1f000000
+
+		partition@0 {
+			reg = <0x00000000 0x0000e000>;
+			label = "uboot";
+		};
+		partition@1 {
+			reg = <0x0000e000 0x00002000>;
+			label = "uboot_env";
+		};
+		partition@2 {
+			reg = <0x00010000 0x000f0000>;
+			label = "kernel";
+		};
+		partition@3 {
+			reg = <0x00100000 0x002d0000>;
+			label = "rootfs";
+		};
+		partition@4 {
+			reg = <0x003d0000 0x00010000>;
+			label = "config";
+		};
+	};
+
 	gpio-leds {
 		compatible = "gpio-leds";
 
