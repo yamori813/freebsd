@@ -43,11 +43,6 @@
 		};
 
 	};
-	pps {
-		compatible = "pps-gpio";
-		gpios = <&gpio0 10 1>;
-		status = "okay";
-	};
 };
 
 &spi0 {
