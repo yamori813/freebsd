@@ -88,19 +88,10 @@
 &pinctrl {
 	state_default: pinctrl0 {
 		gpio {
-			ralink,group = "i2c", "jtag", "uartf";
+			ralink,group = "i2c", "jtag", "uartf", "rgmii", "mdio";
 			ralink,function = "gpio";
 		};
 
-		rgmii {
-			ralink,group = "rgmii";
-			ralink,function = "rgmii";
-		};
-
-		mdio {
-			ralink,group = "mdio";
-			ralink,function = "mdio";
-		};
 	};
 };
 
