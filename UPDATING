@@ -31,6 +31,34 @@ NOTE TO PEOPLE WHO THINK THAT FreeBSD 12.x IS SLOW:
 	disable the most expensive debugging functionality run
 	"ln -s 'abort:false,junk:false' /etc/malloc.conf".)
 
+20161017:
+	The urtwn(4) driver was merged into rtwn(4) and now consists of
+	rtwn(4) main module + rtwn_usb(4) and rtwn_pci(4) bus-specific
+	parts.
+	Also, firmware for RTL8188CE was renamed due to possible name
+	conflict (rtwnrtl8192cU(B) -> rtwnrtl8192cE(B))
+
+20161015:
+	GNU rcs has been removed from base.  It is available as packages:
+	- rcs: Latest GPLv3 GNU rcs version.
+	- rcs57: Copy of the latest version of GNU rcs (GPLv2) before it was
+	removed from base.
+
+20161008:
+	Use of the cc_cdg, cc_chd, cc_hd, or cc_vegas congestion control
+	modules now requires that the kernel configuration contain the
+	TCP_HHOOK option. (This option is included in the GENERIC kernel.)
+
+20161003:
+	The WITHOUT_ELFCOPY_AS_OBJCOPY src.conf(5) knob has been retired.
+	ELF Tool Chain's elfcopy is always installed as /usr/bin/objcopy.
+
+20160924:
+	Relocatable object files with the extension of .So have been renamed
+	to use an extension of .pico instead.  The purpose of this change is
+	to avoid a name clash with shared libraries on case-insensitive file
+	systems.  On those file systems, foo.So is the same file as foo.so.
+
 20160918:
 	GNU rcs has been turned off by default.  It can (temporarily) be built
 	again by adding WITH_RCS knob in src.conf.

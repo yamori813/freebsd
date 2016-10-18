@@ -36,6 +36,7 @@ options 	GDB
 options 	GEOM_PART_GPT
 options 	INET
 options 	INET6
+options 	TCP_HHOOK		# hhook(9) framework for TCP
 options 	INVARIANTS
 options 	INVARIANT_SUPPORT
 options 	KDB
@@ -93,3 +94,7 @@ device		ehci
 device		umass
 device		usb
 device		vlan
+
+# P1022 DIU
+device  	diu
+device  	videomode
