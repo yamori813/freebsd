@@ -29,6 +29,13 @@
  * $FreeBSD$
  */
 
+/*
+ * This code is Marvell 88E6060 ethernet switch support code on etherswitch
+ * framework. 
+ * Current code is only support port base vlan. Not support ingress/egress
+ * trailer.
+ */
+
 #include <sys/param.h>
 #include <sys/bus.h>
 #include <sys/errno.h>
@@ -65,6 +72,7 @@ MALLOC_DEFINE(M_E6060SW, "e6060sw", "e6060sw data structures");
 struct e6060sw_softc {
 	struct mtx	sc_mtx;		/* serialize access to softc */
 	device_t	sc_dev;
+	int		vlan_mode;
 	int		media;		/* cpu port media */
 	int		cpuport;	/* which PHY is connected to the CPU */
 	int		phymask;	/* PHYs we manage */
@@ -190,10 +198,8 @@ e6060sw_attach(device_t dev)
 	(void) resource_int_value(device_get_name(dev), device_get_unit(dev),
 	    "media", &sc->media);
 
-	/* We do not support any vlan groups. */
-	sc->info.es_nvlangroups = 0;
-/*	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_PORT; */
-	sc->info.es_vlan_caps = 0;
+	sc->info.es_nvlangroups = sc->numports;
+	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_PORT;
 
 	sc->ifp = malloc(sizeof(struct ifnet *) * sc->numports, M_E6060SW,
 	    M_WAITOK | M_ZERO);
@@ -415,20 +421,96 @@ e6060sw_setport(device_t dev, etherswitch_port_t *p)
 static int
 e6060sw_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
+	struct e6060sw_softc *sc = device_get_softc(dev);
+	int data;
 
-	/* Not supported. */
-	vg->es_vid = 0;
-	vg->es_member_ports = 0;
-	vg->es_untagged_ports = 0;
-	vg->es_fid = 0;
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		vg->es_vid = ETHERSWITCH_VID_VALID;
+		vg->es_vid |= vg->es_vlangroup;
+		data = MDIO_READREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6);
+		vg->es_member_ports = data & 0x3f;
+		vg->es_untagged_ports = vg->es_member_ports;
+		vg->es_fid = 0;
+	} else {
+		vg->es_vid = 0;
+	}
 	return (0);
 }
 
 static int
 e6060sw_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
+	struct e6060sw_softc *sc = device_get_softc(dev);
+	int data;
 
-	/* Not supported. */
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		data = MDIO_READREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6);
+		data &= ~0x3f;
+		data |= vg->es_member_ports;
+		MDIO_WRITEREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6, data);
+	} 
+
+	return (0);
+}
+
+static void
+e6060sw_reset_vlans(device_t dev)
+{
+	struct e6060sw_softc *sc;
+	uint32_t ports;
+	int i, j;
+	int data;
+
+	sc = device_get_softc(dev);
+
+	for (i = 0; i <= sc->numports; i++) {
+		ports = 0;
+		for (j = 0; j <= sc->numports; j++)
+			if(i != j)
+				ports |= (1 << j);
+		if(sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+			data = i << 12;
+		} else {
+			data = 0;
+		}
+		data |= ports;
+		MDIO_WRITEREG(device_get_parent(dev), 0x18 + i, 6, data);
+	}
+}
+
+static int
+e6060sw_getconf(device_t dev, etherswitch_conf_t *conf)
+{
+	struct e6060sw_softc *sc;
+	
+	sc = device_get_softc(dev);
+
+	/* Return the VLAN mode. */
+	conf->cmd = ETHERSWITCH_CONF_VLAN_MODE;
+	conf->vlan_mode = sc->vlan_mode;
+
+	return (0);
+}
+
+static int
+e6060sw_setconf(device_t dev, etherswitch_conf_t *conf)
+{
+	struct e6060sw_softc *sc;
+
+	sc = device_get_softc(dev);
+
+	/* Set the VLAN mode. */
+	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
+		if(conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+			sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
+		} else {
+			sc->vlan_mode = 0;
+		}
+
+		/* Reset VLANs. */
+		e6060sw_reset_vlans(dev);
+	}
+
 	return (0);
 }
 
@@ -567,6 +649,8 @@ static device_method_t e6060sw_methods[] = {
 	DEVMETHOD(etherswitch_setport,	e6060sw_setport),
 	DEVMETHOD(etherswitch_getvgroup,	e6060sw_getvgroup),
 	DEVMETHOD(etherswitch_setvgroup,	e6060sw_setvgroup),
+	DEVMETHOD(etherswitch_setconf,	e6060sw_setconf),
+	DEVMETHOD(etherswitch_getconf,	e6060sw_getconf),
 
 	DEVMETHOD_END
 };
