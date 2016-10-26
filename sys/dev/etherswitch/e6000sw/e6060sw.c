@@ -595,28 +595,30 @@ e6060sw_writephy(device_t dev, int phy, int reg, int data)
 	return (err);
 }
 
+/* addr is 5-8 bit is SMI Device Addres, 0-4 bit is SMI Register Address */
+
 static int
 e6060sw_readreg(device_t dev, int addr)
 {
-	struct e6060sw_softc *sc;
+	int devaddr, regaddr;
 
-	sc = device_get_softc(dev);
-	E6060SW_LOCK_ASSERT(sc, MA_OWNED);
+	devaddr = (addr >> 5) & 0xf;
+	redaddr = addr & 0x1f;
 
-	/* Not supported. */
-	return (0);
+	return MDIO_READREG(device_get_parent(dev), devaddr+0x10, regaddr);
 }
+
+/* addr is 5-8 bit is SMI Device Addres, 0-4 bit is SMI Register Address */
 
 static int
 e6060sw_writereg(device_t dev, int addr, int value)
 {
-	struct e6060sw_softc *sc;
+	int devaddr, regaddr;
 
-	sc = device_get_softc(dev);
-	E6060SW_LOCK_ASSERT(sc, MA_OWNED);
+	devaddr = (addr >> 5) & 0xf;
+	redaddr = addr & 0x1f;
 
-	/* Not supported. */
-	return (0);
+	return (MDIO_WRITEREG(device_get_parent(dev), devaddr+0x10, regaddr, data));
 }
 
 static device_method_t e6060sw_methods[] = {
