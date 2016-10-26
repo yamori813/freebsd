@@ -33,7 +33,7 @@
  * This code is Marvell 88E6060 ethernet switch support code on etherswitch
  * framework. 
  * Current code is only support port base vlan. Not support ingress/egress
- * trailer.
+ * trailer. This switch chip can't work vlan(4) support.
  */
 
 #include <sys/param.h>
@@ -603,7 +603,7 @@ e6060sw_readreg(device_t dev, int addr)
 	int devaddr, regaddr;
 
 	devaddr = (addr >> 5) & 0xf;
-	redaddr = addr & 0x1f;
+	regaddr = addr & 0x1f;
 
 	return MDIO_READREG(device_get_parent(dev), devaddr+0x10, regaddr);
 }
@@ -616,9 +616,9 @@ e6060sw_writereg(device_t dev, int addr, int value)
 	int devaddr, regaddr;
 
 	devaddr = (addr >> 5) & 0xf;
-	redaddr = addr & 0x1f;
+	regaddr = addr & 0x1f;
 
-	return (MDIO_WRITEREG(device_get_parent(dev), devaddr+0x10, regaddr, data));
+	return (MDIO_WRITEREG(device_get_parent(dev), devaddr+0x10, regaddr, value));
 }
 
 static device_method_t e6060sw_methods[] = {
