@@ -29,6 +29,11 @@
  * $FreeBSD$
  */
 
+/*
+ Current code support only RTL8305SB. Only Port Base VLAN. Not Support .1Q.
+ Not support RTL8305SC or later.
+ */
+
 #include <sys/param.h>
 #include <sys/bus.h>
 #include <sys/errno.h>
@@ -65,6 +70,7 @@ MALLOC_DEFINE(M_RTL830X, "rtl830x", "rtl830x data structures");
 struct rtl830x_softc {
 	struct mtx	sc_mtx;		/* serialize access to softc */
 	device_t	sc_dev;
+	int		vlan_mode;
 	int		media;		/* cpu port media */
 	int		cpuport;	/* which PHY is connected to the CPU */
 	int		phymask;	/* PHYs we manage */
@@ -107,7 +113,8 @@ rtl830x_probe(device_t dev)
 	sc = device_get_softc(dev);
 	bzero(sc, sizeof(*sc));
 
-	data = MDIO_READREG(device_get_parent(dev), 0x0, 3);
+	/* RTL8305SB have no PHY Identifier */
+	data = MDIO_READREG(device_get_parent(dev), 0, 3);
 	device_printf(dev,"PHY Identifier Register %x\n", data);
 
 /*
@@ -177,10 +184,10 @@ rtl830x_attach(device_t dev)
 	strlcpy(sc->info.es_name, device_get_desc(dev),
 	    sizeof(sc->info.es_name));
 
-	/* XXX Defaults */
-	sc->numports = 6;
-	sc->phymask = 0x1f;
-	sc->cpuport = 5;
+	/* RTL8305SB Defaults */
+	sc->numports = 5;
+	sc->phymask = 0x0f;
+	sc->cpuport = 4;
 	sc->media = 100;
 
 	(void) resource_int_value(device_get_name(dev), device_get_unit(dev),
@@ -193,9 +200,8 @@ rtl830x_attach(device_t dev)
 	    "media", &sc->media);
 
 	/* We do not support any vlan groups. */
-	sc->info.es_nvlangroups = 0;
-/*	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_PORT; */
-	sc->info.es_vlan_caps = 0;
+	sc->info.es_nvlangroups = 5;
+	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_PORT;
 
 	sc->ifp = malloc(sizeof(struct ifnet *) * sc->numports, M_RTL830X,
 	    M_WAITOK | M_ZERO);
@@ -417,20 +423,91 @@ rtl830x_setport(device_t dev, etherswitch_port_t *p)
 static int
 rtl830x_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
+	struct rtl830x_softc *sc = device_get_softc(dev);
+	int data;
+	int maddr[] = {25, 26, 28, 29, 31}; // Member A,B,C,D,E
 
-	/* Not supported. */
-	vg->es_vid = 0;
-	vg->es_member_ports = 0;
-	vg->es_untagged_ports = 0;
-	vg->es_fid = 0;
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		// This is RTL8305SB code
+		vg->es_vid = ETHERSWITCH_VID_VALID;
+		vg->es_vid |= vg->es_vlangroup;
+		data = MDIO_READREG(device_get_parent(dev), 1, maddr[vg->es_vlangroup]);
+		// Member B,D
+		if(vg->es_vlangroup == 1 || vg->es_vlangroup == 3)
+			data = data >> 8;
+		vg->es_member_ports = data & 0x1f;
+		vg->es_untagged_ports = vg->es_member_ports;
+		vg->es_fid = 0;
+	} else {
+		vg->es_fid = 0;
+	}
+
 	return (0);
 }
 
 static int
 rtl830x_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
+	struct rtl830x_softc *sc = device_get_softc(dev);
+	int data;
+	int maddr[] = {25, 26, 28, 29, 31}; // Member A,B,C,D,E
 
-	/* Not supported. */
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		// This is RTL8305SB code
+		data = MDIO_READREG(device_get_parent(dev), 1, maddr[vg->es_vlangroup]);
+		// Member B,D
+		if(vg->es_vlangroup == 1 || vg->es_vlangroup == 3) {
+			data &= ~(0x1f << 8);
+			data |= vg->es_member_ports << 8;
+		} else {
+			data &= ~0x1f;
+			data |= vg->es_member_ports;
+		}
+		MDIO_WRITEREG(device_get_parent(dev), 1, maddr[vg->es_vlangroup], data);
+		// Soft Reset
+		data = MDIO_READREG(device_get_parent(dev), 3, 16);
+		MDIO_WRITEREG(device_get_parent(dev), 3, 16, data | 0x8000);
+	}
+
+	return (0);
+}
+
+static int
+rtl830x_getconf(device_t dev, etherswitch_conf_t *conf)
+{
+	struct rtl830x_softc *sc = device_get_softc(dev);
+
+	/* Return the VLAN mode. */
+	conf->cmd = ETHERSWITCH_CONF_VLAN_MODE;
+	conf->vlan_mode = sc->vlan_mode;
+
+	return (0);
+}
+
+static int
+rtl830x_setconf(device_t dev, etherswitch_conf_t *conf)
+{
+	struct rtl830x_softc *sc = device_get_softc(dev);
+	int data;
+
+	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
+		if(conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+			sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
+			// Enable VLAN
+			MDIO_WRITEREG(device_get_parent(dev), 2, 17, 0xffdf);
+			// Soft Reset
+			data = MDIO_READREG(device_get_parent(dev), 3, 16);
+			MDIO_WRITEREG(device_get_parent(dev), 3, 16, data | 0x8000);
+		} else {
+			sc->vlan_mode = 0;
+			// Disable VLAN
+			MDIO_WRITEREG(device_get_parent(dev), 2, 17, 0xffff);
+			// Soft Reset
+			data = MDIO_READREG(device_get_parent(dev), 3, 16);
+			MDIO_WRITEREG(device_get_parent(dev), 3, 16, data | 0x8000);
+		}
+	}
+
 	return (0);
 }
 
@@ -565,6 +642,8 @@ static device_method_t rtl830x_methods[] = {
 	DEVMETHOD(etherswitch_setport,	rtl830x_setport),
 	DEVMETHOD(etherswitch_getvgroup,	rtl830x_getvgroup),
 	DEVMETHOD(etherswitch_setvgroup,	rtl830x_setvgroup),
+	DEVMETHOD(etherswitch_setconf,	rtl830x_setconf),
+	DEVMETHOD(etherswitch_getconf,	rtl830x_getconf),
 
 	DEVMETHOD_END
 };
