@@ -361,10 +361,18 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 	struct mii_data *mii;
 	struct ifmediareq *ifmr = &p->es_ifmr;
 	int err, phy;
+	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+	int data;
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
-	p->es_pvid = 0;
+
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
+		data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[p->es_port]);
+		p->es_pvid = (data >> 10) & 0x0f;
+	} else {
+		p->es_pvid = 0;
+	}
 
 	phy = sc->portphy[p->es_port];
 	mii = adm6996fc_miiforport(sc, p->es_port);
@@ -399,12 +407,21 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 	struct mii_data *mii;
 	struct ifnet *ifp;
 	int err;
+	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+	int data;
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
 
 	if (sc->portphy[p->es_port] == sc->cpuport)
 		return (ENXIO);
+
+	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
+		data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[p->es_port]);
+		data &= ~(0xf << 10);
+		data |= (p->es_pvid & 0xf) << 10;
+		ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[p->es_port], data);
+	}
 
 	mii = adm6996fc_miiforport(sc, p->es_port);
 	if (mii == NULL)
@@ -436,6 +453,19 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 		} else {
 			vg->es_vid = 0;
 		}
+	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
+		datalo = ADM6996FC_READREG(device_get_parent(dev), 0x40 + 2 * vg->es_vlangroup);
+		datahi = ADM6996FC_READREG(device_get_parent(dev), 0x41 + 2 * vg->es_vlangroup);
+		
+		if(datahi & 0x8000) {
+			vg->es_vid = ETHERSWITCH_VID_VALID;
+			vg->es_vid |= datahi & 0xfff;
+			vg->es_member_ports = datalo & 0x3f;
+			vg->es_untagged_ports = (~datalo >> 6) & 0x3f;
+			vg->es_fid = 0;
+		} else {
+			vg->es_fid = 0;
+		}
 	} else {
 		vg->es_fid = 0;
 	}
@@ -450,6 +480,8 @@ adm6996fc_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		ADM6996FC_WRITEREG(device_get_parent(dev), 0x40 + 2 * vg->es_vlangroup, vg->es_member_ports);
+	} else if(sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
+		ADM6996FC_WRITEREG(device_get_parent(dev), 0x40 + 2 * vg->es_vlangroup, vg->es_member_ports | ((~vg->es_untagged_ports & 0x3f)<< 6));
 	}
 
 	return (0);
@@ -496,14 +528,13 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 			ADM6996FC_WRITEREG(device_get_parent(dev), 0x11, data);
 			for(i = 0;i <= 5; ++i) {
 				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
+				/* Private VID set 1 */
 				data &= ~(0xf << 10);
 				data |= (1 << 10);
+				/* Output Packet Tagging Enable */
+				if(i == 5)
+					data |= (1 << 4);
 				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
-			}
-			ADM6996FC_WRITEREG(device_get_parent(dev), 0x42, 0x003f);
-			ADM6996FC_WRITEREG(device_get_parent(dev), 0x43, 0x8001);
-			for(i = 1;i <= 15; ++i) {
-				ADM6996FC_WRITEREG(device_get_parent(dev), 0x41 + 2 * i, 0x0001);
 			}
 		} else {
 			/*
@@ -519,6 +550,8 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
 				data &= ~(0xf << 10);
 				data |= (1 << 10);
+				if(i == 5)
+					data &= ~(1 << 4);
 				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
 			}
 			ADM6996FC_WRITEREG(device_get_parent(dev), 0x42, 0x003f);
