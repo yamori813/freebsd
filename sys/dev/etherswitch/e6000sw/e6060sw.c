@@ -66,6 +66,12 @@
 #include "miibus_if.h"
 #include "etherswitch_if.h"
 
+#define SMI_OFFSET 0x10
+#define CORE_REGISTER (SMI_OFFSET + 8)
+
+#define SWITCH_ID	3
+#define PORT_VLAN_MAP	6
+
 MALLOC_DECLARE(M_E6060SW);
 MALLOC_DEFINE(M_E6060SW, "e6060sw", "e6060sw data structures");
 
@@ -115,8 +121,9 @@ e6060sw_probe(device_t dev)
 	sc = device_get_softc(dev);
 	bzero(sc, sizeof(*sc));
 
-	data = MDIO_READREG(device_get_parent(dev), 0x18, 3);
-	device_printf(dev,"Switch Identifier Register %x\n", data);
+	data = MDIO_READREG(device_get_parent(dev), CORE_REGISTER, SWITCH_ID);
+	if (bootverbose)
+		device_printf(dev,"Switch Identifier Register %x\n", data);
 
 	if((data >> 4) != 0x060) {
 		return (ENXIO);
@@ -427,7 +434,7 @@ e6060sw_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		vg->es_vid = ETHERSWITCH_VID_VALID;
 		vg->es_vid |= vg->es_vlangroup;
-		data = MDIO_READREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6);
+		data = MDIO_READREG(device_get_parent(dev), CORE_REGISTER + vg->es_vlangroup, PORT_VLAN_MAP);
 		vg->es_member_ports = data & 0x3f;
 		vg->es_untagged_ports = vg->es_member_ports;
 		vg->es_fid = 0;
@@ -444,10 +451,10 @@ e6060sw_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	int data;
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
-		data = MDIO_READREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6);
+		data = MDIO_READREG(device_get_parent(dev), CORE_REGISTER + vg->es_vlangroup, PORT_VLAN_MAP);
 		data &= ~0x3f;
 		data |= vg->es_member_ports;
-		MDIO_WRITEREG(device_get_parent(dev), 0x18 + vg->es_vlangroup, 6, data);
+		MDIO_WRITEREG(device_get_parent(dev), CORE_REGISTER + vg->es_vlangroup, PORT_VLAN_MAP, data);
 	} 
 
 	return (0);
@@ -458,23 +465,21 @@ e6060sw_reset_vlans(device_t dev)
 {
 	struct e6060sw_softc *sc;
 	uint32_t ports;
-	int i, j;
+	int i;
 	int data;
 
 	sc = device_get_softc(dev);
 
 	for (i = 0; i <= sc->numports; i++) {
-		ports = 0;
-		for (j = 0; j <= sc->numports; j++)
-			if(i != j)
-				ports |= (1 << j);
+		ports = (1 << (sc->numports + 1)) - 1;
+		ports &= ~(1 << i);
 		if(sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 			data = i << 12;
 		} else {
 			data = 0;
 		}
 		data |= ports;
-		MDIO_WRITEREG(device_get_parent(dev), 0x18 + i, 6, data);
+		MDIO_WRITEREG(device_get_parent(dev), CORE_REGISTER + i, PORT_VLAN_MAP, data);
 	}
 }
 
@@ -555,7 +560,7 @@ e6060sw_readphy(device_t dev, int phy, int reg)
 	struct e6060sw_softc *sc;
 	int data;
 
-	phy += 0x10;
+	phy += SMI_OFFSET;
 
 	sc = device_get_softc(dev);
 	E6060SW_LOCK_ASSERT(sc, MA_NOTOWNED);
@@ -578,7 +583,7 @@ e6060sw_writephy(device_t dev, int phy, int reg, int data)
 	struct e6060sw_softc *sc;
 	int err;
 
-	phy += 0x10;
+	phy += SMI_OFFSET;
 
 	sc = device_get_softc(dev);
 	E6060SW_LOCK_ASSERT(sc, MA_NOTOWNED);
@@ -605,7 +610,7 @@ e6060sw_readreg(device_t dev, int addr)
 	devaddr = (addr >> 5) & 0xf;
 	regaddr = addr & 0x1f;
 
-	return MDIO_READREG(device_get_parent(dev), devaddr+0x10, regaddr);
+	return MDIO_READREG(device_get_parent(dev), devaddr+SMI_OFFSET, regaddr);
 }
 
 /* addr is 5-8 bit is SMI Device Addres, 0-4 bit is SMI Register Address */
@@ -618,7 +623,7 @@ e6060sw_writereg(device_t dev, int addr, int value)
 	devaddr = (addr >> 5) & 0xf;
 	regaddr = addr & 0x1f;
 
-	return (MDIO_WRITEREG(device_get_parent(dev), devaddr+0x10, regaddr, value));
+	return (MDIO_WRITEREG(device_get_parent(dev), devaddr+SMI_OFFSET, regaddr, value));
 }
 
 static device_method_t e6060sw_methods[] = {
