@@ -665,31 +665,18 @@ adm6996fc_writephy(device_t dev, int phy, int reg, int data)
 static int
 adm6996fc_readreg(device_t dev, int addr)
 {
-/*
-	struct adm6996fc_softc *sc;
-
-	sc = device_get_softc(dev);
-	ADM6996FC_LOCK_ASSERT(sc, MA_OWNED);
-*/
-
-	/* Not supported. */
 	return ADM6996FC_READREG(device_get_parent(dev),  addr);
 }
 
 static int
 adm6996fc_writereg(device_t dev, int addr, int value)
 {
-/*
-	struct adm6996fc_softc *sc;
+	int err;
 
-	sc = device_get_softc(dev);
-	ADM6996FC_LOCK_ASSERT(sc, MA_OWNED);
-*/
 
-	ADM6996FC_WRITEREG(device_get_parent(dev), addr, value);
+	err = ADM6996FC_WRITEREG(device_get_parent(dev), addr, value);
 
-	/* Not supported. */
-	return (0);
+	return (err);
 }
 
 static device_method_t adm6996fc_methods[] = {
