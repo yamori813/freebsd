@@ -79,13 +79,13 @@ struct adm6996fc_softc {
 	etherswitch_info_t	info;
 };
 
-#define ADM6996FC_LOCK(_sc)			\
+#define	ADM6996FC_LOCK(_sc)			\
 	    mtx_lock(&(_sc)->sc_mtx)
-#define ADM6996FC_UNLOCK(_sc)			\
+#define	ADM6996FC_UNLOCK(_sc)			\
 	    mtx_unlock(&(_sc)->sc_mtx)
-#define ADM6996FC_LOCK_ASSERT(_sc, _what)	\
+#define	ADM6996FC_LOCK_ASSERT(_sc, _what)	\
 	    mtx_assert(&(_sc)->sc_mtx, (_what))
-#define ADM6996FC_TRYLOCK(_sc)			\
+#define	ADM6996FC_TRYLOCK(_sc)			\
 	    mtx_trylock(&(_sc)->sc_mtx)
 
 #if defined(DEBUG)
@@ -127,9 +127,11 @@ adm6996fc_probe(device_t dev)
 static int
 adm6996fc_attach_phys(struct adm6996fc_softc *sc)
 {
-	int phy, port = 0, err = 0;
+	int phy, port, err;
 	char name[IFNAMSIZ];
 
+	port = 0;
+	err = 0;
 	/* PHYs need an interface, so we generate a dummy one */
 	snprintf(name, IFNAMSIZ, "%sport", device_get_nameunit(sc->sc_dev));
 	for (phy = 0; phy < sc->numports; phy++) {
@@ -172,8 +174,9 @@ static int
 adm6996fc_attach(device_t dev)
 {
 	struct adm6996fc_softc *sc;
-	int err = 0;
+	int err;
 
+	err = 0;
 	sc = device_get_softc(dev);
 
 	sc->sc_dev = dev;
@@ -322,7 +325,9 @@ adm6996fc_miipollstat(struct adm6996fc_softc *sc)
 static void
 adm6996fc_tick(void *arg)
 {
-	struct adm6996fc_softc *sc = arg;
+	struct adm6996fc_softc *sc;
+
+	sc = arg;
 
 	adm6996fc_miipollstat(sc);
 	callout_reset(&sc->callout_tick, hz, adm6996fc_tick, sc);
@@ -331,7 +336,9 @@ adm6996fc_tick(void *arg)
 static void
 adm6996fc_lock(device_t dev)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	ADM6996FC_LOCK_ASSERT(sc, MA_NOTOWNED);
 	ADM6996FC_LOCK(sc);
@@ -340,7 +347,9 @@ adm6996fc_lock(device_t dev)
 static void
 adm6996fc_unlock(device_t dev)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	ADM6996FC_LOCK_ASSERT(sc, MA_OWNED);
 	ADM6996FC_UNLOCK(sc);
@@ -349,7 +358,9 @@ adm6996fc_unlock(device_t dev)
 static etherswitch_info_t *
 adm6996fc_getinfo(device_t dev)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
+
+	sc = device_get_softc(dev);
 	
 	return (&sc->info);
 }
@@ -357,13 +368,16 @@ adm6996fc_getinfo(device_t dev)
 static int
 adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
 	struct mii_data *mii;
-	struct ifmediareq *ifmr = &p->es_ifmr;
+	struct ifmediareq *ifmr;
 	int err, phy;
 	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
 	int vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
 	int data1, data2;
+
+	sc = device_get_softc(dev);
+	ifmr = &p->es_ifmr;
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
@@ -376,6 +390,10 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 		else
 			data2 = data2 & 0xff;
 		p->es_pvid = ((data1 >> 10) & 0x0f) | (data2 << 4);
+		if (((data1 >> 4) & 0x01) == 1)
+			p->es_flags |= ETHERSWITCH_PORT_ADDTAG;
+		else
+			p->es_flags |= ETHERSWITCH_PORT_STRIPTAG;
 	} else {
 		p->es_pvid = 0;
 	}
@@ -408,7 +426,7 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 static int
 adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
 	struct ifmedia *ifm;
 	struct mii_data *mii;
 	struct ifnet *ifp;
@@ -416,6 +434,8 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
 	int vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
 	int data;
+
+	sc = device_get_softc(dev);
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
@@ -456,8 +476,10 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 static int
 adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
 	int datahi, datalo;
+
+	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		if(vg->es_vlangroup <= 5) {
@@ -495,7 +517,9 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 adm6996fc_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		ADM6996FC_WRITEREG(device_get_parent(dev), 0x40 + 2 * vg->es_vlangroup, vg->es_member_ports);
@@ -510,7 +534,9 @@ adm6996fc_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 adm6996fc_getconf(device_t dev, etherswitch_conf_t *conf)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	/* Return the VLAN mode. */
 	conf->cmd = ETHERSWITCH_CONF_VLAN_MODE;
@@ -522,10 +548,12 @@ adm6996fc_getconf(device_t dev, etherswitch_conf_t *conf)
 static int
 adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 {
-	struct adm6996fc_softc *sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc;
 	int i;
 	int data;
 	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+
+	sc = device_get_softc(dev);
 
 	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
 		if(conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
@@ -595,8 +623,11 @@ adm6996fc_statchg(device_t dev)
 static int
 adm6996fc_ifmedia_upd(struct ifnet *ifp)
 {
-	struct adm6996fc_softc *sc = ifp->if_softc;
-	struct mii_data *mii = adm6996fc_miiforport(sc, ifp->if_dunit);
+	struct adm6996fc_softc *sc;
+	struct mii_data *mii;
+
+	sc = ifp->if_softc;
+	mii = adm6996fc_miiforport(sc, ifp->if_dunit);
 
 	DPRINTF(sc->sc_dev, "%s\n", __func__);
 	if (mii == NULL)
@@ -608,8 +639,11 @@ adm6996fc_ifmedia_upd(struct ifnet *ifp)
 static void
 adm6996fc_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
-	struct adm6996fc_softc *sc = ifp->if_softc;
-	struct mii_data *mii = adm6996fc_miiforport(sc, ifp->if_dunit);
+	struct adm6996fc_softc *sc;
+	struct mii_data *mii;
+
+	sc = ifp->if_softc;
+	mii = adm6996fc_miiforport(sc, ifp->if_dunit);
 
 	DPRINTF(sc->sc_dev, "%s\n", __func__);
 
