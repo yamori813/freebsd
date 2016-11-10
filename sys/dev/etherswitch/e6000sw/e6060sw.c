@@ -136,9 +136,11 @@ e6060sw_probe(device_t dev)
 static int
 e6060sw_attach_phys(struct e6060sw_softc *sc)
 {
-	int phy, port = 0, err = 0;
+	int phy, port, err;
 	char name[IFNAMSIZ];
 
+	port = 0;
+	err = 0;
 	/* PHYs need an interface, so we generate a dummy one */
 	snprintf(name, IFNAMSIZ, "%sport", device_get_nameunit(sc->sc_dev));
 	for (phy = 0; phy < sc->numports; phy++) {
@@ -181,9 +183,10 @@ static int
 e6060sw_attach(device_t dev)
 {
 	struct e6060sw_softc *sc;
-	int err = 0;
+	int err;
 
 	sc = device_get_softc(dev);
+	err = 0;
 
 	sc->sc_dev = dev;
 	mtx_init(&sc->sc_mtx, "e6060sw", NULL, MTX_DEF);
@@ -240,8 +243,10 @@ e6060sw_attach(device_t dev)
 static int
 e6060sw_detach(device_t dev)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	int i, port;
+
+	sc = device_get_softc(dev);
 
 	callout_drain(&sc->callout_tick);
 
@@ -330,7 +335,9 @@ e6060sw_miipollstat(struct e6060sw_softc *sc)
 static void
 e6060sw_tick(void *arg)
 {
-	struct e6060sw_softc *sc = arg;
+	struct e6060sw_softc *sc;
+
+	sc = arg;
 
 	e6060sw_miipollstat(sc);
 	callout_reset(&sc->callout_tick, hz, e6060sw_tick, sc);
@@ -339,7 +346,9 @@ e6060sw_tick(void *arg)
 static void
 e6060sw_lock(device_t dev)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	E6060SW_LOCK_ASSERT(sc, MA_NOTOWNED);
 	E6060SW_LOCK(sc);
@@ -348,7 +357,9 @@ e6060sw_lock(device_t dev)
 static void
 e6060sw_unlock(device_t dev)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
+
+	sc = device_get_softc(dev);
 
 	E6060SW_LOCK_ASSERT(sc, MA_OWNED);
 	E6060SW_UNLOCK(sc);
@@ -357,18 +368,23 @@ e6060sw_unlock(device_t dev)
 static etherswitch_info_t *
 e6060sw_getinfo(device_t dev)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	
+	sc = device_get_softc(dev);
+
 	return (&sc->info);
 }
 
 static int
 e6060sw_getport(device_t dev, etherswitch_port_t *p)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	struct mii_data *mii;
-	struct ifmediareq *ifmr = &p->es_ifmr;
+	struct ifmediareq *ifmr;
 	int err, phy;
+
+	sc = device_get_softc(dev);
+	ifmr = &p->es_ifmr;
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
@@ -402,11 +418,13 @@ e6060sw_getport(device_t dev, etherswitch_port_t *p)
 static int
 e6060sw_setport(device_t dev, etherswitch_port_t *p)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	struct ifmedia *ifm;
 	struct mii_data *mii;
 	struct ifnet *ifp;
 	int err;
+
+	sc = device_get_softc(dev);
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
@@ -428,8 +446,10 @@ e6060sw_setport(device_t dev, etherswitch_port_t *p)
 static int
 e6060sw_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	int data;
+
+	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		vg->es_vid = ETHERSWITCH_VID_VALID;
@@ -447,8 +467,10 @@ e6060sw_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 e6060sw_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct e6060sw_softc *sc = device_get_softc(dev);
+	struct e6060sw_softc *sc;
 	int data;
+
+	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		data = MDIO_READREG(device_get_parent(dev), CORE_REGISTER + vg->es_vlangroup, PORT_VLAN_MAP);
@@ -529,8 +551,11 @@ e6060sw_statchg(device_t dev)
 static int
 e6060sw_ifmedia_upd(struct ifnet *ifp)
 {
-	struct e6060sw_softc *sc = ifp->if_softc;
-	struct mii_data *mii = e6060sw_miiforport(sc, ifp->if_dunit);
+	struct e6060sw_softc *sc;
+	struct mii_data *mii;
+
+	sc = ifp->if_softc;
+	mii = e6060sw_miiforport(sc, ifp->if_dunit);
 
 	DPRINTF(sc->sc_dev, "%s\n", __func__);
 	if (mii == NULL)
@@ -542,8 +567,11 @@ e6060sw_ifmedia_upd(struct ifnet *ifp)
 static void
 e6060sw_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
-	struct e6060sw_softc *sc = ifp->if_softc;
-	struct mii_data *mii = e6060sw_miiforport(sc, ifp->if_dunit);
+	struct e6060sw_softc *sc;
+	struct mii_data *mii;
+
+	sc = ifp->if_softc;
+	mii = e6060sw_miiforport(sc, ifp->if_dunit);
 
 	DPRINTF(sc->sc_dev, "%s\n", __func__);
 
