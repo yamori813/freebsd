@@ -66,11 +66,11 @@
 #include "miibus_if.h"
 #include "etherswitch_if.h"
 
-#define SMI_OFFSET 0x10
-#define CORE_REGISTER (SMI_OFFSET + 8)
+#define	SMI_OFFSET	0x10
+#define	CORE_REGISTER	(SMI_OFFSET + 8)
 
-#define SWITCH_ID	3
-#define PORT_VLAN_MAP	6
+#define	SWITCH_ID	3
+#define	PORT_VLAN_MAP	6
 
 MALLOC_DECLARE(M_E6060SW);
 MALLOC_DEFINE(M_E6060SW, "e6060sw", "e6060sw data structures");
@@ -92,13 +92,13 @@ struct e6060sw_softc {
 	etherswitch_info_t	info;
 };
 
-#define E6060SW_LOCK(_sc)			\
+#define	E6060SW_LOCK(_sc)			\
 	    mtx_lock(&(_sc)->sc_mtx)
-#define E6060SW_UNLOCK(_sc)			\
+#define	E6060SW_UNLOCK(_sc)			\
 	    mtx_unlock(&(_sc)->sc_mtx)
-#define E6060SW_LOCK_ASSERT(_sc, _what)	\
+#define	E6060SW_LOCK_ASSERT(_sc, _what)	\
 	    mtx_assert(&(_sc)->sc_mtx, (_what))
-#define E6060SW_TRYLOCK(_sc)			\
+#define	E6060SW_TRYLOCK(_sc)			\
 	    mtx_trylock(&(_sc)->sc_mtx)
 
 #if defined(DEBUG)
@@ -125,7 +125,7 @@ e6060sw_probe(device_t dev)
 	if (bootverbose)
 		device_printf(dev,"Switch Identifier Register %x\n", data);
 
-	if((data >> 4) != 0x060) {
+	if ((data >> 4) != 0x060) {
 		return (ENXIO);
 	}
 
@@ -170,7 +170,7 @@ e6060sw_attach_phys(struct e6060sw_softc *sc)
 		++port;
 	}
 	sc->info.es_nports = port;
-	if(sc->cpuport != -1) {
+	if (sc->cpuport != -1) {
 		/* assume cpuport is last one */
 		sc->ifpport[sc->cpuport] = port;
 		sc->portphy[port] = sc->cpuport;
@@ -250,7 +250,7 @@ e6060sw_detach(device_t dev)
 
 	callout_drain(&sc->callout_tick);
 
-	for (i=0; i < MII_NPHY; i++) {
+	for (i = 0; i < MII_NPHY; i++) {
 		if (((1 << i) & sc->phymask) == 0)
 			continue;
 		port = e6060sw_portforphy(sc, i);
@@ -495,7 +495,7 @@ e6060sw_reset_vlans(device_t dev)
 	for (i = 0; i <= sc->numports; i++) {
 		ports = (1 << (sc->numports + 1)) - 1;
 		ports &= ~(1 << i);
-		if(sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 			data = i << 12;
 		} else {
 			data = 0;
@@ -528,7 +528,7 @@ e6060sw_setconf(device_t dev, etherswitch_conf_t *conf)
 
 	/* Set the VLAN mode. */
 	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
-		if(conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+		if (conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 			sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
 		} else {
 			sc->vlan_mode = 0;
