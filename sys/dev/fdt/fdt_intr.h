@@ -1,6 +1,10 @@
 /*-
- * Copyright (c) 2015 Andrew Turner
+ * Copyright (c) 2016 Andrew Turner <andrew@FreeBSD.org>
  * All rights reserved.
+ *
+ * This software was developed by SRI International and the University of
+ * Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-10-C-0237
+ * ("CTSRD"), as part of the DARPA CRASH research programme.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,23 +27,18 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
+ * $FreeBSD$
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+#ifndef _FDT_INTR_H_
+#define	_FDT_INTR_H_
 
-#include "opt_platform.h"
+#define	FDT_INTR_EDGE_RISING	1
+#define	FDT_INTR_EDGE_FALLING	2
+#define	FDT_INTR_LEVEL_HIGH	4
+#define	FDT_INTR_LEVEL_LOW	8
+#define	FDT_INTR_LOW_MASK	(FDT_INTR_EDGE_FALLING | FDT_INTR_LEVEL_LOW)
+#define	FDT_INTR_EDGE_MASK	(FDT_INTR_EDGE_RISING | FDT_INTR_EDGE_FALLING)
+#define	FDT_INTR_MASK		0xf
 
-#include <sys/param.h>
-#include <sys/systm.h>
-
-#include <dev/fdt/fdt_common.h>
-
-#include <machine/intr.h>
-
-#ifndef INTRNG
-fdt_pic_decode_t fdt_pic_table[] = {
-	&gic_decode_fdt,
-	NULL
-};
-#endif
+#endif /* _FDT_INTR_H_ */
