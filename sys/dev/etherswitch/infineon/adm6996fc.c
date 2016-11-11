@@ -33,7 +33,7 @@
  * This is Infineon ADM6996FC/M/MX driver code on etherswitch framework.
  * Support PORT and DOT1Q VLAN.
  * This code suppose ADM6996FC SDC/SDIO connect to SOC network interface
- * MDIO/MDC.
+ * MDC/MDIO.
  * This code development on Netgear WGR614Cv7.
  */
 
