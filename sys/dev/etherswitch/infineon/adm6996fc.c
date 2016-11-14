@@ -67,15 +67,22 @@
 #include "miibus_if.h"
 #include "etherswitch_if.h"
 
-#define	SC3		0x11
-#define	VF0L		0x40
-#define	VF0H		0x41
-#define	CI0		0xa0
-#define	CI1		0xa1
-#define	PHY_C0		0x200
+#define	ADM6996FC_PRODUCT_CODE	0x7102
 
-#define	PVID_SHIFT	10
-#define	OPTE_SHIFT	4
+#define	ADM6996FC_SC3		0x11
+#define	ADM6996FC_VF0L		0x40
+#define	ADM6996FC_VF0H		0x41
+#define	ADM6996FC_CI0		0xa0
+#define	ADM6996FC_CI1		0xa1
+#define	ADM6996FC_PHY_C0	0x200
+
+#define	ADM6996FC_PC_SHIFT	4
+#define	ADM6996FC_TBV_SHIFT	5
+#define	ADM6996FC_PVID_SHIFT	10
+#define	ADM6996FC_OPTE_SHIFT	4
+#define	ADM6996FC_VV_SHIFT	15
+
+#define	ADM6996FC_PHY_SIZE	0x20
 
 MALLOC_DECLARE(M_ADM6996FC);
 MALLOC_DEFINE(M_ADM6996FC, "adm6996fc", "adm6996fc data structures");
@@ -117,25 +124,27 @@ static void adm6996fc_tick(void *);
 static int adm6996fc_ifmedia_upd(struct ifnet *);
 static void adm6996fc_ifmedia_sts(struct ifnet *, struct ifmediareq *);
 
-#define ADM6996FC_READREG(dev, x)  MDIO_READREG(dev, ((x) >> 5), ((x) & 0x1f));
-#define ADM6996FC_WRITEREG(dev, x, v)  MDIO_WRITEREG(dev, ((x) >> 5), ((x) & 0x1f), v);
+#define ADM6996FC_READREG(dev, x)	MDIO_READREG(dev, ((x) >> 5), ((x) & 0x1f));
+#define ADM6996FC_WRITEREG(dev, x, v)	MDIO_WRITEREG(dev, ((x) >> 5), ((x) & 0x1f), v);
 
 static int
 adm6996fc_probe(device_t dev)
 {
 	int data1, data2;
+	int pc;
 	struct adm6996fc_softc *sc;
 
 	sc = device_get_softc(dev);
 	bzero(sc, sizeof(*sc));
 
-	data1 = ADM6996FC_READREG(device_get_parent(dev), CI0);
-	data2 = ADM6996FC_READREG(device_get_parent(dev), CI1);
+	data1 = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_CI0);
+	data2 = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_CI1);
+	pc = ((data2 << 16) | data1) >> ADM6996FC_PC_SHIFT;
 	if (bootverbose)
 		device_printf(dev,"Chip Identifier Register %x %x\n", data1, data2);
 
-	/* check ADM6996FC and ADM6996M/MX */
-	if (!(data1 >= 0x1020 && data1 <= 0x1023 && data2 == 0x0007)) {
+	/* check Product Code */
+	if (pc != ADM6996FC_PRODUCT_CODE) {
 		return (ENXIO);
 	}
 
@@ -399,8 +408,8 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 			data2 = (data2 >> 8) & 0xff;
 		else
 			data2 = data2 & 0xff;
-		p->es_pvid = ((data1 >> PVID_SHIFT) & 0x0f) | (data2 << 4);
-		if (((data1 >> OPTE_SHIFT) & 0x01) == 1)
+		p->es_pvid = ((data1 >> ADM6996FC_PVID_SHIFT) & 0x0f) | (data2 << 4);
+		if (((data1 >> ADM6996FC_OPTE_SHIFT) & 0x01) == 1)
 			p->es_flags |= ETHERSWITCH_PORT_ADDTAG;
 		else
 			p->es_flags |= ETHERSWITCH_PORT_STRIPTAG;
@@ -453,7 +462,7 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 		data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[p->es_port]);
 		data &= ~(0xf << 10);
-		data |= (p->es_pvid & 0xf) << PVID_SHIFT;
+		data |= (p->es_pvid & 0xf) << ADM6996FC_PVID_SHIFT;
 		ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[p->es_port], data);
 		data = ADM6996FC_READREG(device_get_parent(dev), vidaddr[p->es_port]);
 		/* only port 4 is hi bit */
@@ -496,8 +505,8 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 		if (vg->es_vlangroup <= 5) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
 			vg->es_vid |= vg->es_vlangroup;
-			datalo = ADM6996FC_READREG(device_get_parent(dev), VF0L + 2 * vg->es_vlangroup);
-			datahi = ADM6996FC_READREG(device_get_parent(dev), VF0H + 2 * vg->es_vlangroup);
+			datalo = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup);
+			datahi = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup);
 		
 			vg->es_member_ports = datalo & 0x3f;
 			vg->es_untagged_ports = vg->es_member_ports;
@@ -506,10 +515,10 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 			vg->es_vid = 0;
 		}
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		datalo = ADM6996FC_READREG(device_get_parent(dev), VF0L + 2 * vg->es_vlangroup);
-		datahi = ADM6996FC_READREG(device_get_parent(dev), VF0H + 2 * vg->es_vlangroup);
+		datalo = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup);
+		datahi = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup);
 		
-		if (datahi & 0x8000) {
+		if (datahi & (1 << ADM6996FC_VV_SHIFT)) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
 			vg->es_vid |= datahi & 0xfff;
 			vg->es_member_ports = datalo & 0x3f;
@@ -533,10 +542,10 @@ adm6996fc_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
-		ADM6996FC_WRITEREG(device_get_parent(dev), VF0L + 2 * vg->es_vlangroup, vg->es_member_ports);
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup, vg->es_member_ports);
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		ADM6996FC_WRITEREG(device_get_parent(dev), VF0L + 2 * vg->es_vlangroup, vg->es_member_ports | ((~vg->es_untagged_ports & 0x3f)<< 6));
-		ADM6996FC_WRITEREG(device_get_parent(dev), VF0H + 2 * vg->es_vlangroup, 0x8000 | vg->es_vid);
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup, vg->es_member_ports | ((~vg->es_untagged_ports & 0x3f)<< 6));
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup, (1 << ADM6996FC_VV_SHIFT) | vg->es_vid);
 	}
 
 	return (0);
@@ -569,22 +578,22 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
 		if (conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 			sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
-			data = ADM6996FC_READREG(device_get_parent(dev), 0x11);
-			data &= ~(1 << 5);
-			ADM6996FC_WRITEREG(device_get_parent(dev), 0x11, data);
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data &= ~(1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
 			for (i = 0;i <= 5; ++i) {
 				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
 				data &= ~(0xf << 10);
 				data |= (i << 10);
 				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
-				ADM6996FC_WRITEREG(device_get_parent(dev), VF0L + 2 * i, 0x003f);
-				ADM6996FC_WRITEREG(device_get_parent(dev), VF0H + 2 * i, 0x8001);
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * i, 0x003f);
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * i, (1 << ADM6996FC_VV_SHIFT) | 1);
 			}
 		} else if (conf->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 			sc->vlan_mode = ETHERSWITCH_VLAN_DOT1Q;
-			data = ADM6996FC_READREG(device_get_parent(dev), SC3);
-			data |= (1 << 5);
-			ADM6996FC_WRITEREG(device_get_parent(dev), SC3, data);
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data |= (1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
 			for (i = 0;i <= 5; ++i) {
 				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
 				/* Private VID set 1 */
@@ -596,7 +605,7 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
 			}
 			for (i = 2;i <= 15; ++i) {
-				ADM6996FC_WRITEREG(device_get_parent(dev), 0x41 + 2 * i, 0x0000);
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * i, 0x0000);
 			}
 		} else {
 			/*
@@ -605,9 +614,9 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 			 default.
 			 */
 			sc->vlan_mode = 0;
-			data = ADM6996FC_READREG(device_get_parent(dev), SC3);
-			data &= ~(1 << 5);
-			ADM6996FC_WRITEREG(device_get_parent(dev), SC3, data);
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data &= ~(1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
 			for (i = 0;i <= 5; ++i) {
 				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
 				data &= ~(0xf << 10);
@@ -617,8 +626,8 @@ adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
 			}
 			/* default setting */
-			ADM6996FC_WRITEREG(device_get_parent(dev), VF0L + 2, 0x003f);
-			ADM6996FC_WRITEREG(device_get_parent(dev), VF0H + 2, 0x8001);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2, 0x003f);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2, (1 << ADM6996FC_VV_SHIFT) | 1);
 		}
 	}
 
@@ -681,7 +690,7 @@ adm6996fc_readphy(device_t dev, int phy, int reg)
 		return (ENXIO);
 
 	ADM6996FC_LOCK(sc);
-	data = ADM6996FC_READREG(device_get_parent(dev), (PHY_C0 + 0x20 * phy) + reg);
+	data = ADM6996FC_READREG(device_get_parent(dev), (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg);
 	ADM6996FC_UNLOCK(sc);
 
 	return (data);
@@ -702,7 +711,7 @@ adm6996fc_writephy(device_t dev, int phy, int reg, int data)
 		return (ENXIO);
 
 	ADM6996FC_LOCK(sc);
-	err = ADM6996FC_WRITEREG(device_get_parent(dev), (PHY_C0 + 0x20 * phy) + reg, data);
+	err = ADM6996FC_WRITEREG(device_get_parent(dev), (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg, data);
 	ADM6996FC_UNLOCK(sc);
 
 	return (err);
