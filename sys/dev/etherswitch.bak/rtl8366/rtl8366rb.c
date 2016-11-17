@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015-2016 Hiroki Mori.
+ * Copyright (c) 2015 Hiroki Mori
  * Copyright (c) 2011-2012 Stefan Bethke.
  * All rights reserved.
  *
@@ -121,6 +121,7 @@ static int smi_rmw(device_t dev, uint16_t addr, uint16_t mask, uint16_t data, in
 static void rtl8366rb_tick(void *arg);
 static int rtl8366rb_ifmedia_upd(struct ifnet *);
 static void rtl8366rb_ifmedia_sts(struct ifnet *, struct ifmediareq *);
+
 
 static void
 rtl8366rb_identify(driver_t *driver, device_t parent)

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015-2016 Hiroki Mori.
+ * Copyright (c) 2015 Hiroki Mori
  * Copyright (c) 2011-2012 Stefan Bethke.
  * All rights reserved.
  *

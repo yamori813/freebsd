@@ -124,13 +124,8 @@ static void adm6996fc_tick(void *);
 static int adm6996fc_ifmedia_upd(struct ifnet *);
 static void adm6996fc_ifmedia_sts(struct ifnet *, struct ifmediareq *);
 
-#define	ADM6996FC_READREG(dev, x)					\
-	MDIO_READREG(dev, ((x) >> 5), ((x) & 0x1f));
-#define	ADM6996FC_WRITEREG(dev, x, v)					\
-	MDIO_WRITEREG(dev, ((x) >> 5), ((x) & 0x1f), v);
-
-#define	ADM6996FC_PVIDBYDATA(data1, data2)				\
-	((((data1) >> ADM6996FC_PVID_SHIFT) & 0x0f) | ((data2) << 4))
+#define ADM6996FC_READREG(dev, x)	MDIO_READREG(dev, ((x) >> 5), ((x) & 0x1f));
+#define ADM6996FC_WRITEREG(dev, x, v)	MDIO_WRITEREG(dev, ((x) >> 5), ((x) & 0x1f), v);
 
 static int
 adm6996fc_probe(device_t dev)
@@ -146,8 +141,7 @@ adm6996fc_probe(device_t dev)
 	data2 = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_CI1);
 	pc = ((data2 << 16) | data1) >> ADM6996FC_PC_SHIFT;
 	if (bootverbose)
-		device_printf(dev,"Chip Identifier Register %x %x\n", data1,
-		    data2);
+		device_printf(dev,"Chip Identifier Register %x %x\n", data1, data2);
 
 	/* check Product Code */
 	if (pc != ADM6996FC_PRODUCT_CODE) {
@@ -180,10 +174,6 @@ adm6996fc_attach_phys(struct adm6996fc_softc *sc)
 		if_initname(sc->ifp[port], name, port);
 		sc->miibus[port] = malloc(sizeof(device_t), M_ADM6996FC,
 		    M_WAITOK | M_ZERO);
-		if (sc->miibus[port] == NULL) {
-			err = ENOMEM;
-			goto failed;
-		}
 		err = mii_attach(sc->sc_dev, sc->miibus[port], sc->ifp[port],
 		    adm6996fc_ifmedia_upd, adm6996fc_ifmedia_sts, \
 		    BMSR_DEFCAPMASK, phy, MII_OFFSET_ANY, 0);
@@ -194,7 +184,7 @@ adm6996fc_attach_phys(struct adm6996fc_softc *sc)
 			device_printf(sc->sc_dev,
 			    "attaching PHY %d failed\n",
 			    phy);
-			goto failed;
+			break;
 		}
 		++port;
 	}
@@ -205,30 +195,14 @@ adm6996fc_attach_phys(struct adm6996fc_softc *sc)
 		sc->portphy[port] = sc->cpuport;
 		++sc->info.es_nports;
 	}
-	return (0);
-
-failed:
-	for (phy = 0; phy < sc->numports; phy++) {
-		if (((1 << phy) & sc->phymask) == 0)
-			continue;
-		port = adm6996fc_portforphy(sc, phy);
-		if (sc->miibus[port] != NULL)
-			device_delete_child(sc->sc_dev, (*sc->miibus[port]));
-		if (sc->ifp[port] != NULL)
-			if_free(sc->ifp[port]);
-		if (sc->ifname[port] != NULL)
-			free(sc->ifname[port], M_ADM6996FC);
-		if (sc->miibus[port] != NULL)
-			free(sc->miibus[port], M_ADM6996FC);
-	}
 	return (err);
 }
 
 static int
 adm6996fc_attach(device_t dev)
 {
-	struct adm6996fc_softc	*sc;
-	int			 err;
+	struct adm6996fc_softc *sc;
+	int err;
 
 	err = 0;
 	sc = device_get_softc(dev);
@@ -256,55 +230,35 @@ adm6996fc_attach(device_t dev)
 	sc->portphy = malloc(sizeof(int) * sc->numports, M_ADM6996FC,
 	    M_WAITOK | M_ZERO);
 
-	if (sc->ifp == NULL || sc->ifname == NULL || sc->miibus == NULL ||
-	    sc->portphy == NULL) {
-		err = ENOMEM;
-		goto failed;
-	}
-
 	/*
 	 * Attach the PHYs and complete the bus enumeration.
 	 */
 	err = adm6996fc_attach_phys(sc);
 	if (err != 0)
-		goto failed;
+		return (err);
 
 	bus_generic_probe(dev);
 	bus_enumerate_hinted_children(dev);
 	err = bus_generic_attach(dev);
 	if (err != 0)
-		goto failed;
+		return (err);
 	
 	callout_init(&sc->callout_tick, 0);
 
 	adm6996fc_tick(sc);
 	
-	return (0);
-
-failed:
-	if (sc->portphy != NULL)
-		free(sc->portphy, M_ADM6996FC);
-	if (sc->miibus != NULL)
-		free(sc->miibus, M_ADM6996FC);
-	if (sc->ifname != NULL)
-		free(sc->ifname, M_ADM6996FC);
-	if (sc->ifp != NULL)
-		free(sc->ifp, M_ADM6996FC);
-
 	return (err);
 }
 
 static int
 adm6996fc_detach(device_t dev)
 {
-	struct adm6996fc_softc	*sc;
-	int			 i, port;
-
-	sc = device_get_softc(dev);
+	struct adm6996fc_softc *sc = device_get_softc(dev);
+	int i, port;
 
 	callout_drain(&sc->callout_tick);
 
-	for (i = 0; i < MII_NPHY; i++) {
+	for (i=0; i < MII_NPHY; i++) {
 		if (((1 << i) & sc->phymask) == 0)
 			continue;
 		port = adm6996fc_portforphy(sc, i);
@@ -432,15 +386,13 @@ adm6996fc_getinfo(device_t dev)
 static int
 adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 {
-	struct adm6996fc_softc	*sc;
-	struct mii_data		*mii;
-	struct ifmediareq	*ifmr;
-	device_t		 parent;
-	int 			 err, phy;
-	int			 data1, data2;
-
-	int	bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
-	int	vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
+	struct adm6996fc_softc *sc;
+	struct mii_data *mii;
+	struct ifmediareq *ifmr;
+	int err, phy;
+	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+	int vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
+	int data1, data2;
 
 	sc = device_get_softc(dev);
 	ifmr = &p->es_ifmr;
@@ -448,18 +400,15 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
 
-	parent = device_get_parent(dev);
-
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		data1 = ADM6996FC_READREG(parent, bcaddr[p->es_port]);
-		data2 = ADM6996FC_READREG(parent, vidaddr[p->es_port]);
+		data1 = ADM6996FC_READREG(device_get_parent(dev), bcaddr[p->es_port]);
+		data2 = ADM6996FC_READREG(device_get_parent(dev), vidaddr[p->es_port]);
 		/* only port 4 is hi bit */
 		if (p->es_port == 4)
 			data2 = (data2 >> 8) & 0xff;
 		else
 			data2 = data2 & 0xff;
-
-		p->es_pvid = ADM6996FC_PVIDBYDATA(data1, data2);
+		p->es_pvid = ((data1 >> ADM6996FC_PVID_SHIFT) & 0x0f) | (data2 << 4);
 		if (((data1 >> ADM6996FC_OPTE_SHIFT) & 0x01) == 1)
 			p->es_flags |= ETHERSWITCH_PORT_ADDTAG;
 		else
@@ -496,29 +445,26 @@ adm6996fc_getport(device_t dev, etherswitch_port_t *p)
 static int
 adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 {
-	struct adm6996fc_softc	*sc;
-	struct ifmedia		*ifm;
-	struct mii_data		*mii;
-	struct ifnet		*ifp;
-	device_t		 parent;
-	int 			 err;
-	int			 data;
-
-	int	bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
-	int	vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
+	struct adm6996fc_softc *sc;
+	struct ifmedia *ifm;
+	struct mii_data *mii;
+	struct ifnet *ifp;
+	int err;
+	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+	int vidaddr[6] = {0x28, 0x29, 0x2a, 0x2b, 0x2b, 0x2c};
+	int data;
 
 	sc = device_get_softc(dev);
-	parent = device_get_parent(dev);
 
 	if (p->es_port < 0 || p->es_port >= sc->numports)
 		return (ENXIO);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		data = ADM6996FC_READREG(parent, bcaddr[p->es_port]);
+		data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[p->es_port]);
 		data &= ~(0xf << 10);
 		data |= (p->es_pvid & 0xf) << ADM6996FC_PVID_SHIFT;
-		ADM6996FC_WRITEREG(parent, bcaddr[p->es_port], data);
-		data = ADM6996FC_READREG(parent, vidaddr[p->es_port]);
+		ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[p->es_port], data);
+		data = ADM6996FC_READREG(device_get_parent(dev), vidaddr[p->es_port]);
 		/* only port 4 is hi bit */
 		if (p->es_port == 4) {
 			data &= ~(0xff << 8);
@@ -527,7 +473,7 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 			data &= ~0xff;
 			data = data | ((p->es_pvid >> 4) & 0xff);
 		}
-		ADM6996FC_WRITEREG(parent, vidaddr[p->es_port], data);
+		ADM6996FC_WRITEREG(device_get_parent(dev), vidaddr[p->es_port], data);
 		err = 0;
 	} else {
 		if (sc->portphy[p->es_port] == sc->cpuport)
@@ -550,22 +496,18 @@ adm6996fc_setport(device_t dev, etherswitch_port_t *p)
 static int
 adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct adm6996fc_softc	*sc;
-	device_t		 parent;
-	int			 datahi, datalo;
+	struct adm6996fc_softc *sc;
+	int datahi, datalo;
 
 	sc = device_get_softc(dev);
-	parent = device_get_parent(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
 		if (vg->es_vlangroup <= 5) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
 			vg->es_vid |= vg->es_vlangroup;
-			datalo = ADM6996FC_READREG(parent,
-			    ADM6996FC_VF0L + 2 * vg->es_vlangroup);
-			datahi = ADM6996FC_READREG(parent,
-			    ADM6996FC_VF0H + 2 * vg->es_vlangroup);
-
+			datalo = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup);
+			datahi = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup);
+		
 			vg->es_member_ports = datalo & 0x3f;
 			vg->es_untagged_ports = vg->es_member_ports;
 			vg->es_fid = 0;
@@ -573,10 +515,8 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 			vg->es_vid = 0;
 		}
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		datalo = ADM6996FC_READREG(parent,
-		    ADM6996FC_VF0L + 2 * vg->es_vlangroup);
-		datahi = ADM6996FC_READREG(parent,
-		    ADM6996FC_VF0H + 2 * vg->es_vlangroup);
+		datalo = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup);
+		datahi = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup);
 		
 		if (datahi & (1 << ADM6996FC_VV_SHIFT)) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
@@ -597,20 +537,15 @@ adm6996fc_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 static int
 adm6996fc_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 {
-	struct adm6996fc_softc	*sc;
-	device_t		 parent;
+	struct adm6996fc_softc *sc;
 
 	sc = device_get_softc(dev);
-	parent = device_get_parent(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
-		ADM6996FC_WRITEREG(parent, ADM6996FC_VF0L + 2 * vg->es_vlangroup,
-		    vg->es_member_ports);
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup, vg->es_member_ports);
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		ADM6996FC_WRITEREG(parent, ADM6996FC_VF0L + 2 * vg->es_vlangroup,
-		    vg->es_member_ports | ((~vg->es_untagged_ports & 0x3f)<< 6));
-		ADM6996FC_WRITEREG(parent, ADM6996FC_VF0H + 2 * vg->es_vlangroup,
-		    (1 << ADM6996FC_VV_SHIFT) | vg->es_vid);
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * vg->es_vlangroup, vg->es_member_ports | ((~vg->es_untagged_ports & 0x3f)<< 6));
+		ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * vg->es_vlangroup, (1 << ADM6996FC_VV_SHIFT) | vg->es_vid);
 	}
 
 	return (0);
@@ -633,76 +568,68 @@ adm6996fc_getconf(device_t dev, etherswitch_conf_t *conf)
 static int
 adm6996fc_setconf(device_t dev, etherswitch_conf_t *conf)
 {
-	struct adm6996fc_softc	*sc;
-	device_t		 parent;
-	int 			 i;
-	int 			 data;
-	int	bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
+	struct adm6996fc_softc *sc;
+	int i;
+	int data;
+	int bcaddr[6] = {0x01, 0x03, 0x05, 0x07, 0x08, 0x09};
 
 	sc = device_get_softc(dev);
-	parent = device_get_parent(dev);
 
-	if ((conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) == 0)
-		return (0);
-
-	if (conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
-		sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
-		data = ADM6996FC_READREG(parent, ADM6996FC_SC3);
-		data &= ~(1 << ADM6996FC_TBV_SHIFT);
-		ADM6996FC_WRITEREG(parent, ADM6996FC_SC3, data);
-		for (i = 0;i <= 5; ++i) {
-			data = ADM6996FC_READREG(parent, bcaddr[i]);
-			data &= ~(0xf << 10);
-			data |= (i << 10);
-			ADM6996FC_WRITEREG(parent, bcaddr[i], data);
-			ADM6996FC_WRITEREG(parent, ADM6996FC_VF0L + 2 * i,
-			    0x003f);
-			ADM6996FC_WRITEREG(parent, ADM6996FC_VF0H + 2 * i,
-			    (1 << ADM6996FC_VV_SHIFT) | 1);
+	if (conf->cmd & ETHERSWITCH_CONF_VLAN_MODE) {
+		if (conf->vlan_mode == ETHERSWITCH_VLAN_PORT) {
+			sc->vlan_mode = ETHERSWITCH_VLAN_PORT;
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data &= ~(1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
+			for (i = 0;i <= 5; ++i) {
+				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
+				data &= ~(0xf << 10);
+				data |= (i << 10);
+				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2 * i, 0x003f);
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * i, (1 << ADM6996FC_VV_SHIFT) | 1);
+			}
+		} else if (conf->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
+			sc->vlan_mode = ETHERSWITCH_VLAN_DOT1Q;
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data |= (1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
+			for (i = 0;i <= 5; ++i) {
+				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
+				/* Private VID set 1 */
+				data &= ~(0xf << 10);
+				data |= (1 << 10);
+				/* Output Packet Tagging Enable */
+				if (i == 5)
+					data |= (1 << 4);
+				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
+			}
+			for (i = 2;i <= 15; ++i) {
+				ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2 * i, 0x0000);
+			}
+		} else {
+			/*
+			 ADM6996FC have no VLAN off. Then set Port base and 
+			 add all port to member. Use VLAN Filter 1 is reset
+			 default.
+			 */
+			sc->vlan_mode = 0;
+			data = ADM6996FC_READREG(device_get_parent(dev), ADM6996FC_SC3);
+			data &= ~(1 << ADM6996FC_TBV_SHIFT);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_SC3, data);
+			for (i = 0;i <= 5; ++i) {
+				data = ADM6996FC_READREG(device_get_parent(dev), bcaddr[i]);
+				data &= ~(0xf << 10);
+				data |= (1 << 10);
+				if (i == 5)
+					data &= ~(1 << 4);
+				ADM6996FC_WRITEREG(device_get_parent(dev), bcaddr[i], data);
+			}
+			/* default setting */
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0L + 2, 0x003f);
+			ADM6996FC_WRITEREG(device_get_parent(dev), ADM6996FC_VF0H + 2, (1 << ADM6996FC_VV_SHIFT) | 1);
 		}
-	} else if (conf->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		sc->vlan_mode = ETHERSWITCH_VLAN_DOT1Q;
-		data = ADM6996FC_READREG(parent, ADM6996FC_SC3);
-		data |= (1 << ADM6996FC_TBV_SHIFT);
-		ADM6996FC_WRITEREG(parent, ADM6996FC_SC3, data);
-		for (i = 0;i <= 5; ++i) {
-			data = ADM6996FC_READREG(parent, bcaddr[i]);
-			/* Private VID set 1 */
-			data &= ~(0xf << 10);
-			data |= (1 << 10);
-			/* Output Packet Tagging Enable */
-			if (i == 5)
-				data |= (1 << 4);
-			ADM6996FC_WRITEREG(parent, bcaddr[i], data);
-		}
-		for (i = 2;i <= 15; ++i) {
-			ADM6996FC_WRITEREG(parent, ADM6996FC_VF0H + 2 * i,
-			    0x0000);
-		}
-	} else {
-		/*
-		 ADM6996FC have no VLAN off. Then set Port base and
-		 add all port to member. Use VLAN Filter 1 is reset
-		 default.
-		 */
-		sc->vlan_mode = 0;
-		data = ADM6996FC_READREG(parent, ADM6996FC_SC3);
-		data &= ~(1 << ADM6996FC_TBV_SHIFT);
-		ADM6996FC_WRITEREG(parent, ADM6996FC_SC3, data);
-		for (i = 0;i <= 5; ++i) {
-			data = ADM6996FC_READREG(parent, bcaddr[i]);
-			data &= ~(0xf << 10);
-			data |= (1 << 10);
-			if (i == 5)
-				data &= ~(1 << 4);
-			ADM6996FC_WRITEREG(parent, bcaddr[i], data);
-		}
-		/* default setting */
-		ADM6996FC_WRITEREG(parent, ADM6996FC_VF0L + 2, 0x003f);
-		ADM6996FC_WRITEREG(parent, ADM6996FC_VF0H + 2,
-		    (1 << ADM6996FC_VV_SHIFT) | 1);
 	}
-
 
 	return (0);
 }
@@ -751,8 +678,8 @@ adm6996fc_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 static int
 adm6996fc_readphy(device_t dev, int phy, int reg)
 {
-	struct adm6996fc_softc	*sc;
-	int			 data;
+	struct adm6996fc_softc *sc;
+	int data;
 
 	sc = device_get_softc(dev);
 	ADM6996FC_LOCK_ASSERT(sc, MA_NOTOWNED);
@@ -763,8 +690,7 @@ adm6996fc_readphy(device_t dev, int phy, int reg)
 		return (ENXIO);
 
 	ADM6996FC_LOCK(sc);
-	data = ADM6996FC_READREG(device_get_parent(dev),
-	    (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg);
+	data = ADM6996FC_READREG(device_get_parent(dev), (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg);
 	ADM6996FC_UNLOCK(sc);
 
 	return (data);
@@ -785,8 +711,7 @@ adm6996fc_writephy(device_t dev, int phy, int reg, int data)
 		return (ENXIO);
 
 	ADM6996FC_LOCK(sc);
-	err = ADM6996FC_WRITEREG(device_get_parent(dev),
-	    (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg, data);
+	err = ADM6996FC_WRITEREG(device_get_parent(dev), (ADM6996FC_PHY_C0 + ADM6996FC_PHY_SIZE * phy) + reg, data);
 	ADM6996FC_UNLOCK(sc);
 
 	return (err);
@@ -795,7 +720,6 @@ adm6996fc_writephy(device_t dev, int phy, int reg, int data)
 static int
 adm6996fc_readreg(device_t dev, int addr)
 {
-
 	return ADM6996FC_READREG(device_get_parent(dev),  addr);
 }
 
@@ -804,7 +728,9 @@ adm6996fc_writereg(device_t dev, int addr, int value)
 {
 	int err;
 
+
 	err = ADM6996FC_WRITEREG(device_get_parent(dev), addr, value);
+
 	return (err);
 }
 
@@ -851,8 +777,7 @@ static devclass_t adm6996fc_devclass;
 DRIVER_MODULE(adm6996fc, mdio, adm6996fc_driver, adm6996fc_devclass, 0, 0);
 DRIVER_MODULE(miibus, adm6996fc, miibus_driver, miibus_devclass, 0, 0);
 DRIVER_MODULE(mdio, adm6996fc, mdio_driver, mdio_devclass, 0, 0);
-DRIVER_MODULE(etherswitch, adm6996fc, etherswitch_driver, etherswitch_devclass,
-    0, 0);
+DRIVER_MODULE(etherswitch, adm6996fc, etherswitch_driver, etherswitch_devclass, 0, 0);
 MODULE_VERSION(adm6996fc, 1);
 MODULE_DEPEND(adm6996fc, miibus, 1, 1, 1); /* XXX which versions? */
 MODULE_DEPEND(adm6996fc, etherswitch, 1, 1, 1); /* XXX which versions? */
