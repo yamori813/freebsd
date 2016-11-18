@@ -22,12 +22,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-/* $FreeBSD: head/sys/dev/bfe/if_bfereg.h 181994 2008-08-22 06:46:55Z yongari $ */
+/* $FreeBSD$ */
 
-#ifndef _IF_BFEREG_H
-#define _IF_BFEREG_H
-
-#include "opt_bfe.h"
+#ifndef _BFE_H
+#define _BFE_H
 
 /* PCI registers */
 #define BFE_PCI_MEMLO           0x10
@@ -397,7 +395,6 @@
 
 #define BFE_DESC_LEN        0x00001fff
 #define BFE_DESC_CMASK      0x0ff00000 /* Core specific bits */
-#define BFE_DESC_AEB        0x00030000 /* Address Extension Bits */
 #define BFE_DESC_EOT        0x10000000 /* End of Table */
 #define BFE_DESC_IOC        0x20000000 /* Interrupt On Completion */
 #define BFE_DESC_EOF        0x40000000 /* End of Frame */
@@ -419,7 +416,6 @@
 	BFE_RX_FLAG_CRCERR | BFE_RX_FLAG_OFIFO)
 
 #define BFE_MCAST_TBL_SIZE  32
-/* DMA offset for PCI version 0x40000000 */
 #define BFE_PCI_DMA         0x40000000
 #define BFE_REG_PCI         0x18002000
 
@@ -432,12 +428,8 @@
 #define PCI_CLRBIT(dev, reg, x, s)  \
     pci_write_config(dev, reg, (pci_read_config(dev, reg, s) & ~(x)), s)
 
-#ifndef BFE_PACKET_LIST_CNT
-#define BFE_PACKET_LIST_CNT 128
-#endif /* BFE_PACKET_LIST_CNT */
-
-#define BFE_TX_LIST_CNT         BFE_PACKET_LIST_CNT
-#define BFE_RX_LIST_CNT         BFE_PACKET_LIST_CNT
+#define BFE_TX_LIST_CNT         128
+#define BFE_RX_LIST_CNT         128
 #define BFE_TX_LIST_SIZE        BFE_TX_LIST_CNT * sizeof(struct bfe_desc)
 #define BFE_RX_LIST_SIZE        BFE_RX_LIST_CNT * sizeof(struct bfe_desc)
 #define BFE_RX_OFFSET           30
@@ -602,8 +594,6 @@ struct bfe_softc
     void                    *bfe_intrhand;
     struct resource         *bfe_irq;
     struct resource         *bfe_res;
-    int			    bfe_memrid;
-    int			    bfe_irqrid;
     struct callout          bfe_stat_co;
     struct bfe_hw_stats     bfe_stats;
     struct bfe_desc         *bfe_tx_list, *bfe_rx_list;
@@ -624,8 +614,6 @@ struct bfe_softc
     u_int8_t                bfe_core_unit;
     u_char                  bfe_enaddr[6];
     int                     bfe_if_flags;
-			    /* different on PCI and SIBA buses */
-    void 		    (*bfe_setup)(struct bfe_softc *, u_int32_t);
 };
 
 struct bfe_type
@@ -635,7 +623,4 @@ struct bfe_type
     char        *bfe_name;
 };
 
-#define DEVID5325   0x25    /* 5325 (Not really be we fake it) */
-#define PSEUDO_PHYAD	0x1E	/* MII Pseudo PHY address */
-
-#endif /* _IF_BFEREG_H */
+#endif /* _BFE_H */
