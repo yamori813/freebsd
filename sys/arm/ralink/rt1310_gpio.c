@@ -367,7 +367,7 @@ rt1310_gpio_pin_set(device_t dev, uint32_t pin, uint32_t value)
 	}
 
 	state = rt1310_gpio_read_4(sc, port);
-	if(value == 1) {
+	if (value == 1) {
 		state |= (1 << RT_GPIO_PIN_BIT(map, pin));
 	} else {
 		state &= ~(1 << RT_GPIO_PIN_BIT(map, pin));

@@ -39,7 +39,7 @@
 #include "opt_platform.h"
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/arm/lpc/lpc_machdep.c 266301 2014-05-17 11:27:36Z andrew $");
+__FBSDID("$FreeBSD$");
 
 #define _ARM32_BUS_DMA_PRIVATE
 #include <sys/param.h>
@@ -88,14 +88,12 @@ platform_gpio_init(void)
 	/*
 	 * Set initial values of GPIO output ports
 	 */
-//	lpc_gpio_init();
 }
 
 void
 platform_late_init(void)
 {
 	bootverbose = 1;
-//	boothowto |= (RB_SINGLE);
 }
 
 /*
@@ -129,7 +127,6 @@ bus_dma_get_range_nb(void)
 void
 cpu_reset(void)
 {
-#if 1
 	bus_space_tag_t bst;
 	bus_space_handle_t bsh;
 
@@ -141,26 +138,16 @@ cpu_reset(void)
 	bus_space_write_4(bst, bsh, 0, 13000);
 	bus_space_write_4(bst, bsh, 8, (1<<3) | (1<<4) | 7);
 	bus_space_unmap(bst, bsh, 0x20000);
-#else
-// not mmu access
-        uint32_t* wdt_base_addr=(uint32_t*)0x1e8c0000;
-//        uint32_t* wdt_base_addr=(uint32_t*)0xce8c0000;
-        unsigned char prescale = 8;
-
-//        disable_interrupts ();
-        /* enable watchdog and delay 1 sec to reset */
-        *(wdt_base_addr) = ((200000000 / 4)  >> prescale) -1;
-        *(wdt_base_addr+2) = 0x1F;
-#endif
 
 	for (;;)
 		continue;
 }
 
+#ifdef RALINK_BOOT_DEBUG
 void bootdebug1(int c);
 void bootdebug1(int c)
 {
-	// direct put uart physical address
+	/* direct put uart physical address */
         uint8_t* uart_base_addr=(uint8_t*)0x1e840000;
 	*(uart_base_addr) = c;
 }
@@ -169,7 +156,7 @@ void bootdebug2(int c);
 void bootdebug2(int c)
 {
 #if defined(SOCDEV_PA) && defined(SOCDEV_VA)
-	// direct put uart map address at locore-v4.S
+	/* direct put uart map address at locore-v4.S */
         uint8_t* uart_base_addr=(uint8_t*)0xce840000;
 	*(uart_base_addr) = c;
 #endif
@@ -186,6 +173,7 @@ void bootdebug3(int c)
 	bus_space_write_1(bst, bsh, 0, c);
 	bus_space_unmap(bst, bsh, 0x20000);
 }
+#endif
 
 /* Physical and virtual addresses for some global pages */
 

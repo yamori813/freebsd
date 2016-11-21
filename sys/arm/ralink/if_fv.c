@@ -69,8 +69,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
-// Todo: move to options.arm
-//#define FV_MDIO
+/* Todo: move to options.arm */
+/* #define FV_MDIO */
 
 #ifdef FV_MDIO
 #include <dev/mdio/mdio.h>
@@ -84,8 +84,6 @@ MODULE_DEPEND(are, miibus, 1, 1, 1);
 #include "miibus_if.h"
 
 #include <arm/ralink/if_fvreg.h>
-
-//#define FV_DEBUG
 
 #ifdef FV_DEBUG
 void dump_txdesc(struct fv_softc *, int);
@@ -278,7 +276,7 @@ fv_attach(device_t dev)
 
 	i = OF_getprop(sc->fv_ofw, "local-mac-address", (void *)&sc->fv_eaddr, 6);
 	if (i != 6) {
-		// hardcode macaddress
+		/* hardcode macaddress */
 		sc->fv_eaddr[0] = 0x00;
 		sc->fv_eaddr[1] = 0x0C;
 		sc->fv_eaddr[2] = 0x42;
@@ -479,7 +477,7 @@ fv_miibus_readbits(struct fv_softc *sc, int count)
 		DELAY(10);
 		CSR_WRITE_4(sc, CSR_MIIMNG, MII_RD | MII_CLK);
 		DELAY(10);
-		if(CSR_READ_4(sc, CSR_MIIMNG) & MII_DIN)
+		if (CSR_READ_4(sc, CSR_MIIMNG) & MII_DIN)
 			result |= 1;
 	}
 
@@ -505,7 +503,7 @@ fv_miibus_writebits(struct fv_softc *sc, int data, int count)
 static void
 fv_miibus_turnaround(struct fv_softc *sc, int cmd)
 {
-	if(cmd == MII_WRCMD) {
+	if (cmd == MII_WRCMD) {
 		fv_miibus_writebits(sc, 0x02, 2);
 	} else {
 		fv_miibus_readbits(sc, 1);
@@ -656,9 +654,6 @@ fv_init_locked(struct fv_softc *sc)
 	 */
 	CSR_WRITE_4(sc, CSR_BUSMODE,
 	    /* XXX: not sure if this is a good thing or not... */
-	    //BUSMODE_ALIGN_16B |
-//	    BUSMODE_BAR | BUSMODE_BLE | BUSMODE_PBL_4LW);
-//	    BUSMODE_BAR | BUSMODE_PBL_4LW);
 	    BUSMODE_BAR | BUSMODE_PBL_32LW);
 
 	/*
@@ -689,23 +684,13 @@ fv_init_locked(struct fv_softc *sc)
 	/*
 	 * Set the station address.
 	 */
-//	CSR_WRITE_4(sc, CSR_MACHI, sc->fv_eaddr[5] << 16 | sc->fv_eaddr[4]);
-//	CSR_WRITE_4(sc, CSR_MACLO, sc->fv_eaddr[3] << 24 |
-//	    sc->fv_eaddr[2] << 16 | sc->fv_eaddr[1] << 8 | sc->fv_eaddr[0]);
 	fv_setfilt(sc);
 
-	/*
-	 * Start the mac.
-	 */
-//	CSR_WRITE_4(sc, CSR_MACCTL, CSR_READ_4(sc, CSR_MACCTL) | 
-//	    (MACCTL_RE | MACCTL_TE));
 
 	/*
 	 * Write out the opmode.
 	 */
 	CSR_WRITE_4(sc, CSR_OPMODE, OPMODE_SR | OPMODE_ST |
-//	    ae_txthresh[sc->sc_txthresh].txth_opmode);
-//	    OPMODE_TR_64);
 	    OPMODE_TR_128);
 	/*
 	 * Start the receive process.
@@ -814,8 +799,6 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	    *m_head, txsegs, &nsegs, BUS_DMA_NOWAIT);
 	if (error == EFBIG) {
 	device_printf(sc->fv_dev, "fv_encap EFBIG error\n");
-//		panic("EFBIG");
-//		m = m_collapse(*m_head, M_NOWAIT, FV_MAXFRAGS);
 		m = m_defrag(*m_head, M_NOWAIT);
 		if (m == NULL) {
 			m_freem(*m_head);
@@ -862,7 +845,7 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 		desc->fv_stat = ADSTAT_OWN;
 		desc->fv_devcs = txsegs[i].ds_len;
 		/* link with previous descriptor */
-		if(prod == FV_TX_RING_CNT - 1)
+		if (prod == FV_TX_RING_CNT - 1)
 			desc->fv_devcs |= ADCTL_Tx_TER;
 		desc->fv_addr = txsegs[i].ds_addr;
 
@@ -950,7 +933,7 @@ fv_start_locked(struct ifnet *ifp)
 		ETHER_BPF_MTAP(ifp, m_head);
 	}
 
-	if(enq > 0) {
+	if (enq > 0) {
 		txstat = (CSR_READ_4(sc, CSR_STATUS) >> 20) & 7;
 		if (txstat == 0 || txstat == 6)
 			CSR_WRITE_4(sc, CSR_TXPOLL, TXPOLL_TPD);
@@ -975,8 +958,6 @@ fv_stop(struct fv_softc *sc)
 	CSR_WRITE_4(sc, CSR_OPMODE, 0);
 	CSR_WRITE_4(sc, CSR_RXLIST, 0);
 	CSR_WRITE_4(sc, CSR_TXLIST, 0);
-//	CSR_WRITE_4(sc, CSR_MACCTL, 
-//	    CSR_READ_4(sc, CSR_MACCTL) & ~(MACCTL_TE | MACCTL_RE));
 
 }
 
@@ -1190,7 +1171,6 @@ fv_dma_alloc(struct fv_softc *sc)
 	/* Create tag for Tx buffers. */
 	error = bus_dma_tag_create(
 	    sc->fv_cdata.fv_parent_tag,	/* parent */
-//	    sizeof(uint32_t), 0,	/* alignment, boundary */
 	    1, 0,		/* alignment, boundary */
 	    BUS_SPACE_MAXADDR,		/* lowaddr */
 	    BUS_SPACE_MAXADDR,		/* highaddr */
@@ -1513,7 +1493,7 @@ fv_newbuf(struct fv_softc *sc, int idx)
 		return (ENOBUFS);
 	m->m_len = m->m_pkthdr.len = MCLBYTES;
 
-	// tcp header boundary margin
+	/* tcp header boundary alignment margin */
 	m_adj(m, 4);
 
 	if (bus_dmamap_load_mbuf_sg(sc->fv_cdata.fv_rx_tag,
@@ -1525,9 +1505,10 @@ fv_newbuf(struct fv_softc *sc, int idx)
 
 	rxd = &sc->fv_cdata.fv_rxdesc[idx];
 	if (rxd->rx_m != NULL) {
-// This code make bug. Make scranble on buffer data.
-//		bus_dmamap_sync(sc->fv_cdata.fv_rx_tag, rxd->rx_dmamap,
-//		    BUS_DMASYNC_POSTREAD);
+/* This code make bug. Make scranble on buffer data.
+		bus_dmamap_sync(sc->fv_cdata.fv_rx_tag, rxd->rx_dmamap,
+		    BUS_DMASYNC_POSTREAD);
+*/
 		bus_dmamap_unload(sc->fv_cdata.fv_rx_tag, rxd->rx_dmamap);
 	}
 	map = rxd->rx_dmamap;
@@ -1606,7 +1587,7 @@ fv_tx(struct fv_softc *sc)
 
 		if ((ctl & ADSTAT_Tx_ES) == 0)
 			if_inc_counter(ifp, IFCOUNTER_OPACKETS, 1);
-		else if(ctl & ADSTAT_Tx_UF) {   // only underflow not check collision
+		else if (ctl & ADSTAT_Tx_UF) {   /* only underflow not check collision */
 			if_inc_counter(ifp, IFCOUNTER_OERRORS, 1);
 		}
 
@@ -1767,7 +1748,6 @@ fv_tick(void *xsc)
 	mii = device_get_softc(sc->fv_miibus);
 	mii_tick(mii);
 #endif
-//dump_status_reg(sc);
 	callout_reset(&sc->fv_stat_callout, hz, fv_tick, sc);
 }
 
@@ -1834,7 +1814,6 @@ dump_txdesc(struct fv_softc *sc, int pos)
 
 	desc = &sc->fv_rdata.fv_tx_ring[pos];
 	device_printf(sc->fv_dev, "CSR_TXLIST %08x\n", CSR_READ_4(sc, CSR_TXLIST));
-//	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
 	device_printf(sc->fv_dev, "%d TDES0:%08x TDES1:%08x TDES2:%08x TDES3:%08x\n",
 	    pos, desc->fv_stat, desc->fv_devcs, desc->fv_addr, desc->fv_link);
 }
@@ -1846,7 +1825,6 @@ dump_status_reg(struct fv_softc *sc)
 
 	/* mask out interrupts */
 
-//	device_printf(sc->fv_dev, "CSR_HTBA %08x\n", CSR_READ_4(sc, CSR_HTBA));
 	status = CSR_READ_4(sc, CSR_STATUS);
 	device_printf(sc->fv_dev, "CSR5 Status Register EB:%d TS:%d RS:%d NIS:%d AIS:%d ER:%d SE:%d LNF:%d TM:%d RWT:%d RPS:%d RU:%d RI:%d UNF:%d LNP/ANC:%d TJT:%d TU:%d TPS:%d TI:%d\n", 
 	    (status >> 23 ) & 7,

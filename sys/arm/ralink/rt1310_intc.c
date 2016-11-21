@@ -100,7 +100,7 @@ struct rt1310_irqdef {
 };
 
 struct rt1310_irqdef irqdef[INTC_NIRQS] = {
-	{RT_INTC_TRIG_HIGH_LVL, 2},	// 0
+	{RT_INTC_TRIG_HIGH_LVL, 2},	/* 0 */
 	{RT_INTC_TRIG_HIGH_LVL, 2},
 	{RT_INTC_TRIG_HIGH_LVL, 2},
 	{RT_INTC_TRIG_HIGH_LVL, 1},
@@ -108,7 +108,7 @@ struct rt1310_irqdef irqdef[INTC_NIRQS] = {
 	{RT_INTC_TRIG_HIGH_LVL, 1},
 	{RT_INTC_TRIG_HIGH_LVL, 1},
 	{RT_INTC_TRIG_HIGH_LVL, 1},
-	{RT_INTC_TRIG_HIGH_LVL, 1},	// 8
+	{RT_INTC_TRIG_HIGH_LVL, 1},	/* 8 */
 	{RT_INTC_TRIG_HIGH_LVL, 1},
 	{RT_INTC_TRIG_HIGH_LVL, 2},
 	{RT_INTC_TRIG_LOW_LVL, 2},
@@ -116,7 +116,7 @@ struct rt1310_irqdef irqdef[INTC_NIRQS] = {
 	{RT_INTC_TRIG_LOW_LVL, 4},
 	{RT_INTC_TRIG_HIGH_LVL, 2},
 	{RT_INTC_TRIG_HIGH_LVL, 2},
-	{RT_INTC_TRIG_HIGH_LVL, 2},	// 16
+	{RT_INTC_TRIG_HIGH_LVL, 2},	/* 16 */
 	{RT_INTC_TRIG_HIGH_LVL, 2},
 	{RT_INTC_TRIG_LOW_LVL, 2},
 	{RT_INTC_TRIG_LOW_LVL, 2},
@@ -124,7 +124,7 @@ struct rt1310_irqdef irqdef[INTC_NIRQS] = {
 	{RT_INTC_TRIG_LOW_LVL, 2},
 	{RT_INTC_TRIG_NEG_EDGE, 2},
 	{RT_INTC_TRIG_HIGH_LVL, 3},
-	{RT_INTC_TRIG_HIGH_LVL, 2},	// 24
+	{RT_INTC_TRIG_HIGH_LVL, 2},	/* 24 */
 	{RT_INTC_TRIG_POS_EDGE, 2},
 	{RT_INTC_TRIG_POS_EDGE, 2},
 	{RT_INTC_TRIG_HIGH_LVL, 2},
@@ -182,7 +182,7 @@ rt1310_intc_attach(device_t dev)
 	intc_write_4(sc, RT_INTC_IECR, 0);
 	intc_write_4(sc, RT_INTC_ICCR, ~0);
 
-	for(i = 0; i <= INTC_NIRQS; ++i) {
+	for (i = 0; i <= INTC_NIRQS; ++i) {
 		intc_write_4(sc, RT_INTC_SCR0+i*4, 
 			(irqdef[i].ri_trig << RT_INTC_TRIG_SHIF) | 
 			irqdef[i].ri_prio);
@@ -250,12 +250,12 @@ rt1310_intc_eoi(void *data)
 	int nb = (int)data;
 
 	intc_write_4(sc, RT_INTC_ICCR, 1 << nb);
-	if(nb == 0) {
-	uint32_t value;
-	value = intc_read_4(sc, RT_INTC_IECR);
-	value &= ~(1 << nb);
-	intc_write_4(sc, RT_INTC_IECR, value);
-	intc_write_4(sc, RT_INTC_IMR, value);
+	if (nb == 0) {
+		uint32_t value;
+		value = intc_read_4(sc, RT_INTC_IECR);
+		value &= ~(1 << nb);
+		intc_write_4(sc, RT_INTC_IECR, value);
+		intc_write_4(sc, RT_INTC_IMR, value);
 	}
 }
 
@@ -353,7 +353,7 @@ rt1310_intr(void *arg)
 
 	irq = ffs(intc_read_4(sc, RT_INTC_IPR)) - 1;
 
-	if(intr_isrc_dispatch(&sc->ri_isrcs[irq].ri_isrc,
+	if (intr_isrc_dispatch(&sc->ri_isrcs[irq].ri_isrc,
 	    curthread->td_intr_frame) != 0) {
 	      	intc_write_4(sc, RT_INTC_ICCR, 1 << irq);
 		device_printf(sc->dev, "Stray irq %u disabled\n", irq);
@@ -438,5 +438,4 @@ static driver_t rt1310_intc_driver = {
 
 static devclass_t rt1310_intc_devclass;
 
-//DRIVER_MODULE(pic, simplebus, rt1310_intc_driver, rt1310_intc_devclass, 0, 0);
 EARLY_DRIVER_MODULE(pic, simplebus, rt1310_intc_driver, rt1310_intc_devclass, 0, 0, BUS_PASS_INTERRUPT);

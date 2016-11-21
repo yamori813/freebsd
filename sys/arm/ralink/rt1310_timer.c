@@ -26,7 +26,7 @@
  *
  */
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/arm/lpc/rt1310_timer.c 262534 2014-02-26 22:06:10Z ian $");
+__FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -162,7 +162,6 @@ rt1310_timer_attach(device_t dev)
 	sc->lt_bst3 = rman_get_bustag(sc->lt_res[3]);
 	sc->lt_bsh3 = rman_get_bushandle(sc->lt_res[3]);
 
-//	if (bus_setup_intr(dev, sc->lt_res[4], INTR_TYPE_CLK,
 	/* Timer2 interrupt */
 	if (bus_setup_intr(dev, sc->lt_res[6], INTR_TYPE_CLK,
 	    rt1310_hardclock, NULL, sc, &intrcookie)) {
@@ -280,7 +279,6 @@ static driver_t rt1310_timer_driver = {
 
 static devclass_t rt1310_timer_devclass;
 
-//DRIVER_MODULE(timer, simplebus, rt1310_timer_driver, rt1310_timer_devclass, 0, 0);
 EARLY_DRIVER_MODULE(timer, simplebus, rt1310_timer_driver, rt1310_timer_devclass, 0, 0, BUS_PASS_TIMER);
 
 static int
