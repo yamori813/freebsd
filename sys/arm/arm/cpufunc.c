@@ -654,7 +654,8 @@ set_cpufuncs()
 	}
 #endif /* CPU_ARM9E */
 #if defined(CPU_ARM1176)
-	if (cputype == CPU_ID_ARM1176JZS) {
+	if (cputype == CPU_ID_ARM1176JZS || cputype == CPU_ID_ARM1136JS ||
+	    cputype == CPU_ID_ARM1136JSR1) {
 		cpufuncs = arm1176_cpufuncs;
 		get_cachetype_cp15();
 		goto out;
