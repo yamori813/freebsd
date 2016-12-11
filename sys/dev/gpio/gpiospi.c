@@ -156,26 +156,26 @@ gpio_spi_attach(device_t dev)
 
 	/* Set directions */
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_sclk,
-	    GPIO_PIN_OUTPUT|GPIO_PIN_PULLDOWN);
+	    GPIO_PIN_OUTPUT);
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_mosi,
-	    GPIO_PIN_OUTPUT|GPIO_PIN_PULLDOWN);
+	    GPIO_PIN_OUTPUT);
 	if (sc->sc_miso != 0xff) {
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_miso,
-		    GPIO_PIN_INPUT|GPIO_PIN_PULLDOWN);
+		    GPIO_PIN_INPUT);
 	}
 
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_cs0,
-	    GPIO_PIN_OUTPUT|GPIO_PIN_PULLUP);
+	    GPIO_PIN_OUTPUT);
 
 	if (sc->sc_cs1 != 0xff)
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_cs1,
-		    GPIO_PIN_OUTPUT|GPIO_PIN_PULLUP);
+		    GPIO_PIN_OUTPUT);
 	if (sc->sc_cs2 != 0xff)
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_cs2,
-		    GPIO_PIN_OUTPUT|GPIO_PIN_PULLUP);
+		    GPIO_PIN_OUTPUT);
 	if (sc->sc_cs3 != 0xff)
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sc_cs3,
-		    GPIO_PIN_OUTPUT|GPIO_PIN_PULLUP);
+		    GPIO_PIN_OUTPUT);
 
 	gpio_spi_chip_deactivate(sc, -1);
 
@@ -293,6 +293,7 @@ gpio_spi_txrx(struct gpio_spi_softc *sc, int cs, int mode, uint8_t data)
 			gpio_delay(sc);
 			GPIOBUS_PIN_SET(sc->sc_busdev, sc->sc_dev,
 			    sc->sc_sclk, 1);
+			gpio_delay(sc);
 		} else {
 			/* If mode 0 or 3 */
 
@@ -312,6 +313,7 @@ gpio_spi_txrx(struct gpio_spi_softc *sc, int cs, int mode, uint8_t data)
 			gpio_delay(sc);
 			GPIOBUS_PIN_SET(sc->sc_busdev, sc->sc_dev,
 			    sc->sc_sclk, 0);
+			gpio_delay(sc);
 		}
 	}
 
