@@ -29,6 +29,12 @@
  * $FreeBSD$
  */
 
+/*
+ * This is Micrel KSZ8995MA driver code. KSZ8995MA use SPI bus on control.
+ * This code development on @SRCHACK's ksz8995ma board and FON2100 with
+ * gpiospi.
+ */
+
 #include <sys/param.h>
 #include <sys/bus.h>
 #include <sys/errno.h>
@@ -59,8 +65,6 @@
 #include "spibus_if.h"
 #include "miibus_if.h"
 #include "etherswitch_if.h"
-
-#define	KSZ8995MA_PRODUCT_CODE	0x7102
 
 #define	KSZ8995MA_CID0		0x00
 #define	KSZ8995MA_CID1		0x01
@@ -111,6 +115,7 @@
 #define	KSZ8995MA_MII_STAT	0x7808
 #define	KSZ8995MA_MII_PHYID_H	0x0022
 #define	KSZ8995MA_MII_PHYID_L	0x1450
+#define	KSZ8995MA_MII_AA	0x0401
 
 MALLOC_DECLARE(M_KSZ8995MA);
 MALLOC_DEFINE(M_KSZ8995MA, "ksz8995ma", "ksz8995ma data structures");
@@ -189,6 +194,8 @@ ksz8995ma_attach_phys(struct ksz8995ma_softc *sc)
 	/* PHYs need an interface, so we generate a dummy one */
 	snprintf(name, IFNAMSIZ, "%sport", device_get_nameunit(sc->sc_dev));
 	for (phy = 0; phy < sc->numports; phy++) {
+		if (phy == sc->cpuport)
+			continue;
 		if (((1 << phy) & sc->phymask) == 0)
 			continue;
 		sc->ifpport[phy] = port;
@@ -220,7 +227,7 @@ ksz8995ma_attach_phys(struct ksz8995ma_softc *sc)
 	}
 	sc->info.es_nports = port;
 	if (sc->cpuport != -1) {
-		/* assume cpuport is last one */
+		/* cpu port is MAC5 on ksz8995ma */ 
 		sc->ifpport[sc->cpuport] = port;
 		sc->portphy[port] = sc->cpuport;
 		++sc->info.es_nports;
@@ -264,6 +271,9 @@ ksz8995ma_attach(device_t dev)
 	sc->phymask = 0x1f;
 	sc->cpuport = -1;
 	sc->media = 100;
+
+	(void) resource_int_value(device_get_name(dev), device_get_unit(dev),
+	    "cpuport", &sc->cpuport);
 
 	sc->info.es_nvlangroups = 16;
 	sc->info.es_vlan_caps = ETHERSWITCH_VLAN_PORT | ETHERSWITCH_VLAN_DOT1Q;
@@ -460,7 +470,7 @@ ksz8995ma_getport(device_t dev, etherswitch_port_t *p)
 	struct mii_data *mii;
 	struct ifmediareq *ifmr;
 	int phy, err;
-	int tag1, tag2;
+	int tag1, tag2, preg;
 
 	sc = device_get_softc(dev);
 	ifmr = &p->es_ifmr;
@@ -474,7 +484,13 @@ ksz8995ma_getport(device_t dev, etherswitch_port_t *p)
 		tag2 = ksz8995ma_readreg(dev, KSZ8995MA_PC4_BASE + 
 		    KSZ8995MA_PORT_SIZE * p->es_port);
 		p->es_pvid = (tag1 & 0x0f) << 8 | tag2;
-		
+
+		preg = ksz8995ma_readreg(dev, KSZ8995MA_PC0_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port);
+		if (preg & 0x04)
+			p->es_flags |= ETHERSWITCH_PORT_ADDTAG;
+		if (preg & 0x02)
+			p->es_flags |= ETHERSWITCH_PORT_STRIPTAG;
 	}
 
 	phy = sc->portphy[p->es_port];
@@ -511,7 +527,7 @@ ksz8995ma_setport(device_t dev, etherswitch_port_t *p)
         struct ifmedia *ifm;
         struct ifnet *ifp;
 	int phy, err;
-	int tag2;
+	int preg;
 
 	sc = device_get_softc(dev);
 
@@ -521,11 +537,24 @@ ksz8995ma_setport(device_t dev, etherswitch_port_t *p)
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 		ksz8995ma_writereg(dev, KSZ8995MA_PC4_BASE + 
 		    KSZ8995MA_PORT_SIZE * p->es_port, p->es_pvid & 0xff);
-		tag2 = ksz8995ma_readreg(dev, KSZ8995MA_PC3_BASE + 
+		preg = ksz8995ma_readreg(dev, KSZ8995MA_PC3_BASE + 
 		    KSZ8995MA_PORT_SIZE * p->es_port);
 		ksz8995ma_writereg(dev, KSZ8995MA_PC3_BASE + 
 		    KSZ8995MA_PORT_SIZE * p->es_port,
-		    (tag2 & 0xf0) | ((p->es_pvid >> 8) & 0x0f));
+		    (preg & 0xf0) | ((p->es_pvid >> 8) & 0x0f));
+
+		preg = ksz8995ma_readreg(dev, KSZ8995MA_PC0_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port);
+		if (p->es_flags & ETHERSWITCH_PORT_ADDTAG)
+			preg |= 0x04;
+		else
+			preg &= ~0x04;
+		if (p->es_flags & ETHERSWITCH_PORT_STRIPTAG) 
+			preg |= 0x02;
+		else
+			preg &= ~0x02;
+		ksz8995ma_writereg(dev, KSZ8995MA_PC0_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port, preg);
 	}
 
 	phy = sc->portphy[p->es_port];
@@ -550,7 +579,7 @@ ksz8995ma_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	sc = device_get_softc(dev);
 
 	if (sc->vlan_mode == ETHERSWITCH_VLAN_PORT) {
-		if (vg->es_vlangroup < 5) {
+		if (vg->es_vlangroup < sc->numports) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
 			vg->es_vid |= vg->es_vlangroup;
 			data0 = ksz8995ma_readreg(dev, KSZ8995MA_PC1_BASE +
@@ -623,6 +652,22 @@ ksz8995ma_getconf(device_t dev, etherswitch_conf_t *conf)
 	return (0);
 }
 
+static void 
+ksz8995ma_portvlaninit(device_t dev)
+{
+	int i, data;
+	struct ksz8995ma_softc *sc;
+
+	sc = device_get_softc(dev);
+
+	for (i = 0; i < sc->numports; ++i) {
+		data = ksz8995ma_readreg(dev, KSZ8995MA_PC1_BASE +
+		    KSZ8995MA_PORT_SIZE * i);
+		ksz8995ma_writereg(dev, KSZ8995MA_PC1_BASE +
+		    KSZ8995MA_PORT_SIZE * i, (data & 0xe0) | 0x1f);
+	}
+}
+
 static int
 ksz8995ma_setconf(device_t dev, etherswitch_conf_t *conf)
 {
@@ -639,6 +684,7 @@ ksz8995ma_setconf(device_t dev, etherswitch_conf_t *conf)
 		reg = ksz8995ma_readreg(dev, KSZ8995MA_GC3);
 		ksz8995ma_writereg(dev, KSZ8995MA_GC3, 
 		    reg & ~KSZ8995MA_VLAN_ENABLE);
+		ksz8995ma_portvlaninit(dev);
 	} else if (conf->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 		sc->vlan_mode = ETHERSWITCH_VLAN_DOT1Q;
 		reg = ksz8995ma_readreg(dev, KSZ8995MA_GC3);
@@ -649,6 +695,7 @@ ksz8995ma_setconf(device_t dev, etherswitch_conf_t *conf)
 		reg = ksz8995ma_readreg(dev, KSZ8995MA_GC3);
 		ksz8995ma_writereg(dev, KSZ8995MA_GC3, 
 		    reg & ~KSZ8995MA_VLAN_ENABLE);
+		ksz8995ma_portvlaninit(dev);
 	}
 	return (0);
 }
@@ -703,11 +750,17 @@ int portreg;
 	if (reg == MII_BMSR) {
 		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PS0_BASE + 
 			KSZ8995MA_PORT_SIZE * phy);
-		return (KSZ8995MA_MII_STAT | (portreg & 0x20 ? BMSR_LINK : 0x00));
+		return (KSZ8995MA_MII_STAT | 
+		    (portreg & 0x20 ? BMSR_LINK : 0x00) |
+		    (portreg & 0x40 ? BMSR_ACOMP : 0x00));
 	} else if (reg == MII_PHYIDR1) {
 		return (KSZ8995MA_MII_PHYID_H);
 	} else if (reg == MII_PHYIDR2) {
 		return (KSZ8995MA_MII_PHYID_L);
+	} else if (reg == MII_ANAR) {
+		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC12_BASE + 
+			KSZ8995MA_PORT_SIZE * phy);
+		return (KSZ8995MA_MII_AA | (portreg & 0x0f) << 5);
 	} else if (reg == MII_ANLPAR) {
 		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PS0_BASE + 
 			KSZ8995MA_PORT_SIZE * phy);
@@ -720,7 +773,29 @@ int portreg;
 static int
 ksz8995ma_writephy(device_t dev, int phy, int reg, int data)
 {
+int portreg;
 
+	if (reg == MII_BMCR) {
+		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC13_BASE + 
+			KSZ8995MA_PORT_SIZE * phy);
+		if (data & BMCR_PDOWN)
+			portreg |= 0x08;
+		else
+			portreg &= ~0x08;
+		if (data & BMCR_STARTNEG)
+			portreg |= 0x20;
+		else
+			portreg &= ~0x20;
+		ksz8995ma_writereg(dev, KSZ8995MA_PC13_BASE + 
+			KSZ8995MA_PORT_SIZE * phy, portreg);
+	} else if (reg == MII_ANAR) {
+		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC12_BASE + 
+			KSZ8995MA_PORT_SIZE * phy);
+		portreg &= 0xf;
+		portreg |= ((data >> 5) & 0x0f);
+		ksz8995ma_writereg(dev, KSZ8995MA_PC12_BASE + 
+			KSZ8995MA_PORT_SIZE * phy, portreg);
+	}
 	return (0);
 }
 
