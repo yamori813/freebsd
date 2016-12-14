@@ -1350,11 +1350,11 @@ are_newbuf(struct are_softc *sc, int idx)
 
 	rxd = &sc->are_cdata.are_rxdesc[idx];
 	if (rxd->rx_m != NULL) {
-/*
- THis is if_kr.c original code but make bug. Make scranble on buffer data.
-		bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
-		    BUS_DMASYNC_POSTREAD);
- */
+		/*
+		 * THis is if_kr.c original code but make bug. Make scranble on buffer data.
+		 * bus_dmamap_sync(sc->are_cdata.are_rx_tag, rxd->rx_dmamap,
+		 *    BUS_DMASYNC_POSTREAD);
+		 */
 		bus_dmamap_unload(sc->are_cdata.are_rx_tag, rxd->rx_dmamap);
 	}
 	map = rxd->rx_dmamap;
