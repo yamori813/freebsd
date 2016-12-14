@@ -113,6 +113,7 @@
 #define	KSZ8995MA_FAMILI_ID		0x95
 #define	KSZ8995MA_CHIP_ID		0x00
 #define	KSZ8995MA_CHIP_ID_MASK		0xf0
+#define	KSZ8995MA_START			0x01
 #define	KSZ8995MA_VLAN_ENABLE		0x80
 #define	KSZ8995MA_TAG_INS		0x04
 #define	KSZ8995MA_TAG_RM		0x02
@@ -271,7 +272,7 @@ static int
 ksz8995ma_attach(device_t dev)
 {
 	struct ksz8995ma_softc	*sc;
-	int			 err;
+	int			 err, reg;
 
 	err = 0;
 	sc = device_get_softc(dev);
@@ -330,8 +331,8 @@ ksz8995ma_attach(device_t dev)
 	reg = ksz8995ma_readreg(dev, KSZ8995MA_GC3);
 	ksz8995ma_writereg(dev, KSZ8995MA_GC3, 
 	    reg & ~KSZ8995MA_VLAN_ENABLE);
-	ksz8995ma_portvlanreset();
-	ksz8995ma_writereg(dev, KSZ8995MA_CID1, 1);
+	ksz8995ma_portvlanreset(dev);
+	ksz8995ma_writereg(dev, KSZ8995MA_CID1, KSZ8995MA_START);
 
 	return (0);
 
