@@ -643,7 +643,7 @@ ksz8995ma_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 		    KSZ8995MA_PORT_SIZE * vg->es_vlangroup,
 		    (data0 & 0xe0) | (vg->es_member_ports & 0x1f));
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
-		if(vg->es_member_ports != 0) {
+		if (vg->es_member_ports != 0) {
 			ksz8995ma_writereg(dev, KSZ8995MA_IDR2,
 			    KSZ8995MA_VLAN_TABLE_VALID |
 			    (vg->es_member_ports & 0x1f));
