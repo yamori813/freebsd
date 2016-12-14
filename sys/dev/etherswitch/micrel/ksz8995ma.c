@@ -33,6 +33,8 @@
  * This is Micrel KSZ8995MA driver code. KSZ8995MA use SPI bus on control.
  * This code development on @SRCHACK's ksz8995ma board and FON2100 with
  * gpiospi.
+ * etherswitchcfg command port option support addtag, ingress, striptag, 
+ * dropuntagged.
  */
 
 #include <sys/param.h>
@@ -117,6 +119,8 @@
 #define	KSZ8995MA_VLAN_ENABLE		0x80
 #define	KSZ8995MA_TAG_INS		0x04
 #define	KSZ8995MA_TAG_RM		0x02
+#define	KSZ8995MA_INGR_FILT		0x40
+#define	KSZ8995MA_DROP_NONPVID		0x20
 
 #define	KSZ8995MA_PDOWN			0x08
 #define	KSZ8995MA_STARTNEG		0x20
@@ -126,7 +130,7 @@
 #define	KSZ8995MA_MII_PHYID_L		0x1450
 #define	KSZ8995MA_MII_AA		0x0401
 
-#define	KSZ8995MA_VLAN_TABLE_VALID	0x02
+#define	KSZ8995MA_VLAN_TABLE_VALID	0x20
 #define	KSZ8995MA_VLAN_TABLE_READ	0x14
 #define	KSZ8995MA_VLAN_TABLE_WRITE	0x04
 
@@ -514,6 +518,13 @@ ksz8995ma_getport(device_t dev, etherswitch_port_t *p)
 			p->es_flags |= ETHERSWITCH_PORT_ADDTAG;
 		if (portreg & KSZ8995MA_TAG_RM)
 			p->es_flags |= ETHERSWITCH_PORT_STRIPTAG;
+
+		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC2_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port);
+		if (portreg & KSZ8995MA_DROP_NONPVID)
+			p->es_flags |= ETHERSWITCH_PORT_DROPUNTAGGED;
+		if (portreg & KSZ8995MA_INGR_FILT)
+			p->es_flags |= ETHERSWITCH_PORT_INGRESS;
 	}
 
 	phy = sc->portphy[p->es_port];
@@ -577,6 +588,19 @@ ksz8995ma_setport(device_t dev, etherswitch_port_t *p)
 		else
 			portreg &= ~KSZ8995MA_TAG_RM;
 		ksz8995ma_writereg(dev, KSZ8995MA_PC0_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port, portreg);
+
+		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC2_BASE + 
+		    KSZ8995MA_PORT_SIZE * p->es_port);
+		if (p->es_flags & ETHERSWITCH_PORT_DROPUNTAGGED)
+			portreg |= KSZ8995MA_DROP_NONPVID;
+		else
+			portreg &= ~KSZ8995MA_DROP_NONPVID;
+		if (p->es_flags & ETHERSWITCH_PORT_INGRESS)
+			portreg |= KSZ8995MA_INGR_FILT;
+		else
+			portreg &= ~KSZ8995MA_INGR_FILT;
+		ksz8995ma_writereg(dev, KSZ8995MA_PC2_BASE + 
 		    KSZ8995MA_PORT_SIZE * p->es_port, portreg);
 	}
 
