@@ -125,9 +125,11 @@
 #define	KSZ8995MA_MII_PHYID_L		0x1450
 #define	KSZ8995MA_MII_AA		0x0401
 
-#define	KSZ8995_VLAN_TABLE_VALID	0x02
-#define	KSZ8995_VLAN_TABLE_READ		0x14
-#define	KSZ8995_VLAN_TABLE_WRITE	0x04
+#define	KSZ8995MA_VLAN_TABLE_VALID	0x02
+#define	KSZ8995MA_VLAN_TABLE_READ	0x14
+#define	KSZ8995MA_VLAN_TABLE_WRITE	0x04
+
+#define	KSZ8995MA_MAX_PORT		5
 
 MALLOC_DECLARE(M_KSZ8995MA);
 MALLOC_DEFINE(M_KSZ8995MA, "ksz8995ma", "ksz8995ma data structures");
@@ -140,7 +142,7 @@ struct ksz8995ma_softc {
 	int		cpuport;	/* which PHY is connected to the CPU */
 	int		phymask;	/* PHYs we manage */
 	int		numports;	/* number of ports */
-	int		ifpport[MII_NPHY];
+	int		ifpport[KSZ8995MA_MAX_PORT];
 	int		*portphy;
 	char		**ifname;
 	device_t	**miibus;
@@ -279,8 +281,8 @@ ksz8995ma_attach(device_t dev)
 	    sizeof(sc->info.es_name));
 
 	/* KSZ8995MA Defaults */
-	sc->numports = 5;
-	sc->phymask = 0x1f;
+	sc->numports = KSZ8995MA_MAX_PORT;
+	sc->phymask = (1 << (KSZ8995MA_MAX_PORT + 1)) - 1;
 	sc->cpuport = -1;
 	sc->media = 100;
 
@@ -350,7 +352,7 @@ ksz8995ma_detach(device_t dev)
 
 	callout_drain(&sc->callout_tick);
 
-	for (i = 0; i < MII_NPHY; i++) {
+	for (i = 0; i < KSZ8995MA_MAX_PORT; i++) {
 		if (((1 << i) & sc->phymask) == 0)
 			continue;
 		port = ksz8995ma_portforphy(sc, i);
@@ -415,7 +417,9 @@ ksz8995ma_miipollstat(struct ksz8995ma_softc *sc)
 
 	KSZ8995MA_LOCK_ASSERT(sc, MA_NOTOWNED);
 
-	for (i = 0; i < MII_NPHY; i++) {
+	for (i = 0; i < KSZ8995MA_MAX_PORT; i++) {
+		if (i == sc->cpuport)
+			continue;
 		if (((1 << i) & sc->phymask) == 0)
 			continue;
 		port = ksz8995ma_portforphy(sc, i);
@@ -604,13 +608,13 @@ ksz8995ma_getvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 		}
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 		ksz8995ma_writereg(dev, KSZ8995MA_IAC0,
-		    KSZ8995_VLAN_TABLE_READ);
+		    KSZ8995MA_VLAN_TABLE_READ);
 		ksz8995ma_writereg(dev, KSZ8995MA_IAC1, vg->es_vlangroup);
 		data2 = ksz8995ma_readreg(dev, KSZ8995MA_IDR2);
 		data1 = ksz8995ma_readreg(dev, KSZ8995MA_IDR1);
 		data0 = ksz8995ma_readreg(dev, KSZ8995MA_IDR0);
 		vlantab = data2 << 16 | data1 << 8 | data0;
-		if (data2 & KSZ8995_VLAN_TABLE_VALID) {
+		if (data2 & KSZ8995MA_VLAN_TABLE_VALID) {
 			vg->es_vid = ETHERSWITCH_VID_VALID;
 			vg->es_vid |= vlantab & 0xfff;
 			vg->es_member_ports = (vlantab >> 16) & 0x1f;
@@ -641,7 +645,7 @@ ksz8995ma_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 	} else if (sc->vlan_mode == ETHERSWITCH_VLAN_DOT1Q) {
 		if(vg->es_member_ports != 0) {
 			ksz8995ma_writereg(dev, KSZ8995MA_IDR2,
-			    KSZ8995_VLAN_TABLE_VALID |
+			    KSZ8995MA_VLAN_TABLE_VALID |
 			    (vg->es_member_ports & 0x1f));
 			ksz8995ma_writereg(dev, KSZ8995MA_IDR1,
 			    vg->es_fid << 4 | vg->es_vid >> 8);
@@ -653,7 +657,7 @@ ksz8995ma_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 			ksz8995ma_writereg(dev, KSZ8995MA_IDR0, 0);
 		}
 		ksz8995ma_writereg(dev, KSZ8995MA_IAC0,
-		    KSZ8995_VLAN_TABLE_WRITE);
+		    KSZ8995MA_VLAN_TABLE_WRITE);
 		ksz8995ma_writereg(dev, KSZ8995MA_IAC1, vg->es_vlangroup);
 	}
 
@@ -768,7 +772,10 @@ ksz8995ma_readphy(device_t dev, int phy, int reg)
 {
 int portreg;
 
-	/* simulate MIIM Registers via the SPI interface */
+	/* 
+	 * This is no mdio/mdc connection code.
+         * simulate MIIM Registers via the SPI interface
+	 */
 	if (reg == MII_BMSR) {
 		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PS0_BASE + 
 			KSZ8995MA_PORT_SIZE * phy);
@@ -797,6 +804,10 @@ ksz8995ma_writephy(device_t dev, int phy, int reg, int data)
 {
 int portreg;
 
+	/* 
+	 * This is no mdio/mdc connection code.
+         * simulate MIIM Registers via the SPI interface
+	 */
 	if (reg == MII_BMCR) {
 		portreg = ksz8995ma_readreg(dev, KSZ8995MA_PC13_BASE + 
 			KSZ8995MA_PORT_SIZE * phy);
