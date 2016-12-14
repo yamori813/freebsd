@@ -172,6 +172,7 @@ static int ksz8995ma_ifmedia_upd(struct ifnet *);
 static void ksz8995ma_ifmedia_sts(struct ifnet *, struct ifmediareq *);
 static int ksz8995ma_readreg(device_t dev, int addr);
 static int ksz8995ma_writereg(device_t dev, int addr, int value);
+static void ksz8995ma_portvlanreset(device_t dev);
 
 static int
 ksz8995ma_probe(device_t dev)
@@ -325,6 +326,11 @@ ksz8995ma_attach(device_t dev)
 	ksz8995ma_tick(sc);
 	
 	/* start switch */
+	sc->vlan_mode = 0;
+	reg = ksz8995ma_readreg(dev, KSZ8995MA_GC3);
+	ksz8995ma_writereg(dev, KSZ8995MA_GC3, 
+	    reg & ~KSZ8995MA_VLAN_ENABLE);
+	ksz8995ma_portvlanreset();
 	ksz8995ma_writereg(dev, KSZ8995MA_CID1, 1);
 
 	return (0);
