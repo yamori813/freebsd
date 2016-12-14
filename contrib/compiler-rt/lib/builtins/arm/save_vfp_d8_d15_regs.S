@@ -31,3 +31,5 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__save_vfp_d8_d15_regs)
 	mov     pc,lr                      // return to prolog
 END_COMPILERRT_FUNCTION(__save_vfp_d8_d15_regs)
 
+NO_EXEC_STACK_DIRECTIVE
+

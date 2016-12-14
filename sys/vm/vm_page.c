@@ -1241,9 +1241,8 @@ vm_page_insert_radixdone(vm_page_t m, vm_object_t object, vm_page_t mpred)
 /*
  *	vm_page_remove:
  *
- *	Removes the given mem entry from the object/offset-page
- *	table and the object page list, but do not invalidate/terminate
- *	the backing store.
+ *	Removes the specified page from its containing object, but does not
+ *	invalidate any backing storage.
  *
  *	The object must be locked.  The page must be locked if it is managed.
  */
@@ -1251,6 +1250,7 @@ void
 vm_page_remove(vm_page_t m)
 {
 	vm_object_t object;
+	vm_page_t mrem;
 
 	if ((m->oflags & VPO_UNMANAGED) == 0)
 		vm_page_assert_locked(m);
@@ -1259,11 +1259,12 @@ vm_page_remove(vm_page_t m)
 	VM_OBJECT_ASSERT_WLOCKED(object);
 	if (vm_page_xbusied(m))
 		vm_page_xunbusy_maybelocked(m);
+	mrem = vm_radix_remove(&object->rtree, m->pindex);
+	KASSERT(mrem == m, ("removed page %p, expected page %p", mrem, m));
 
 	/*
 	 * Now remove from the object's list of backed pages.
 	 */
-	vm_radix_remove(&object->rtree, m->pindex);
 	TAILQ_REMOVE(&object->memq, m, listq);
 
 	/*
@@ -1408,9 +1409,7 @@ vm_page_replace(vm_page_t mnew, vm_object_t object, vm_pindex_t pindex)
  *
  *	Note: we *always* dirty the page.  It is necessary both for the
  *	      fact that we moved it, and because we may be invalidating
- *	      swap.  If the page is on the cache, we have to deactivate it
- *	      or vm_page_dirty() will panic.  Dirty pages are not allowed
- *	      on the cache.
+ *	      swap.
  *
  *	The objects must be locked.
  */
@@ -1512,19 +1511,17 @@ vm_page_alloc(vm_object_t object, vm_pindex_t pindex, int req)
 	}
 
 	/*
-	 * The page allocation request can came from consumers which already
-	 * hold the free page queue mutex, like vm_page_insert() in
-	 * vm_page_cache().
+	 * Allocate a page if the number of free pages exceeds the minimum
+	 * for the request class.
 	 */
-	mtx_lock_flags(&vm_page_queue_free_mtx, MTX_RECURSE);
-	if (vm_cnt.v_free_count + vm_cnt.v_cache_count > vm_cnt.v_free_reserved ||
+	mtx_lock(&vm_page_queue_free_mtx);
+	if (vm_cnt.v_free_count > vm_cnt.v_free_reserved ||
 	    (req_class == VM_ALLOC_SYSTEM &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count > vm_cnt.v_interrupt_free_min) ||
+	    vm_cnt.v_free_count > vm_cnt.v_interrupt_free_min) ||
 	    (req_class == VM_ALLOC_INTERRUPT &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count > 0)) {
+	    vm_cnt.v_free_count > 0)) {
 		/*
-		 * Allocate from the free queue if the number of free pages
-		 * exceeds the minimum for the request class.
+		 * Can we allocate the page from a reservation?
 		 */
 #if VM_NRESERVLEVEL > 0
 		if (object == NULL || (object->flags & (OBJ_COLORED |
@@ -1532,6 +1529,9 @@ vm_page_alloc(vm_object_t object, vm_pindex_t pindex, int req)
 		    vm_reserv_alloc_page(object, pindex, mpred)) == NULL)
 #endif
 		{
+			/*
+			 * If not, allocate it from the free page queues.
+			 */
 			m = vm_phys_alloc_pages(object != NULL ?
 			    VM_FREEPOOL_DEFAULT : VM_FREEPOOL_DIRECT, 0);
 #if VM_NRESERVLEVEL > 0
@@ -1690,11 +1690,11 @@ vm_page_alloc_contig(vm_object_t object, vm_pindex_t pindex, int req,
 		req_class = VM_ALLOC_SYSTEM;
 
 	mtx_lock(&vm_page_queue_free_mtx);
-	if (vm_cnt.v_free_count + vm_cnt.v_cache_count >= npages +
-	    vm_cnt.v_free_reserved || (req_class == VM_ALLOC_SYSTEM &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count >= npages +
-	    vm_cnt.v_interrupt_free_min) || (req_class == VM_ALLOC_INTERRUPT &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count >= npages)) {
+	if (vm_cnt.v_free_count >= npages + vm_cnt.v_free_reserved ||
+	    (req_class == VM_ALLOC_SYSTEM &&
+	    vm_cnt.v_free_count >= npages + vm_cnt.v_interrupt_free_min) ||
+	    (req_class == VM_ALLOC_INTERRUPT &&
+	    vm_cnt.v_free_count >= npages)) {
 #if VM_NRESERVLEVEL > 0
 retry:
 		if (object == NULL || (object->flags & OBJ_COLORED) == 0 ||
@@ -1841,12 +1841,12 @@ vm_page_alloc_freelist(int flind, int req)
 	/*
 	 * Do not allocate reserved pages unless the req has asked for it.
 	 */
-	mtx_lock_flags(&vm_page_queue_free_mtx, MTX_RECURSE);
-	if (vm_cnt.v_free_count + vm_cnt.v_cache_count > vm_cnt.v_free_reserved ||
+	mtx_lock(&vm_page_queue_free_mtx);
+	if (vm_cnt.v_free_count > vm_cnt.v_free_reserved ||
 	    (req_class == VM_ALLOC_SYSTEM &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count > vm_cnt.v_interrupt_free_min) ||
+	    vm_cnt.v_free_count > vm_cnt.v_interrupt_free_min) ||
 	    (req_class == VM_ALLOC_INTERRUPT &&
-	    vm_cnt.v_free_count + vm_cnt.v_cache_count > 0))
+	    vm_cnt.v_free_count > 0))
 		m = vm_phys_alloc_freelist_pages(flind, VM_FREEPOOL_DIRECT, 0);
 	else {
 		mtx_unlock(&vm_page_queue_free_mtx);
@@ -2040,18 +2040,18 @@ unlock:
 		} else if (level >= 0) {
 			/*
 			 * The page is reserved but not yet allocated.  In
-			 * other words, it is still cached or free.  Extend
-			 * the current run by one page.
+			 * other words, it is still free.  Extend the current
+			 * run by one page.
 			 */
 			run_ext = 1;
 #endif
 		} else if ((order = m->order) < VM_NFREEORDER) {
 			/*
 			 * The page is enqueued in the physical memory
-			 * allocator's cache/free page queues.  Moreover, it
-			 * is the first page in a power-of-two-sized run of
-			 * contiguous cache/free pages.  Add these pages to
-			 * the end of the current run, and jump ahead.
+			 * allocator's free page queues.  Moreover, it is the
+			 * first page in a power-of-two-sized run of
+			 * contiguous free pages.  Add these pages to the end
+			 * of the current run, and jump ahead.
 			 */
 			run_ext = 1 << order;
 			m_inc = 1 << order;
@@ -2059,16 +2059,15 @@ unlock:
 			/*
 			 * Skip the page for one of the following reasons: (1)
 			 * It is enqueued in the physical memory allocator's
-			 * cache/free page queues.  However, it is not the
-			 * first page in a run of contiguous cache/free pages.
-			 * (This case rarely occurs because the scan is
-			 * performed in ascending order.) (2) It is not
-			 * reserved, and it is transitioning from free to
-			 * allocated.  (Conversely, the transition from
-			 * allocated to free for managed pages is blocked by
-			 * the page lock.) (3) It is allocated but not
-			 * contained by an object and not wired, e.g.,
-			 * allocated by Xen's balloon driver.
+			 * free page queues.  However, it is not the first
+			 * page in a run of contiguous free pages.  (This case
+			 * rarely occurs because the scan is performed in
+			 * ascending order.) (2) It is not reserved, and it is
+			 * transitioning from free to allocated.  (Conversely,
+			 * the transition from allocated to free for managed
+			 * pages is blocked by the page lock.) (3) It is
+			 * allocated but not contained by an object and not
+			 * wired, e.g., allocated by Xen's balloon driver.
 			 */
 			run_ext = 0;
 		}
@@ -2280,11 +2279,11 @@ unlock:
 			if (order < VM_NFREEORDER) {
 				/*
 				 * The page is enqueued in the physical memory
-				 * allocator's cache/free page queues.
-				 * Moreover, it is the first page in a power-
-				 * of-two-sized run of contiguous cache/free
-				 * pages.  Jump ahead to the last page within
-				 * that run, and continue from there.
+				 * allocator's free page queues.  Moreover, it
+				 * is the first page in a power-of-two-sized
+				 * run of contiguous free pages.  Jump ahead
+				 * to the last page within that run, and
+				 * continue from there.
 				 */
 				m += (1 << order) - 1;
 			}
@@ -2332,9 +2331,9 @@ CTASSERT(powerof2(NRUNS));
  *	conditions by relocating the virtual pages using that physical memory.
  *	Returns true if reclamation is successful and false otherwise.  Since
  *	relocation requires the allocation of physical pages, reclamation may
- *	fail due to a shortage of cache/free pages.  When reclamation fails,
- *	callers are expected to perform VM_WAIT before retrying a failed
- *	allocation operation, e.g., vm_page_alloc_contig().
+ *	fail due to a shortage of free pages.  When reclamation fails, callers
+ *	are expected to perform VM_WAIT before retrying a failed allocation
+ *	operation, e.g., vm_page_alloc_contig().
  *
  *	The caller must always specify an allocation class through "req".
  *
@@ -2369,10 +2368,10 @@ vm_page_reclaim_contig(int req, u_long npages, vm_paddr_t low, vm_paddr_t high,
 		req_class = VM_ALLOC_SYSTEM;
 
 	/*
-	 * Return if the number of cached and free pages cannot satisfy the
-	 * requested allocation.
+	 * Return if the number of free pages cannot satisfy the requested
+	 * allocation.
 	 */
-	count = vm_cnt.v_free_count + vm_cnt.v_cache_count;
+	count = vm_cnt.v_free_count;
 	if (count < npages + vm_cnt.v_free_reserved || (count < npages +
 	    vm_cnt.v_interrupt_free_min && req_class == VM_ALLOC_SYSTEM) ||
 	    (count < npages && req_class == VM_ALLOC_INTERRUPT))
@@ -2640,9 +2639,8 @@ vm_page_activate(vm_page_t m)
 /*
  *	vm_page_free_wakeup:
  *
- *	Helper routine for vm_page_free_toq() and vm_page_cache().  This
- *	routine is called when a page has been added to the cache or free
- *	queues.
+ *	Helper routine for vm_page_free_toq().  This routine is called
+ *	when a page is added to the free queues.
  *
  *	The page queues must be locked.
  */
@@ -2656,7 +2654,7 @@ vm_page_free_wakeup(void)
 	 * some free.
 	 */
 	if (vm_pageout_pages_needed &&
-	    vm_cnt.v_cache_count + vm_cnt.v_free_count >= vm_cnt.v_pageout_free_min) {
+	    vm_cnt.v_free_count >= vm_cnt.v_pageout_free_min) {
 		wakeup(&vm_pageout_pages_needed);
 		vm_pageout_pages_needed = 0;
 	}
@@ -2730,8 +2728,8 @@ vm_page_free_toq(vm_page_t m)
 			pmap_page_set_memattr(m, VM_MEMATTR_DEFAULT);
 
 		/*
-		 * Insert the page into the physical memory allocator's
-		 * cache/free page queues.
+		 * Insert the page into the physical memory allocator's free
+		 * page queues.
 		 */
 		mtx_lock(&vm_page_queue_free_mtx);
 		vm_phys_freecnt_adj(m, 1);
@@ -2831,21 +2829,10 @@ vm_page_unwire(vm_page_t m, uint8_t queue)
 /*
  * Move the specified page to the inactive queue.
  *
- * Many pages placed on the inactive queue should actually go
- * into the cache, but it is difficult to figure out which.  What
- * we do instead, if the inactive target is well met, is to put
- * clean pages at the head of the inactive queue instead of the tail.
- * This will cause them to be moved to the cache more quickly and
- * if not actively re-referenced, reclaimed more quickly.  If we just
- * stick these pages at the end of the inactive queue, heavy filesystem
- * meta-data accesses can cause an unnecessary paging load on memory bound
- * processes.  This optimization causes one-time-use metadata to be
- * reused more quickly.
- *
- * Normally noreuse is FALSE, resulting in LRU operation.  noreuse is set
- * to TRUE if we want this page to be 'as if it were placed in the cache',
- * except without unmapping it from the process address space.  In
- * practice this is implemented by inserting the page at the head of the
+ * Normally, "noreuse" is FALSE, resulting in LRU ordering of the inactive
+ * queue.  However, setting "noreuse" to TRUE will accelerate the specified
+ * page's reclamation, but it will not unmap the page from any address space.
+ * This is implemented by inserting the page near the head of the inactive
  * queue, using a marker page to guide FIFO insertion ordering.
  *
  * The page must be locked.
@@ -2972,16 +2959,9 @@ vm_page_advise(vm_page_t m, int advice)
 	if (advice == MADV_FREE)
 		/*
 		 * Mark the page clean.  This will allow the page to be freed
-		 * up by the system.  However, such pages are often reused
-		 * quickly by malloc() so we do not do anything that would
-		 * cause a page fault if we can help it.
-		 *
-		 * Specifically, we do not try to actually free the page now
-		 * nor do we try to put it in the cache (which would cause a
-		 * page fault on reuse).
-		 *
-		 * But we do make the page as freeable as we can without
-		 * actually taking the step of unmapping it.
+		 * without first paging it out.  MADV_FREE pages are often
+		 * quickly reused by malloc(3), so we do not do anything that
+		 * would result in a page fault on a later access.
 		 */
 		vm_page_undirty(m);
 	else if (advice != MADV_DONTNEED)
@@ -3509,8 +3489,8 @@ vm_page_assert_pga_writeable(vm_page_t m, uint8_t bits)
 
 DB_SHOW_COMMAND(page, vm_page_print_page_info)
 {
+
 	db_printf("vm_cnt.v_free_count: %d\n", vm_cnt.v_free_count);
-	db_printf("vm_cnt.v_cache_count: %d\n", vm_cnt.v_cache_count);
 	db_printf("vm_cnt.v_inactive_count: %d\n", vm_cnt.v_inactive_count);
 	db_printf("vm_cnt.v_active_count: %d\n", vm_cnt.v_active_count);
 	db_printf("vm_cnt.v_laundry_count: %d\n", vm_cnt.v_laundry_count);
@@ -3525,8 +3505,7 @@ DB_SHOW_COMMAND(pageq, vm_page_print_pageq_info)
 {
 	int dom;
 
-	db_printf("pq_free %d pq_cache %d\n",
-	    vm_cnt.v_free_count, vm_cnt.v_cache_count);
+	db_printf("pq_free %d\n", vm_cnt.v_free_count);
 	for (dom = 0; dom < vm_ndomains; dom++) {
 		db_printf(
 	    "dom %d page_cnt %d free %d pq_act %d pq_inact %d pq_laund %d\n",

@@ -27,3 +27,6 @@ DEFINE_COMPILERRT_FUNCTION(__ltsf2vfp)
 	movpl	r0, #0
 	mov	pc,lr
 END_COMPILERRT_FUNCTION(__ltsf2vfp)
+
+NO_EXEC_STACK_DIRECTIVE
+

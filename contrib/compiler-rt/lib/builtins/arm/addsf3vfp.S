@@ -24,3 +24,6 @@ DEFINE_COMPILERRT_FUNCTION(__addsf3vfp)
 	vmov	r0, s14		// move result back to r0
 	mov	pc,lr
 END_COMPILERRT_FUNCTION(__addsf3vfp)
+
+NO_EXEC_STACK_DIRECTIVE
+

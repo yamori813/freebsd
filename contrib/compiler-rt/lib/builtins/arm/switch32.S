@@ -42,3 +42,5 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__switch32)
 	mov     pc,ip                       // jump to computed label
 END_COMPILERRT_FUNCTION(__switch32)
 
+NO_EXEC_STACK_DIRECTIVE
+
