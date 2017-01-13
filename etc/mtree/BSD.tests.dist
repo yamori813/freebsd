@@ -593,6 +593,7 @@
                 t0
                 ..
             ..
+        ..
         bsdcat
         ..
         calendar
@@ -642,6 +643,8 @@
             ..
         ..
         soelim
+        ..
+        tail
         ..
         tar
         ..
