@@ -105,7 +105,11 @@
 #define	    FOE_TS_TIMESTAMP_MASK 0x0000ffff
 #define	    FOE_TS_TIMESTAMP_SHIFT 0
 
+#if defined(MT7620)
+#define	GDMA1_BASE 0x0600
+#else
 #define	GDMA1_BASE 0x0020
+#endif
 #define	GDMA2_BASE 0x0060
 #define	CDMA_BASE  0x0080
 

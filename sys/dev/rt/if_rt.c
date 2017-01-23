@@ -33,6 +33,9 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include "opt_platform.h"
+#include "opt_rt305x.h"
+
 #include "if_rtvar.h"
 #include "if_rtreg.h"
 
@@ -57,9 +60,6 @@ __FBSDID("$FreeBSD$");
 #include <machine/pmap.h>
 #include <sys/bus.h>
 #include <sys/rman.h>
-
-#include "opt_platform.h"
-#include "opt_rt305x.h"
 
 #ifdef FDT
 #include <dev/ofw/openfirm.h>
@@ -402,6 +402,12 @@ rt_attach(device_t dev)
 	  	device_printf(dev, "%cT%x Ethernet MAC (rev 0x%08x)\n",
 			sc->rt_chipid >= 0x7600 ? 'M' : 'R',
 	  		sc->rt_chipid, sc->mac_rev);
+		if (sc->rt_chipid == RT_CHIPID_MT7620) {
+			/* GDMA1 Frames Destination Port set to Port 0 CPU */
+			RT_WRITE(sc, GDMA1_BASE + GDMA_FWD_CFG,
+				RT_READ(sc, GDMA1_BASE + GDMA_FWD_CFG) 
+				    & ~(GDM_XFRC_P_MASK));
+		}
 		/* RT5350: No GDMA, PSE, CDMA, PPE */
 		RT_WRITE(sc, GE_PORT_BASE + 0x0C00, // UDPCS, TCPCS, IPCS=1
 			RT_READ(sc, GE_PORT_BASE + 0x0C00) | (0x7<<16));
