@@ -20,23 +20,33 @@
 			read-only;
 		};
 
-		devdata: partition@50000 {
+		partition@50000 {
 			label = "kernel";
 			reg = <0x00050000 0x00110000>;
 			read-only;
 		};
 
-		factory: partition@160000 {
+		partition@160000 {
 			label = "rootfs";
-			reg = <0x00160000 0x006a0000>;
+			reg = <0x00160000 0x00680000>;
 			read-only;
 		};
-
-		factory: partition@800000 {
+/*
+		partition@800000 {
 			label = "upgrade";
-			reg = <0x00050000 0x007b0000>;
+			reg = <0x00050000 0x00790000>;
+		};
+*/
+
+		factory: partition@7e0000 {
+			label = "NVRAM";
+			reg = <0x007e0000 0x00010000>;
 		};
 
+		partition@7f0000 {
+			label = "NVRAM_FACTORY";
+			reg = <0x007f0000 0x00010000>;
+		};
 	};
 
 	gpio-leds {
@@ -44,22 +54,27 @@
 
 		status {
 			label = "status";
-			gpios = <&gpio0 14 0>;
+			gpios = <&gpio0 5 0>;
 		};
 
 		led1 {
 			label = "led1";
-			gpios = <&gpio0 11 0>;
+			gpios = <&gpio0 12 1>;
 		};
 
 		led2 {
 			label = "led2";
-			gpios = <&gpio0 9 1>;
+			gpios = <&gpio0 6 1>;
 		};
 
 		led3 {
 			label = "led3";
-			gpios = <&gpio0 12 1>;
+			gpios = <&gpio0 8 1>;
+		};
+
+		led4 {
+			label = "usb";
+			gpios = <&gpio0 18 1>;
 		};
 
 	};
@@ -96,19 +111,20 @@
 		};
 	};
 };
-
+/*
 &ethernet {
 	mtd-mac-address = <&factory 0x28>;
 };
+*/
 
 &esw {
 	mediatek,portmap = <0x2f>;
 };
-
+/*
 &wmac {
 	ralink,mtd-eeprom = <&factory 0>;
 };
-
+*/
 &otg {
 	status = "okay";
 };
