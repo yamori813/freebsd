@@ -405,10 +405,11 @@ mtkswitch_vlan_setvgroup(struct mtkswitch_softc *sc, etherswitch_vlangroup_t *v)
 	MTKSWITCH_LOCK(sc);
 	/* First, see if we can accomodate the request at all */
 	val = MTKSWITCH_READ(sc, MTKSWITCH_POC2);
-	if ((val & POC2_UNTAG_VLAN) == 0 ||
-	    sc->sc_switchtype == MTK_SWITCH_RT3050) {
-		val &= VUB_MASK;
-		tmp = v->es_untagged_ports & v->es_member_ports;
+	if (sc->sc_switchtype == MTK_SWITCH_RT3050 ||
+	    (val & POC2_UNTAG_VLAN) == 0) {
+		/* check port base untag setting */
+		val &= v->es_member_ports;
+		tmp = v->es_untagged_ports;
 		if (val != tmp) {
 			/* Cannot accomodate request */
 			MTKSWITCH_UNLOCK(sc);
