@@ -268,6 +268,7 @@ cddl/contrib/opensolaris/uts/common/zmod/zutil.c			optional zfs compile-with "${
 # dtrace specific
 cddl/contrib/opensolaris/uts/common/dtrace/dtrace.c	optional dtrace compile-with "${DTRACE_C}" \
 							warning "kernel contains CDDL licensed DTRACE"
+cddl/contrib/opensolaris/uts/common/dtrace/dtrace_xoroshiro128_plus.c	optional dtrace compile-with "${DTRACE_C}"
 cddl/dev/dtmalloc/dtmalloc.c		optional dtmalloc        | dtraceall compile-with "${CDDL_C}"
 cddl/dev/profile/profile.c		optional dtrace_profile  | dtraceall compile-with "${CDDL_C}"
 cddl/dev/sdt/sdt.c			optional dtrace_sdt      | dtraceall compile-with "${CDDL_C}"
@@ -693,7 +694,6 @@ dev/agp/agp.c			optional agp pci
 dev/agp/agp_if.m		optional agp pci
 dev/aha/aha.c			optional aha
 dev/aha/aha_isa.c		optional aha isa
-dev/aha/aha_mca.c		optional aha mca
 dev/ahb/ahb.c			optional ahb eisa
 dev/ahci/ahci.c			optional ahci
 dev/ahci/ahciem.c		optional ahci
@@ -1189,8 +1189,6 @@ dev/bge/if_bge.c			optional bge
 dev/bhnd/bhnd.c				optional bhnd
 dev/bhnd/bhnd_erom.c			optional bhnd
 dev/bhnd/bhnd_erom_if.m			optional bhnd
-dev/bhnd/bhnd_nexus.c			optional bhnd siba_nexus | \
-						 bhnd bcma_nexus
 dev/bhnd/bhnd_subr.c			optional bhnd
 dev/bhnd/bhnd_bus_if.m			optional bhnd
 dev/bhnd/bhndb/bhnd_bhndb.c		optional bhndb bhnd
@@ -1205,7 +1203,6 @@ dev/bhnd/bhndb/bhndb_subr.c		optional bhndb bhnd
 dev/bhnd/bcma/bcma.c			optional bcma bhnd
 dev/bhnd/bcma/bcma_bhndb.c		optional bcma bhnd bhndb
 dev/bhnd/bcma/bcma_erom.c		optional bcma bhnd
-dev/bhnd/bcma/bcma_nexus.c		optional bcma_nexus bcma bhnd
 dev/bhnd/bcma/bcma_subr.c		optional bcma bhnd
 dev/bhnd/cores/chipc/bhnd_chipc_if.m	optional bhnd
 dev/bhnd/cores/chipc/bhnd_sprom_chipc.c	optional bhnd
@@ -1251,7 +1248,6 @@ dev/bhnd/nvram/bhnd_sprom.c		optional bhnd
 dev/bhnd/siba/siba.c			optional siba bhnd
 dev/bhnd/siba/siba_bhndb.c		optional siba bhnd bhndb
 dev/bhnd/siba/siba_erom.c		optional siba bhnd
-dev/bhnd/siba/siba_nexus.c		optional siba_nexus siba bhnd
 dev/bhnd/siba/siba_subr.c		optional siba bhnd
 #
 dev/bktr/bktr_audio.c		optional bktr pci
@@ -1268,7 +1264,6 @@ dev/bnxt/if_bnxt.c		optional bnxt iflib pci
 dev/buslogic/bt.c		optional bt
 dev/buslogic/bt_eisa.c		optional bt eisa
 dev/buslogic/bt_isa.c		optional bt isa
-dev/buslogic/bt_mca.c		optional bt mca
 dev/buslogic/bt_pci.c		optional bt pci
 dev/bwi/bwimac.c		optional bwi
 dev/bwi/bwiphy.c		optional bwi
@@ -1612,7 +1607,6 @@ dev/en/midway.c			optional en
 dev/ep/if_ep.c			optional ep
 dev/ep/if_ep_eisa.c		optional ep eisa
 dev/ep/if_ep_isa.c		optional ep isa
-dev/ep/if_ep_mca.c		optional ep mca
 dev/ep/if_ep_pccard.c		optional ep pccard
 dev/esp/esp_pci.c		optional esp pci
 dev/esp/ncr53c9x.c		optional esp
@@ -2179,7 +2173,6 @@ dev/malo/if_malo.c		optional malo
 dev/malo/if_malohal.c		optional malo
 dev/malo/if_malo_pci.c		optional malo pci
 dev/mc146818/mc146818.c		optional mc146818
-dev/mca/mca_bus.c		optional mca
 dev/md/md.c			optional md
 dev/mdio/mdio_if.m		optional miiproxy | mdio
 dev/mdio/mdio.c			optional miiproxy | mdio
