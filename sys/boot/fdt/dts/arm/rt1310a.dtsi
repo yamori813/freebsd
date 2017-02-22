@@ -104,7 +104,6 @@
 			interrupts = <8>;
 			interrupt-parent = <&PIC>;	
 			local-mac-address = [ 00 1a f1 01 1f 24 ];
-			status = "disabled";
 
 		};
 

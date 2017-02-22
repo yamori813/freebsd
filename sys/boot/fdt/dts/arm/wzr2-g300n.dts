@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2011 Jakub Klama <jceel@FreeBSD.org>
  * Copyright (c) 2015 Hiroki Mori
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,6 +60,10 @@
 		partition@4 {
 			reg = <0x003d0000 0x00010000>;
 			label = "config";
+		};
+		partition@5 {
+			reg = <0x00010000 0x003c0000>;
+			label = "upgrade";
 		};
 	};
 
