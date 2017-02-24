@@ -520,6 +520,8 @@ mtk_gpio_pic_map_fdt(struct mtk_gpio_softc *sc,
 	}
 
 	*irqp = irq;
+	if (modep != NULL)
+		*modep = GPIO_INTR_EDGE_BOTH;
 
 	return (0);
 }
@@ -537,6 +539,8 @@ mtk_gpio_pic_map_gpio(struct mtk_gpio_softc *sc,
 	}
 
 	*irqp = irq;
+	if (modep != NULL)
+		*modep = dag->gpio_intr_mode;
 
 	return (0);
 }
@@ -547,12 +551,7 @@ mtk_gpio_pic_map_intr(device_t dev, struct intr_map_data *data,
 {
 	int error;
 	u_int irq;
-//	struct intr_map_data_fdt *daf;
 	struct mtk_gpio_softc *sc;
-
-	if (data->type != INTR_MAP_DATA_FDT && 
-	    data->type != INTR_MAP_DATA_GPIO)
-		return (ENOTSUP);
 
 	sc = device_get_softc(dev);
 	switch (data->type) {
@@ -569,8 +568,10 @@ mtk_gpio_pic_map_intr(device_t dev, struct intr_map_data *data,
 		break;
 	}
 
-	if (error == 0)
-		*isrcp = PIC_INTR_ISRC(sc, irq);
+	if (error != 0)
+		return (ENOTSUP);
+
+	*isrcp = PIC_INTR_ISRC(sc, irq);
 	return (0);
 }
 
@@ -671,23 +672,30 @@ mtk_gpio_pic_setup_intr(device_t dev, struct intr_irqsrc *isrc,
 
 	switch (data->type) {
 	case INTR_MAP_DATA_FDT:
-		error = (mtk_gpio_pic_map_fdt(sc, 
-		    (struct intr_map_data_fdt *)data, &irq, &mode));
+		error = mtk_gpio_pic_map_fdt(sc, 
+		    (struct intr_map_data_fdt *)data, &irq, &mode);
 		break;
 	case INTR_MAP_DATA_GPIO:
-		error = (mtk_gpio_pic_map_gpio(sc, 
-		    (struct intr_map_data_gpio *)data, &irq, &mode));
+		error = mtk_gpio_pic_map_gpio(sc, 
+		    (struct intr_map_data_gpio *)data, &irq, &mode);
 		break;
 	default:
 		error = ENOTSUP;
 		break;
 	}
+
 	if (error != 0)
 		return (error);
-
+	
 	MTK_GPIO_LOCK(sc);
-	val = MTK_READ_4(sc, GPIO_PIORENA) | (1 << irq);
-	MTK_WRITE_4(sc, GPIO_PIORENA, val);
+	if (mode == GPIO_INTR_EDGE_BOTH || mode == GPIO_INTR_EDGE_RISING) {
+		val = MTK_READ_4(sc, GPIO_PIORENA) | (1u << irq);
+		MTK_WRITE_4(sc, GPIO_PIORENA, val);
+	}
+	if (mode == GPIO_INTR_EDGE_BOTH || mode == GPIO_INTR_EDGE_FALLING) {
+		val = MTK_READ_4(sc, GPIO_PIOFENA) | (1u << irq);
+		MTK_WRITE_4(sc, GPIO_PIOFENA, val);
+	}
 	MTK_GPIO_UNLOCK(sc);
 	return (0);
 }
