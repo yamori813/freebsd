@@ -19,11 +19,6 @@
 			gpios = <&gpio0 14 0>;
 		};
 
-		led1 {
-			label = "led1";
-			gpios = <&gpio0 11 0>;
-		};
-
 		led2 {
 			label = "led2";
 			gpios = <&gpio0 9 1>;
@@ -37,7 +32,7 @@
 	};
 	pps {
 		compatible = "pps-gpio";
-		gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+		gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
 		status = "okay";
 		assert-falling-edge;
 	};
