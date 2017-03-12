@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#include "opt_printf.h"
+
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
@@ -71,6 +73,15 @@ __FBSDID("$FreeBSD$");
 #include <machine/stdarg.h>	/* for xpt_print below */
 
 #include "opt_cam.h"
+
+/* Wild guess based on not wanting to grow the stack too much */
+#define XPT_PRINT_MAXLEN	512
+#ifdef PRINTF_BUFR_SIZE
+#define XPT_PRINT_LEN	PRINTF_BUFR_SIZE
+#else
+#define XPT_PRINT_LEN	128
+#endif
+_Static_assert(XPT_PRINT_LEN <= XPT_PRINT_MAXLEN, "XPT_PRINT_LEN is too large");
 
 /*
  * This is the maximum number of high powered commands (e.g. start unit)
@@ -423,6 +434,9 @@ xptdoioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *
 		if (inccb->ccb_h.func_code == XPT_SCSI_IO)
 			inccb->csio.bio = NULL;
 #endif
+
+		if (inccb->ccb_h.flags & CAM_UNLOCKED)
+			return (EINVAL);
 
 		bus = xpt_find_bus(inccb->ccb_h.path_id);
 		if (bus == NULL)
@@ -2710,36 +2724,25 @@ call_sim:
 	}
 	case XPT_GDEV_STATS:
 	{
-		struct cam_ed *dev;
+		struct ccb_getdevstats *cgds = &start_ccb->cgds;
+		struct cam_ed *dev = path->device;
+		struct cam_eb *bus = path->bus;
+		struct cam_et *tar = path->target;
+		struct cam_devq *devq = bus->sim->devq;
 
-		dev = path->device;
-		if ((dev->flags & CAM_DEV_UNCONFIGURED) != 0) {
-			start_ccb->ccb_h.status = CAM_DEV_NOT_THERE;
-		} else {
-			struct ccb_getdevstats *cgds;
-			struct cam_eb *bus;
-			struct cam_et *tar;
-			struct cam_devq *devq;
-
-			cgds = &start_ccb->cgds;
-			bus = path->bus;
-			tar = path->target;
-			devq = bus->sim->devq;
-			mtx_lock(&devq->send_mtx);
-			cgds->dev_openings = dev->ccbq.dev_openings;
-			cgds->dev_active = dev->ccbq.dev_active;
-			cgds->allocated = dev->ccbq.allocated;
-			cgds->queued = cam_ccbq_pending_ccb_count(&dev->ccbq);
-			cgds->held = cgds->allocated - cgds->dev_active -
-			    cgds->queued;
-			cgds->last_reset = tar->last_reset;
-			cgds->maxtags = dev->maxtags;
-			cgds->mintags = dev->mintags;
-			if (timevalcmp(&tar->last_reset, &bus->last_reset, <))
-				cgds->last_reset = bus->last_reset;
-			mtx_unlock(&devq->send_mtx);
-			cgds->ccb_h.status = CAM_REQ_CMP;
-		}
+		mtx_lock(&devq->send_mtx);
+		cgds->dev_openings = dev->ccbq.dev_openings;
+		cgds->dev_active = dev->ccbq.dev_active;
+		cgds->allocated = dev->ccbq.allocated;
+		cgds->queued = cam_ccbq_pending_ccb_count(&dev->ccbq);
+		cgds->held = cgds->allocated - cgds->dev_active - cgds->queued;
+		cgds->last_reset = tar->last_reset;
+		cgds->maxtags = dev->maxtags;
+		cgds->mintags = dev->mintags;
+		if (timevalcmp(&tar->last_reset, &bus->last_reset, <))
+			cgds->last_reset = bus->last_reset;
+		mtx_unlock(&devq->send_mtx);
+		cgds->ccb_h.status = CAM_REQ_CMP;
 		break;
 	}
 	case XPT_GDEVLIST:
