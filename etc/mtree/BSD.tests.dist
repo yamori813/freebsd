@@ -22,6 +22,8 @@
         ..
         pkill
         ..
+        pwait
+        ..
         sh
             builtins
             ..
@@ -610,6 +612,8 @@
         ..
         cut
         ..
+        diff
+        ..
         dirname
         ..
         file2c
@@ -619,6 +623,8 @@
         gzip
         ..
         ident
+        ..
+        indent
         ..
         join
         ..

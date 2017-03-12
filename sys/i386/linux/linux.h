@@ -225,7 +225,9 @@ struct l_statfs64 {
         uint64_t        f_ffree; 
         l_fsid_t        f_fsid;
         l_int           f_namelen;
-        l_int           f_spare[6];
+        l_int           f_frsize;
+        l_int           f_flags;
+        l_int           f_spare[4];
 };
 
 #define	LINUX_NSIG_WORDS	2
@@ -449,16 +451,6 @@ union l_semun {
 	l_ushort	*array;
 	struct l_seminfo	*__buf;
 	void		*__pad;
-};
-
-struct l_ipc_perm {
-	l_key_t		key;
-	l_uid16_t	uid;
-	l_gid16_t	gid;
-	l_uid16_t	cuid;
-	l_gid16_t	cgid;
-	l_ushort	mode;
-	l_ushort	seq;
 };
 
 /*

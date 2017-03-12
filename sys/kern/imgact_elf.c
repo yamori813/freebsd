@@ -89,7 +89,7 @@ static Elf_Brandinfo *__elfN(get_brandinfo)(struct image_params *imgp,
     const char *interp, int interp_name_len, int32_t *osrel);
 static int __elfN(load_file)(struct proc *p, const char *file, u_long *addr,
     u_long *entry, size_t pagesize);
-static int __elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
+static int __elfN(load_section)(struct image_params *imgp, vm_ooffset_t offset,
     caddr_t vmaddr, size_t memsz, size_t filsz, vm_prot_t prot,
     size_t pagesize);
 static int __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp);
@@ -309,13 +309,26 @@ __elfN(get_brandinfo)(struct image_params *imgp, const char *interp,
 			continue;
 		if (hdr->e_machine == bi->machine &&
 		    (hdr->e_ident[EI_OSABI] == bi->brand ||
-		    strncmp((const char *)&hdr->e_ident[OLD_EI_BRAND],
-		    bi->compat_3_brand, strlen(bi->compat_3_brand)) == 0)) {
+		    strcmp((const char *)&hdr->e_ident[OLD_EI_BRAND],
+		    bi->compat_3_brand) == 0)) {
 			/* Looks good, but give brand a chance to veto */
-			if (!bi->header_supported || bi->header_supported(imgp))
-				return (bi);
+			if (!bi->header_supported ||
+			    bi->header_supported(imgp)) {
+				/*
+				 * Again, prefer strictly matching
+				 * interpreter path.
+				 */
+				if (strlen(bi->interp_path) + 1 ==
+				    interp_name_len && strncmp(interp,
+				    bi->interp_path, interp_name_len) == 0)
+					return (bi);
+				if (bi_m == NULL)
+					bi_m = bi;
+			}
 		}
 	}
+	if (bi_m != NULL)
+		return (bi_m);
 
 	/* No known brand, see if the header is recognized by any brand */
 	for (i = 0; i < MAX_BRANDS; i++) {
@@ -397,15 +410,13 @@ __elfN(map_partial)(vm_map_t map, vm_object_t object, vm_ooffset_t offset,
 	/*
 	 * Create the page if it doesn't exist yet. Ignore errors.
 	 */
-	vm_map_lock(map);
-	vm_map_insert(map, NULL, 0, trunc_page(start), round_page(end),
-	    VM_PROT_ALL, VM_PROT_ALL, 0);
-	vm_map_unlock(map);
+	vm_map_fixed(map, NULL, 0, trunc_page(start), round_page(end) -
+	    trunc_page(start), VM_PROT_ALL, VM_PROT_ALL, MAP_CHECK_EXCL);
 
 	/*
 	 * Find the page from the underlying object.
 	 */
-	if (object) {
+	if (object != NULL) {
 		sf = vm_imgact_map_page(object, offset);
 		if (sf == NULL)
 			return (KERN_FAILURE);
@@ -413,27 +424,27 @@ __elfN(map_partial)(vm_map_t map, vm_object_t object, vm_ooffset_t offset,
 		error = copyout((caddr_t)sf_buf_kva(sf) + off, (caddr_t)start,
 		    end - start);
 		vm_imgact_unmap_page(sf);
-		if (error) {
+		if (error != 0)
 			return (KERN_FAILURE);
-		}
 	}
 
 	return (KERN_SUCCESS);
 }
 
 static int
-__elfN(map_insert)(vm_map_t map, vm_object_t object, vm_ooffset_t offset,
-    vm_offset_t start, vm_offset_t end, vm_prot_t prot, int cow)
+__elfN(map_insert)(struct image_params *imgp, vm_map_t map, vm_object_t object,
+    vm_ooffset_t offset, vm_offset_t start, vm_offset_t end, vm_prot_t prot,
+    int cow)
 {
 	struct sf_buf *sf;
 	vm_offset_t off;
 	vm_size_t sz;
-	int error, rv;
+	int error, locked, rv;
 
 	if (start != trunc_page(start)) {
 		rv = __elfN(map_partial)(map, object, offset, start,
 		    round_page(start), prot);
-		if (rv)
+		if (rv != KERN_SUCCESS)
 			return (rv);
 		offset += round_page(start) - start;
 		start = round_page(start);
@@ -441,56 +452,55 @@ __elfN(map_insert)(vm_map_t map, vm_object_t object, vm_ooffset_t offset,
 	if (end != round_page(end)) {
 		rv = __elfN(map_partial)(map, object, offset +
 		    trunc_page(end) - start, trunc_page(end), end, prot);
-		if (rv)
+		if (rv != KERN_SUCCESS)
 			return (rv);
 		end = trunc_page(end);
 	}
-	if (end > start) {
-		if (offset & PAGE_MASK) {
-			/*
-			 * The mapping is not page aligned. This means we have
-			 * to copy the data. Sigh.
-			 */
-			rv = vm_map_find(map, NULL, 0, &start, end - start, 0,
-			    VMFS_NO_SPACE, prot | VM_PROT_WRITE, VM_PROT_ALL,
-			    0);
-			if (rv != KERN_SUCCESS)
-				return (rv);
-			if (object == NULL)
-				return (KERN_SUCCESS);
-			for (; start < end; start += sz) {
-				sf = vm_imgact_map_page(object, offset);
-				if (sf == NULL)
-					return (KERN_FAILURE);
-				off = offset - trunc_page(offset);
-				sz = end - start;
-				if (sz > PAGE_SIZE - off)
-					sz = PAGE_SIZE - off;
-				error = copyout((caddr_t)sf_buf_kva(sf) + off,
-				    (caddr_t)start, sz);
-				vm_imgact_unmap_page(sf);
-				if (error != 0)
-					return (KERN_FAILURE);
-				offset += sz;
-			}
-			rv = KERN_SUCCESS;
-		} else {
-			vm_object_reference(object);
-			vm_map_lock(map);
-			rv = vm_map_insert(map, object, offset, start, end,
-			    prot, VM_PROT_ALL, cow);
-			vm_map_unlock(map);
-			if (rv != KERN_SUCCESS)
-				vm_object_deallocate(object);
-		}
-		return (rv);
-	} else {
+	if (start >= end)
 		return (KERN_SUCCESS);
+	if ((offset & PAGE_MASK) != 0) {
+		/*
+		 * The mapping is not page aligned.  This means that we have
+		 * to copy the data.
+		 */
+		rv = vm_map_fixed(map, NULL, 0, start, end - start,
+		    prot | VM_PROT_WRITE, VM_PROT_ALL, MAP_CHECK_EXCL);
+		if (rv != KERN_SUCCESS)
+			return (rv);
+		if (object == NULL)
+			return (KERN_SUCCESS);
+		for (; start < end; start += sz) {
+			sf = vm_imgact_map_page(object, offset);
+			if (sf == NULL)
+				return (KERN_FAILURE);
+			off = offset - trunc_page(offset);
+			sz = end - start;
+			if (sz > PAGE_SIZE - off)
+				sz = PAGE_SIZE - off;
+			error = copyout((caddr_t)sf_buf_kva(sf) + off,
+			    (caddr_t)start, sz);
+			vm_imgact_unmap_page(sf);
+			if (error != 0)
+				return (KERN_FAILURE);
+			offset += sz;
+		}
+	} else {
+		vm_object_reference(object);
+		rv = vm_map_fixed(map, object, offset, start, end - start,
+		    prot, VM_PROT_ALL, cow | MAP_CHECK_EXCL);
+		if (rv != KERN_SUCCESS) {
+			locked = VOP_ISLOCKED(imgp->vp);
+			VOP_UNLOCK(imgp->vp, 0);
+			vm_object_deallocate(object);
+			vn_lock(imgp->vp, locked | LK_RETRY);
+			return (rv);
+		}
 	}
+	return (KERN_SUCCESS);
 }
 
 static int
-__elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
+__elfN(load_section)(struct image_params *imgp, vm_ooffset_t offset,
     caddr_t vmaddr, size_t memsz, size_t filsz, vm_prot_t prot,
     size_t pagesize)
 {
@@ -501,7 +511,7 @@ __elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
 	vm_offset_t map_addr;
 	int error, rv, cow;
 	size_t copy_len;
-	vm_offset_t file_addr;
+	vm_ooffset_t file_addr;
 
 	/*
 	 * It's necessary to fail if the filsz + offset taken from the
@@ -526,7 +536,7 @@ __elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
 	 * We have two choices.  We can either clear the data in the last page
 	 * of an oversized mapping, or we can start the anon mapping a page
 	 * early and copy the initialized data into that first page.  We
-	 * choose the second..
+	 * choose the second.
 	 */
 	if (memsz > filsz)
 		map_len = trunc_page_ps(offset + filsz, pagesize) - file_addr;
@@ -538,7 +548,7 @@ __elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
 		cow = MAP_COPY_ON_WRITE | MAP_PREFAULT |
 		    (prot & VM_PROT_WRITE ? 0 : MAP_DISABLE_COREDUMP);
 
-		rv = __elfN(map_insert)(map,
+		rv = __elfN(map_insert)(imgp, map,
 				      object,
 				      file_addr,	/* file offset */
 				      map_addr,		/* virtual start */
@@ -568,8 +578,8 @@ __elfN(load_section)(struct image_params *imgp, vm_offset_t offset,
 
 	/* This had damn well better be true! */
 	if (map_len != 0) {
-		rv = __elfN(map_insert)(map, NULL, 0, map_addr, map_addr +
-		    map_len, VM_PROT_ALL, 0);
+		rv = __elfN(map_insert)(imgp, map, NULL, 0, map_addr,
+		    map_addr + map_len, VM_PROT_ALL, 0);
 		if (rv != KERN_SUCCESS) {
 			return (EINVAL);
 		}
