@@ -37,7 +37,7 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__switch8)
 	ldrsblo r0, [lr, r0]            // get indexed byte out of table
 	ldrsbhs r0, [lr, ip]            // if out of range, use last entry in table
 	add     ip, lr, r0, lsl #1      // compute label = lr + element*2
-	mov     pc,ip                      // jump to computed label
+	bx      ip                      // jump to computed label
 END_COMPILERRT_FUNCTION(__switch8)
 
 NO_EXEC_STACK_DIRECTIVE

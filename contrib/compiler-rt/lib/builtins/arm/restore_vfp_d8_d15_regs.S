@@ -28,7 +28,7 @@
 	.p2align 2
 DEFINE_COMPILERRT_PRIVATE_FUNCTION(__restore_vfp_d8_d15_regs)
 	vldmia	sp!, {d8-d15}           // pop registers d8-d15 off stack
-	mov     pc,lr                      // return to prolog
+	bx      lr                      // return to prolog
 END_COMPILERRT_FUNCTION(__restore_vfp_d8_d15_regs)
 
 NO_EXEC_STACK_DIRECTIVE

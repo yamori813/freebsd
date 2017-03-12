@@ -39,7 +39,7 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__switch32)
 	ldrlo   r0, [r0, #3]             // load 32-bit element if r0 is in range
 	ldrhs   r0, [ip, #3]             // load 32-bit element if r0 out of range
 	add     ip, lr, r0               // compute label = lr + element
-	mov     pc,ip                       // jump to computed label
+	bx      ip                       // jump to computed label
 END_COMPILERRT_FUNCTION(__switch32)
 
 NO_EXEC_STACK_DIRECTIVE

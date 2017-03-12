@@ -29,7 +29,7 @@
         cmp r3, #0 ; \
         bne LOCAL_LABEL(tryatomic_ ## op) ; \
         dmb ; \
-        movpc,lr
+        bx lr
 
 #define SYNC_OP_8(op) \
         .p2align 2 ; \

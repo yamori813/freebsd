@@ -34,7 +34,7 @@ DEFINE_COMPILERRT_FUNCTION(__umodsi3)
 	beq     LOCAL_LABEL(divby0)
 	udiv	r2, r0, r1
 	mls 	r0, r2, r1, r0
-	mov  	pc,lr
+	bx  	lr
 #else
 	cmp	r1, #1
 	bcc	LOCAL_LABEL(divby0)
@@ -72,7 +72,7 @@ DEFINE_COMPILERRT_FUNCTION(__umodsi3)
 	adr	ip, LOCAL_LABEL(div0block)
 #    endif
 	sub	ip, ip, r3, lsl #3
-	mov	pc,ip
+	bx	ip
 #  else
 #    if __ARM_ARCH_ISA_THUMB == 2
 #    error THUMB mode requires CLZ or UDIV

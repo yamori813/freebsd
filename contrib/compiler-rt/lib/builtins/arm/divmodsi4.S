@@ -44,10 +44,10 @@ DEFINE_COMPILERRT_FUNCTION(__divmodsi4)
 	sdiv	r0, r3, r1
 	mls 	r1, r0, r1, r3
 	str 	r1, [r2]
-	mov  	pc,lr
+	bx  	lr
 LOCAL_LABEL(divzero):
 	mov     r0, #0
-	mov     pc,lr
+	bx      lr
 #else
     ESTABLISH_FRAME
 //  Set aside the sign of the quotient and modulus, and the address for the
