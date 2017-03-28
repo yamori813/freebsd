@@ -94,15 +94,6 @@ __FBSDID("$FreeBSD$");
 
 #define _PATH_PR "/usr/bin/pr"
 
-#ifdef ST_MTIM_NSEC
-# define TIMESPEC_NS(timespec) ((timespec).ST_MTIM_NSEC)
-#else
-# define TIMESPEC_NS(timespec) 0
-#endif
-
-#define MINIMUM(a, b)	(((a) < (b)) ? (a) : (b))
-#define MAXIMUM(a, b)	(((a) > (b)) ? (a) : (b))
-
 /*
  * diff - compare two files.
  */
@@ -194,13 +185,14 @@ struct context_vec {
 };
 
 #define	diff_output	printf
+static FILE	*opentemp(const char *);
 static void	 output(char *, FILE *, char *, FILE *, int);
 static void	 check(FILE *, FILE *, int);
 static void	 range(int, int, const char *);
 static void	 uni_range(int, int);
 static void	 dump_context_vec(FILE *, FILE *, int);
 static void	 dump_unified_vec(FILE *, FILE *, int);
-static void	 prepare(int, FILE *, off_t, int);
+static void	 prepare(int, FILE *, size_t, int);
 static void	 prune(void);
 static void	 equiv(struct line *, int, struct line *, int, int *);
 static void	 unravel(int);
@@ -315,6 +307,8 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 	struct kevent *e;
 	cap_rights_t rights_ro;
 
+	e = NULL;
+	kq = -1;
 	f1 = f2 = NULL;
 	rval = D_SAME;
 	anychange = 0;
@@ -333,7 +327,14 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 	if (flags & D_EMPTY1)
 		f1 = fopen(_PATH_DEVNULL, "r");
 	else {
-		if (strcmp(file1, "-") == 0)
+		if (!S_ISREG(stb1.st_mode)) {
+			if ((f1 = opentemp(file1)) == NULL ||
+			    fstat(fileno(f1), &stb1) < 0) {
+				warn("%s", file1);
+				status |= 2;
+				goto closem;
+			}
+		} else if (strcmp(file1, "-") == 0)
 			f1 = stdin;
 		else
 			f1 = fopen(file1, "r");
@@ -347,7 +348,14 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 	if (flags & D_EMPTY2)
 		f2 = fopen(_PATH_DEVNULL, "r");
 	else {
-		if (strcmp(file2, "-") == 0)
+		if (!S_ISREG(stb2.st_mode)) {
+			if ((f2 = opentemp(file2)) == NULL ||
+			    fstat(fileno(f2), &stb2) < 0) {
+				warn("%s", file2);
+				status |= 2;
+				goto closem;
+			}
+		} else if (strcmp(file2, "-") == 0)
 			f2 = stdin;
 		else
 			f2 = fopen(file2, "r");
@@ -407,9 +415,11 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 
 	if (capsicum) {
 		cap_rights_init(&rights_ro, CAP_READ, CAP_FSTAT, CAP_SEEK);
-		if (cap_rights_limit(fileno(f1), &rights_ro) < 0)
+		if (cap_rights_limit(fileno(f1), &rights_ro) < 0
+		    && errno != ENOSYS)
 			err(2, "unable to limit rights on: %s", file1);
-		if (cap_rights_limit(fileno(f2), &rights_ro) < 0)
+		if (cap_rights_limit(fileno(f2), &rights_ro) < 0 &&
+		    errno != ENOSYS)
 			err(2, "unable to limit rights on: %s", file2);
 		if (fileno(f1) == STDIN_FILENO || fileno(f2) == STDIN_FILENO) {
 			/* stding has already been limited */
@@ -421,6 +431,7 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 				err(2, "unable to limit stdio");
 
 		caph_cache_catpages();
+		caph_cache_tzdata();
 		if (cap_enter() < 0 && errno != ENOSYS)
 			err(2, "unable to enter capability mode");
 	}
@@ -474,7 +485,7 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 	ixnew = xreallocarray(ixnew, len[1] + 2, sizeof(*ixnew));
 	check(f1, f2, flags);
 	output(file1, f1, file2, f2, flags);
-	if (ostdout != -1) {
+	if (ostdout != -1 && e != NULL) {
 		/* close the pipe to pr and restore stdout */
 		int wstatus;
 
@@ -537,6 +548,37 @@ files_differ(FILE *f1, FILE *f2, int flags)
 	}
 }
 
+static FILE *
+opentemp(const char *f)
+{
+	char buf[BUFSIZ], tempfile[PATH_MAX];
+	ssize_t nread;
+	int ifd, ofd;
+
+	if (strcmp(f, "-") == 0)
+		ifd = STDIN_FILENO;
+	else if ((ifd = open(f, O_RDONLY, 0644)) < 0)
+		return (NULL);
+
+	(void)strlcpy(tempfile, _PATH_TMP "/diff.XXXXXXXX", sizeof(tempfile));
+
+	if ((ofd = mkstemp(tempfile)) < 0) {
+		close(ifd);
+		return (NULL);
+	}
+	unlink(tempfile);
+	while ((nread = read(ifd, buf, BUFSIZ)) > 0) {
+		if (write(ofd, buf, nread) != nread) {
+			close(ifd);
+			close(ofd);
+			return (NULL);
+		}
+	}
+	close(ifd);
+	lseek(ofd, (off_t)0, SEEK_SET);
+	return (fdopen(ofd, "r"));
+}
+
 char *
 splice(char *dir, char *path)
 {
@@ -555,7 +597,7 @@ splice(char *dir, char *path)
 }
 
 static void
-prepare(int i, FILE *fd, off_t filesize, int flags)
+prepare(int i, FILE *fd, size_t filesize, int flags)
 {
 	struct line *p;
 	int h;
@@ -563,7 +605,7 @@ prepare(int i, FILE *fd, off_t filesize, int flags)
 
 	rewind(fd);
 
-	sz = ((unsigned long)filesize <= SIZE_MAX ? filesize : SIZE_MAX) / 25;
+	sz = MIN(filesize, SIZE_MAX) / 25;
 	if (sz < 100)
 		sz = 100;
 
@@ -658,7 +700,7 @@ stone(int *a, int n, int *b, int *c, int flags)
 		bound = UINT_MAX;
 	else {
 		sq = isqrt(n);
-		bound = MAXIMUM(256, sq);
+		bound = MAX(256, sq);
 	}
 
 	k = 0;
@@ -1395,10 +1437,10 @@ dump_context_vec(FILE *f1, FILE *f2, int flags)
 		return;
 
 	b = d = 0;		/* gcc */
-	lowa = MAXIMUM(1, cvp->a - diff_context);
-	upb = MINIMUM(len[0], context_vec_ptr->b + diff_context);
-	lowc = MAXIMUM(1, cvp->c - diff_context);
-	upd = MINIMUM(len[1], context_vec_ptr->d + diff_context);
+	lowa = MAX(1, cvp->a - diff_context);
+	upb = MIN(len[0], context_vec_ptr->b + diff_context);
+	lowc = MAX(1, cvp->c - diff_context);
+	upd = MIN(len[1], context_vec_ptr->d + diff_context);
 
 	diff_output("***************");
 	if ((flags & D_PROTOTYPE)) {
@@ -1498,10 +1540,10 @@ dump_unified_vec(FILE *f1, FILE *f2, int flags)
 		return;
 
 	b = d = 0;		/* gcc */
-	lowa = MAXIMUM(1, cvp->a - diff_context);
-	upb = MINIMUM(len[0], context_vec_ptr->b + diff_context);
-	lowc = MAXIMUM(1, cvp->c - diff_context);
-	upd = MINIMUM(len[1], context_vec_ptr->d + diff_context);
+	lowa = MAX(1, cvp->a - diff_context);
+	upb = MIN(len[0], context_vec_ptr->b + diff_context);
+	lowc = MAX(1, cvp->c - diff_context);
+	upd = MIN(len[1], context_vec_ptr->d + diff_context);
 
 	diff_output("@@ -");
 	uni_range(lowa, upb);
@@ -1566,20 +1608,16 @@ print_header(const char *file1, const char *file2)
 	char buf2[256];
 	char end1[10];
 	char end2[10];
-	struct tm *tm_ptr1, *tm_ptr2;
-	int nsec1 = TIMESPEC_NS (stb1.st_mtime);
-	int nsec2 = TIMESPEC_NS (stb2.st_mtime);
+	struct tm tm1, tm2, *tm_ptr1, *tm_ptr2;
+	int nsec1 = stb1.st_mtim.tv_nsec;
+	int nsec2 = stb2.st_mtim.tv_nsec;
 
-#ifdef ST_MTIM_NSEC
-		time_format = "%Y-%m-%d %H:%M:%S.%N";
-#else
-		time_format = "%Y-%m-%d %H:%M:%S";
-#endif
+	time_format = "%Y-%m-%d %H:%M:%S";
 
 	if (cflag)
 		time_format = "%c";
-	tm_ptr1 = localtime(&stb1.st_mtime);
-	tm_ptr2 = localtime(&stb2.st_mtime);
+	tm_ptr1 = localtime_r(&stb1.st_mtime, &tm1);
+	tm_ptr2 = localtime_r(&stb2.st_mtime, &tm2);
 	strftime(buf1, 256, time_format, tm_ptr1);
 	strftime(buf2, 256, time_format, tm_ptr2);
 	if (!cflag) {
