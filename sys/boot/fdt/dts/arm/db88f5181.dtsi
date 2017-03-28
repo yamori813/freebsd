@@ -31,11 +31,9 @@
  * $FreeBSD$
  */
 
-/dts-v1/;
-
 / {
-	model = "mrvl,DB-88F5182";
-	compatible = "DB-88F5182-BP", "DB-88F5182-BP-A";
+	model = "mrvl,DB-88F5181";
+	compatible = "DB-88F5181-BP", "DB-88F5181-BP-A";
 	#address-cells = <1>;
 	#size-cells = <1>;
 
@@ -69,24 +67,26 @@
 		reg = <0x0 0x02000000>;		// 32M at 0x0
 	};
 
+        localbus@0 {
+                #address-cells = <2>;
+                #size-cells = <1>;
+                compatible = "mrvl,lbc";
+                bank-count = <1>;
+
+                /* This reflects CPU decode windows setup. */
+                ranges = <0x0 0x1e 0xff800000 0x00800000>;
+
+        };
+#if 0
 	localbus@f1000000 {
 		#address-cells = <2>;
 		#size-cells = <1>;
 		compatible = "mrvl,lbc";
 
 		/* This reflects CPU decode windows setup. */
-		ranges = <0x0 0xf8000000 0x08000000>;
-
-		nor@0,0 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "cfi-flash";
-			reg = <0x0 0x00800000>;
-			bank-width = <2>;
-			device-width = <1>;
-		};
-
+		ranges = <0x0 0x2f 0xff800000 0x00010000>;
 	};
+#endif
 
 	soc88f5182@f1000000 {
 		#address-cells = <1>;
