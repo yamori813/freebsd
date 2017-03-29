@@ -935,6 +935,7 @@ VNET_DEBUG		opt_global.h
 CFI_SUPPORT_STRATAFLASH	opt_cfi.h
 CFI_ARMEDANDDANGEROUS	opt_cfi.h
 CFI_HARDWAREBYTESWAP	opt_cfi.h
+CFI_USE_MXFLASH		opt_cfi.h
 
 # Sound options
 SND_DEBUG		opt_snd.h
