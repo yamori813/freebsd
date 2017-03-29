@@ -57,8 +57,6 @@ static int
 cfi_nexus_attach(device_t dev)
 {
 	int error;
-	struct cfi_softc *sc = device_get_softc(dev);
-	sc->sc_width = 2;       /* NB: don't probe interface width */
 
 	error = cfi_probe(dev);
 	if (error != 0)
