@@ -26,7 +26,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * Marvell DB-88F5182 Device Tree Source.
+ * Marvell DB-88F5181 Device Tree Source.
  *
  * $FreeBSD$
  */
@@ -68,25 +68,13 @@
 	};
 
         localbus@0 {
-                #address-cells = <2>;
+                #address-cells = <1>;
                 #size-cells = <1>;
                 compatible = "mrvl,lbc";
                 bank-count = <1>;
 
-                /* This reflects CPU decode windows setup. */
-                ranges = <0x0 0x1e 0xff800000 0x00800000>;
-
+                ranges = <0x0 0xff800000 0x00780000>;
         };
-#if 0
-	localbus@f1000000 {
-		#address-cells = <2>;
-		#size-cells = <1>;
-		compatible = "mrvl,lbc";
-
-		/* This reflects CPU decode windows setup. */
-		ranges = <0x0 0x2f 0xff800000 0x00010000>;
-	};
-#endif
 
 	soc88f5182@f1000000 {
 		#address-cells = <1>;
@@ -202,5 +190,13 @@
 			interrupts = <29>;
 			interrupt-parent = <&PIC>;
 		};
+	};
+
+	flash@ff800000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0xff800000 0x00800000>;
+		bus-frequency = <0>;
 	};
 };
