@@ -112,6 +112,9 @@ struct mge_softc {
 	int		phy_attached;
 	int		switch_attached;
 	struct mge_softc *phy_sc;
+
+	device_t	mge_miiproxy;
+	int		mge_rid;
 };
 
 

@@ -71,6 +71,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/mii.h>
 #include <dev/mii/miivar.h>
 
+#include <dev/etherswitch/miiproxy.h>
+
 #include <dev/fdt/fdt_common.h>
 #include <dev/ofw/ofw_bus.h>
 #include <dev/ofw/ofw_bus_subr.h>
@@ -165,25 +167,38 @@ static device_method_t mge_methods[] = {
 	DEVMETHOD(miibus_readreg,	mge_miibus_readreg),
 	DEVMETHOD(miibus_writereg,	mge_miibus_writereg),
 	/* MDIO interface */
+/*
 	DEVMETHOD(mdio_readreg,		mge_mdio_readreg),
 	DEVMETHOD(mdio_writereg,	mge_mdio_writereg),
+*/
+	/* bus interface */
+	DEVMETHOD(bus_add_child,	device_add_child_ordered),
+//	DEVMETHOD(bus_hinted_child,	fv_hinted_child),
+
 	{ 0, 0 }
 };
 
-DEFINE_CLASS_0(mge, mge_driver, mge_methods, sizeof(struct mge_softc));
+//DEFINE_CLASS_0(mge, mge_driver, mge_methods, sizeof(struct mge_softc));
+static driver_t mge_driver = {
+	"mge",
+	mge_methods,
+	sizeof(struct mge_softc)
+};
+
 
 static devclass_t mge_devclass;
 static int switch_attached = 0;
 
 DRIVER_MODULE(mge, simplebus, mge_driver, mge_devclass, 0, 0);
-DRIVER_MODULE(miibus, mge, miibus_driver, miibus_devclass, 0, 0);
-DRIVER_MODULE(mdio, mge, mdio_driver, mdio_devclass, 0, 0);
+//DRIVER_MODULE(miibus, mge, miibus_driver, miibus_devclass, 0, 0);
+//DRIVER_MODULE(mdio, mge, mdio_driver, mdio_devclass, 0, 0);
 MODULE_DEPEND(mge, ether, 1, 1, 1);
 MODULE_DEPEND(mge, miibus, 1, 1, 1);
 MODULE_DEPEND(mge, mdio, 1, 1, 1);
 
 static struct resource_spec res_spec[] = {
-	{ SYS_RES_MEMORY, 0, RF_ACTIVE },
+//	{ SYS_RES_MEMORY, 0, RF_ACTIVE },
+	{ SYS_RES_MEMORY, 0, RF_ACTIVE | RF_SHAREABLE },
 	{ SYS_RES_IRQ, 0, RF_ACTIVE | RF_SHAREABLE },
 	{ SYS_RES_IRQ, 1, RF_ACTIVE | RF_SHAREABLE },
 	{ SYS_RES_IRQ, 2, RF_ACTIVE | RF_SHAREABLE },
@@ -855,6 +870,8 @@ mge_attach(device_t dev)
 		mge_detach(dev);
 		return (ENOMEM);
 	}
+
+	sc->mge_miiproxy = mii_attach_proxy(sc->dev);
 
 	if_initname(ifp, device_get_name(dev), device_get_unit(dev));
 	ifp->if_softc = sc;
@@ -2155,7 +2172,6 @@ mge_mdio_writereg(device_t dev, int phy, int reg, int value)
 	return (0);
 }
 
-
 static int
 mge_mdio_readreg(device_t dev, int phy, int reg)
 {
@@ -2165,3 +2181,71 @@ mge_mdio_readreg(device_t dev, int phy, int reg)
 
 	return (ret);
 }
+
+static int
+mgemdio_probe(device_t dev)
+{
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	if (!ofw_bus_is_compatible(dev, "mrvl,mdio"))
+		return (ENXIO);
+
+	device_set_desc(dev, "Marvell Gigabit Ethernet interface, MDIO controller");
+	return(0);
+}
+
+static int
+mgemdio_attach(device_t dev)
+{
+	struct mge_softc	*sc;
+	int	error;
+
+	sc = device_get_softc(dev);
+	sc->dev = dev;
+	sc->mge_rid = 0;
+	sc->res[0] = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
+	    &sc->mge_rid, RF_ACTIVE | RF_SHAREABLE);
+	if (sc->res[0] == NULL) {
+		device_printf(dev, "couldn't map memory\n");
+		error = ENXIO;
+		goto fail;
+	}
+
+        bus_generic_probe(dev);
+	bus_enumerate_hinted_children(dev);
+	error = bus_generic_attach(dev);
+fail:
+	return(error);
+}
+
+static int
+mgemdio_detach(device_t dev)
+{
+	return(0);
+}
+
+/*
+ * Declare an additional, separate driver for accessing the MDIO bus.
+ */
+static device_method_t mgemdio_methods[] = {
+	/* Device interface */
+	DEVMETHOD(device_probe,		mgemdio_probe),
+	DEVMETHOD(device_attach,	mgemdio_attach),
+	DEVMETHOD(device_detach,	mgemdio_detach),
+
+	/* bus interface */
+	DEVMETHOD(bus_add_child,	device_add_child_ordered),
+        
+	/* MDIO access */
+	DEVMETHOD(mdio_readreg,		mge_mdio_readreg),
+	DEVMETHOD(mdio_writereg,	mge_mdio_writereg),
+};
+
+DEFINE_CLASS_0(mgemdio, mgemdio_driver, mgemdio_methods,
+    sizeof(struct mge_softc));
+static devclass_t mgemdio_devclass;
+
+DRIVER_MODULE(mgemdio, simplebus, mgemdio_driver, mgemdio_devclass, 0, 0);
+DRIVER_MODULE(mdio, mgemdio, mdio_driver, mdio_devclass, 0, 0);
+DRIVER_MODULE(miiproxy, mge, miiproxy_driver, miiproxy_devclass, 0, 0);
