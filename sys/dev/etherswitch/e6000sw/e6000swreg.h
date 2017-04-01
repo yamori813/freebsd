@@ -83,6 +83,8 @@ struct atu_opt {
 #define SWITCH_GLOBAL_CONTROL		4
 #define SWITCH_GLOBAL_CONTROL2		28
 
+#define	PPU_ENABLE			(1 << 14)
+
 #define MONITOR_CONTROL			26
 
 /* ATU operation */

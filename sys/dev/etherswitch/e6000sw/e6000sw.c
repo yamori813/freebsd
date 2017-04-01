@@ -96,6 +96,7 @@ typedef struct e6000sw_softc {
 	int			sw_addr;
 	int			num_ports;
 	boolean_t		multi_chip;
+	int			sw_model;
 
 	int			vid[E6000SW_NUM_VGROUPS];
 	int			members[E6000SW_NUM_VGROUPS];
@@ -164,6 +165,9 @@ static device_method_t e6000sw_methods[] = {
 	/* mii interface */
 	DEVMETHOD(miibus_readreg,		e6000sw_readphy),
 	DEVMETHOD(miibus_writereg,		e6000sw_writephy),
+
+	DEVMETHOD(mdio_readreg,			e6000sw_readphy),
+	DEVMETHOD(mdio_writereg,		e6000sw_writephy),
 
 	/* etherswitch interface */
 	DEVMETHOD(etherswitch_getinfo,		e6000sw_getinfo),
@@ -252,6 +256,9 @@ e6000sw_probe(device_t dev)
 	id = e6000sw_readreg(sc, REG_PORT(0), SWITCH_ID);
 
 	switch (id & 0xfff0) {
+	case 0x1060:
+		description = "Marvell 88E6131";
+		break;
 	case 0x3520:
 		description = "Marvell 88E6352";
 		break;
@@ -267,6 +274,8 @@ e6000sw_probe(device_t dev)
 		device_printf(dev, "Unrecognized device, id 0x%x.\n", id);
 		return (ENXIO);
 	}
+
+	sc->sw_model = id >> 4;
 
 	device_set_desc(dev, description);
 
@@ -421,6 +430,7 @@ e6000sw_attach(device_t dev)
 	E6000SW_UNLOCK(sc);
 
 	bus_generic_probe(dev);
+	bus_enumerate_hinted_children(dev);
 	bus_generic_attach(dev);
 
 	kproc_create(e6000sw_tick, sc, &e6000sw_kproc, 0, 0,
@@ -443,6 +453,28 @@ e6000sw_poll_done(e6000sw_softc_t *sc)
 		continue;
 }
 
+
+static int
+e6000sw_readphy_e6131(device_t dev, int phy, int reg)
+{
+	e6000sw_softc_t *sc;
+	uint32_t val;
+
+	sc = device_get_softc(dev);
+	val = 0;
+
+	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
+		device_printf(dev, "Wrong register address.\n");
+		return (EINVAL);
+	}
+
+	E6000SW_LOCK_ASSERT(sc, SA_XLOCKED);
+
+	val = MDIO_READREG(device_get_parent(dev), phy, reg);
+
+	return (val);
+}
+
 /*
  * PHY registers are paged. Put page index in reg 22 (accessible from every
  * page), then access specific register.
@@ -455,6 +487,9 @@ e6000sw_readphy(device_t dev, int phy, int reg)
 
 	sc = device_get_softc(dev);
 	val = 0;
+
+	if (sc->sw_model == 0x106)
+		return e6000sw_readphy_e6131(dev, phy, reg);
 
 	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
 		device_printf(dev, "Wrong register address.\n");
@@ -478,6 +513,27 @@ e6000sw_readphy(device_t dev, int phy, int reg)
 }
 
 static int
+e6000sw_writephy_e6131(device_t dev, int phy, int reg, int data)
+{
+	e6000sw_softc_t *sc;
+	uint32_t val;
+
+	sc = device_get_softc(dev);
+	val = 0;
+
+	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
+		device_printf(dev, "Wrong register address.\n");
+		return (EINVAL);
+	}
+
+	E6000SW_LOCK_ASSERT(sc, SA_XLOCKED);
+
+	MDIO_WRITEREG(device_get_parent(dev), phy, reg, data);
+
+	return (0);
+}
+
+static int
 e6000sw_writephy(device_t dev, int phy, int reg, int data)
 {
 	e6000sw_softc_t *sc;
@@ -485,6 +541,9 @@ e6000sw_writephy(device_t dev, int phy, int reg, int data)
 
 	sc = device_get_softc(dev);
 	val = 0;
+
+	if (sc->sw_model == 0x106)
+		return e6000sw_writephy_e6131(dev, phy, reg, data);
 
 	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
 		device_printf(dev, "Wrong register address.\n");
@@ -684,7 +743,7 @@ e6000sw_readphy_wrapper(device_t dev, int phy, int reg)
 	sc = device_get_softc(dev);
 	E6000SW_LOCK_ASSERT(sc, SA_UNLOCKED);
 
-	E6000SW_LOCK(sc);
+	E6000SW_LOCK(sc);	
 	ret = e6000sw_readphy(dev, phy, reg);
 	E6000SW_UNLOCK(sc);
 
@@ -1014,7 +1073,7 @@ e6000sw_tick (void *arg)
 static void
 e6000sw_setup(device_t dev, e6000sw_softc_t *sc)
 {
-	uint16_t atu_ctrl, atu_age;
+	uint16_t grb_ctrl, atu_ctrl, atu_age;
 
 	/* Set aging time */
 	e6000sw_writereg(sc, REG_GLOBAL, ATU_CONTROL,
@@ -1024,6 +1083,11 @@ e6000sw_setup(device_t dev, e6000sw_softc_t *sc)
 	/* Send all with specific mac address to cpu port */
 	e6000sw_writereg(sc, REG_GLOBAL2, MGMT_EN_2x, MGMT_EN_ALL);
 	e6000sw_writereg(sc, REG_GLOBAL2, MGMT_EN_0x, MGMT_EN_ALL);
+
+	/* Disable Phy polling unit */
+	grb_ctrl = e6000sw_readreg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL);
+	grb_ctrl &= ~PPU_ENABLE;
+	e6000sw_writereg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL, grb_ctrl);
 
 	/* Disable Remote Management */
 	e6000sw_writereg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL2, 0);
