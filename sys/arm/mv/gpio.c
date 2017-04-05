@@ -151,7 +151,8 @@ mv_gpio_attach(device_t dev)
 	/* Get chip id and revision */
 	soc_id(&dev_id, &rev_id);
 
-	if (dev_id == MV_DEV_88F5182 ||
+	if (dev_id == MV_DEV_88F5181 ||
+	    dev_id == MV_DEV_88F5182 ||
 	    dev_id == MV_DEV_88F5281 ||
 	    dev_id == MV_DEV_MV78100 ||
 	    dev_id == MV_DEV_MV78100_Z0 ) {
