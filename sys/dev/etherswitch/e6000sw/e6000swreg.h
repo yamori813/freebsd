@@ -31,6 +31,12 @@
 #ifndef _E6000SWREG_H_
 #define _E6000SWREG_H_
 
+#define	SWITCH_ID_6131		0x106
+#define	SWITCH_ID_6108		0x107
+#define	SWITCH_ID_6172		0x172
+#define	SWITCH_ID_6176		0x176
+#define	SWITCH_ID_6352		0x352
+
 struct atu_opt {
 	uint16_t mac_01;
 	uint16_t mac_23;
@@ -61,6 +67,7 @@ struct atu_opt {
 #define PORT_CONTROL_1			0x5
 #define PORT_VLAN_MAP			0x6
 #define PORT_VID			0x7
+#define PORT_CONTROL2			0x8
 #define PORT_ASSOCIATION_VECTOR		0xb
 #define PORT_ATU_CTRL			0xc
 #define RX_COUNTER			0x12
@@ -73,7 +80,6 @@ struct atu_opt {
 #define PORT_CONTROL_ENABLE		0x3
 
 /* PORT_VLAN fields */
-#define PORT_VLAN_MAP_TABLE_MASK	0x7f
 #define PORT_VLAN_MAP_FID		12
 #define PORT_VLAN_MAP_FID_MASK		0xf000
 /*
@@ -83,7 +89,13 @@ struct atu_opt {
 #define SWITCH_GLOBAL_CONTROL		4
 #define SWITCH_GLOBAL_CONTROL2		28
 
-#define	PPU_ENABLE			(1 << 14)
+#define	PPU_STATUS_MASK			(3 << 14)
+#define	PPU_STATUS_PPU_DISABLED_RST	(0 << 14)
+#define	PPU_STATUS_PPU_INITIALIZING	(1 << 14)
+#define	PPU_STATUS_PPU_DISABLED		(2 << 14)
+#define	PPU_STATUS_PPU_POLLING		(3 << 14)
+
+#define	PPU_CONTROL_ENABLE		(1 << 14)
 
 #define MONITOR_CONTROL			26
 

@@ -44,11 +44,11 @@
 		compatible = "cfi-flash";
 		reg = <0xff800000 0x780000>;		// 8M at 0xff800000
 		partition@0 {
-			reg = <0x00000000 0x174000>;
+			reg = <0x00000000 0x176000>;
 			label = "cramfs-kernel";
 		};
 		partition@1 {
-			reg = <0x00174000 0x60C000>;
+			reg = <0x00176000 0x60C000>;
 			label = "rootfs";
 		};
 #if 0
@@ -70,4 +70,70 @@
 		};
 #endif
 	};
+
+	// Marvell 88E6131
+	dsa@0 {
+		compatible = "marvell,dsa" , "mrvl,sw";
+		dsa,ethernet = <&enet0>;
+//		dsa,mii-bus = <&mdio>;
+                switch@0 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        reg = <4 0>;
+
+                        port@0 {
+                                reg = <0>;
+                                label = "lan0";
+                                vlangroup = <0>;
+                        };
+
+                        port@1 {
+                                reg = <1>;
+                                label = "lan1";
+                                vlangroup = <0>;
+                        };
+
+                        port@2 {
+                                reg = <2>;
+                                label = "lan2";
+                                vlangroup = <0>;
+                        };
+
+                       port@3 {
+                                reg = <3>;
+                                label = "cpu";
+                                vlangroup = <0>;
+                        };
+
+                        port@4 {
+                                reg = <4>;
+                                label = "notuse1";
+                                vlangroup = <0>;
+				status = "disabled";
+                        };
+
+			// Ex Trans
+                        port@5 {
+                                reg = <5>;
+                                label = "wan1";
+                                vlangroup = <0>;
+                        };
+
+                        port@6 {
+                                reg = <6>;
+                                label = "notuse2";
+                                vlangroup = <0>;
+				status = "disabled";
+                        };
+
+			// Ex Trans
+                        port@7 {
+                                reg = <7>;
+                                label = "lan3";
+                                vlangroup = <0>;
+                        };
+
+		};
+	};
+
 };

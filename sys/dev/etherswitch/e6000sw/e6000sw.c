@@ -25,6 +25,8 @@
  * SUCH DAMAGE.
  */
 
+/* Marvell Gigabit Ethernet Switch driver */
+
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
@@ -93,8 +95,10 @@ typedef struct e6000sw_softc {
 
 	uint32_t		cpuports_mask;
 	uint32_t		fixed_mask;
+	uint32_t		disable_mask;
 	int			sw_addr;
 	int			num_ports;
+	uint32_t		ports_mask;
 	boolean_t		multi_chip;
 	int			sw_model;
 
@@ -106,7 +110,7 @@ typedef struct e6000sw_softc {
 static etherswitch_info_t etherswitch_info = {
 	.es_nports =		0,
 	.es_nvlangroups =	E6000SW_NUM_VGROUPS,
-	.es_name =		"Marvell 6000 series switch"
+	.es_name =		"Marvell 6000 series gigabit switch"
 };
 
 static void e6000sw_identify(driver_t *driver, device_t parent);
@@ -134,6 +138,7 @@ static void e6000sw_tick(void *arg);
 static void e6000sw_set_atustat(device_t dev, e6000sw_softc_t *sc, int bin,
     int flag);
 static int e6000sw_atu_flush(device_t dev, e6000sw_softc_t *sc, int flag);
+static void e6000sw_ppu(e6000sw_softc_t *sc, int enable);
 static __inline void e6000sw_writereg(e6000sw_softc_t *sc, int addr, int reg,
     int val);
 static __inline uint32_t e6000sw_readreg(e6000sw_softc_t *sc, int addr,
@@ -146,9 +151,11 @@ static int e6000sw_get_pvid(e6000sw_softc_t *sc, int port, int *pvid);
 static int e6000sw_set_pvid(e6000sw_softc_t *sc, int port, int pvid);
 static __inline int e6000sw_is_cpuport(e6000sw_softc_t *sc, int port);
 static __inline int e6000sw_is_fixedport(e6000sw_softc_t *sc, int port);
+static __inline int e6000sw_is_disableport(e6000sw_softc_t *sc, int port);
 static __inline int e6000sw_is_phyport(e6000sw_softc_t *sc, int port);
 static __inline struct mii_data *e6000sw_miiforphy(e6000sw_softc_t *sc,
     unsigned int phy);
+static int e6000sw_reg_dump(device_t dev);
 
 static struct proc *e6000sw_kproc;
 
@@ -255,17 +262,22 @@ e6000sw_probe(device_t dev)
 
 	id = e6000sw_readreg(sc, REG_PORT(0), SWITCH_ID);
 
-	switch (id & 0xfff0) {
-	case 0x1060:
+	sc->sw_model = id >> 4;
+
+	switch (sc->sw_model) {
+	case SWITCH_ID_6131:
 		description = "Marvell 88E6131";
 		break;
-	case 0x3520:
+	case SWITCH_ID_6108:
+		description = "Marvell 88E6108";
+		break;
+	case SWITCH_ID_6352:
 		description = "Marvell 88E6352";
 		break;
-	case 0x1720:
+	case SWITCH_ID_6172:
 		description = "Marvell 88E6172";
 		break;
-	case 0x1760:
+	case SWITCH_ID_6176:
 		description = "Marvell 88E6176";
 		break;
 	default:
@@ -275,7 +287,6 @@ e6000sw_probe(device_t dev)
 		return (ENXIO);
 	}
 
-	sc->sw_model = id >> 4;
 
 	device_set_desc(dev, description);
 
@@ -286,7 +297,7 @@ e6000sw_probe(device_t dev)
 
 static int
 e6000sw_parse_child_fdt(device_t dev, phandle_t child, uint32_t *fixed_mask,
-    uint32_t *cpu_mask, int *pport, int *pvlangroup)
+    uint32_t *cpu_mask, int *pport, int *pvlangroup, int *disable_mask)
 {
 	char portlabel[100];
 	uint32_t port, vlangroup;
@@ -321,6 +332,9 @@ e6000sw_parse_child_fdt(device_t dev, phandle_t child, uint32_t *fixed_mask,
 	if (fixed_link) {
 		*fixed_mask |= (1 << port);
 		device_printf(dev, "fixed port at %d\n", port);
+	} else if (fdt_is_enabled(child) == 0) {
+		*disable_mask |= (1 << port);
+		device_printf(dev, "PHY at %d disable\n", port);
 	} else {
 		device_printf(dev, "PHY at %d\n", port);
 	}
@@ -381,9 +395,12 @@ e6000sw_attach(device_t dev)
 	e6000sw_setup(dev, sc);
 	bzero(member_ports, sizeof(member_ports));
 
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
+		e6000sw_ppu(sc, 0);
+
 	for (child = OF_child(sc->node); child != 0; child = OF_peer(child)) {
 		err = e6000sw_parse_child_fdt(dev, child, &sc->fixed_mask,
-		    &sc->cpuports_mask, &port, &vlangroup);
+		    &sc->cpuports_mask, &port, &vlangroup, &sc->disable_mask);
 		if (err != 0) {
 			device_printf(sc->dev, "failed to parse DTS\n");
 			goto out_fail;
@@ -410,6 +427,11 @@ e6000sw_attach(device_t dev)
 			goto out_fail;
 		}
 	}
+
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
+		e6000sw_ppu(sc, 1);
+
+	sc->ports_mask = (1 << sc->num_ports) - 1;
 
 	etherswitch_info.es_nports = sc->num_ports;
 	for (port = 0; port < sc->num_ports; port++)
@@ -488,7 +510,7 @@ e6000sw_readphy(device_t dev, int phy, int reg)
 	sc = device_get_softc(dev);
 	val = 0;
 
-	if (sc->sw_model == 0x106)
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
 		return e6000sw_readphy_e6131(dev, phy, reg);
 
 	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
@@ -542,7 +564,7 @@ e6000sw_writephy(device_t dev, int phy, int reg, int data)
 	sc = device_get_softc(dev);
 	val = 0;
 
-	if (sc->sw_model == 0x106)
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
 		return e6000sw_writephy_e6131(dev, phy, reg, data);
 
 	if (!e6000sw_is_phyport(sc, phy) || reg >= E6000SW_NUM_PHY_REGS) {
@@ -652,7 +674,7 @@ e6000sw_getport(device_t dev, etherswitch_port_t *p)
 		ifmr->ifm_current = ifmr->ifm_active =
 		    IFM_ETHER | IFM_1000_T | IFM_FDX;
 		ifmr->ifm_mask = 0;
-	} else {
+	} else if (!e6000sw_is_disableport(sc, p->es_port)) {
 		mii = e6000sw_miiforphy(sc, p->es_port);
 		err = ifmedia_ioctl(mii->mii_ifp, &p->es_ifr,
 		    &mii->mii_media, SIOCGIFMEDIA);
@@ -704,30 +726,23 @@ out:
 static int
 e6000sw_readreg_wrapper(device_t dev, int addr_reg)
 {
+	int devaddr, regaddr;
 
-	if ((addr_reg > (REG_GLOBAL2 * 32 + REG_NUM_MAX)) ||
-	    (addr_reg < (REG_PORT(0) * 32))) {
-		device_printf(dev, "Wrong register address.\n");
-		return (EINVAL);
-	}
+	devaddr = (addr_reg >> 5) & 0x1f;
+	regaddr = addr_reg & 0x1f;
 
-	return (e6000sw_readreg(device_get_softc(dev), addr_reg / 32,
-	    addr_reg % 32));
+	return MDIO_READREG(device_get_parent(dev), devaddr, regaddr);
 }
 
 static int
 e6000sw_writereg_wrapper(device_t dev, int addr_reg, int val)
 {
+	int devaddr, regaddr;
 
-	if ((addr_reg > (REG_GLOBAL2 * 32 + REG_NUM_MAX)) ||
-	    (addr_reg < (REG_PORT(0) * 32))) {
-		device_printf(dev, "Wrong register address.\n");
-		return (EINVAL);
-	}
-	e6000sw_writereg(device_get_softc(dev), addr_reg / 5,
-	    addr_reg % 32, val);
+	devaddr = (addr_reg >> 5) & 0x1f;
+	regaddr = addr_reg & 0x1f;
 
-	return (0);
+	return (MDIO_WRITEREG(device_get_parent(dev), devaddr, regaddr, val));
 }
 
 /*
@@ -809,7 +824,7 @@ e6000sw_flush_port(e6000sw_softc_t *sc, int port)
 
 	reg = e6000sw_readreg(sc, REG_PORT(port),
 	    PORT_VLAN_MAP);
-	reg &= ~PORT_VLAN_MAP_TABLE_MASK;
+	reg &= ~sc->ports_mask;
 	reg &= ~PORT_VLAN_MAP_FID_MASK;
 	e6000sw_writereg(sc, REG_PORT(port),
 	    PORT_VLAN_MAP, reg);
@@ -831,7 +846,7 @@ e6000sw_port_assign_vgroup(e6000sw_softc_t *sc, int port, int fid, int vgroup,
 
 	reg = e6000sw_readreg(sc, REG_PORT(port),
 	    PORT_VLAN_MAP);
-	reg &= ~PORT_VLAN_MAP_TABLE_MASK;
+	reg &= ~sc->ports_mask;
 	reg &= ~PORT_VLAN_MAP_FID_MASK;
 	reg |= members & ~(1 << port);
 	reg |= (fid << PORT_VLAN_MAP_FID) & PORT_VLAN_MAP_FID_MASK;
@@ -856,7 +871,7 @@ e6000sw_setvgroup(device_t dev, etherswitch_vlangroup_t *vg)
 		return (EINVAL);
 	}
 
-	vg->es_untagged_ports &= PORT_VLAN_MAP_TABLE_MASK;
+	vg->es_untagged_ports &= sc->ports_mask;
 	fid = vg->es_vlangroup + 1;
 	for (port = 0; port < sc->num_ports; port++) {
 		if ((sc->members[vg->es_vlangroup] & (1 << port)) ||
@@ -1010,10 +1025,17 @@ e6000sw_is_fixedport(e6000sw_softc_t *sc, int port)
 }
 
 static __inline int
+e6000sw_is_disableport(e6000sw_softc_t *sc, int port)
+{
+
+	return (sc->disable_mask & (1 << port));
+}
+
+static __inline int
 e6000sw_is_phyport(e6000sw_softc_t *sc, int port)
 {
 	uint32_t phy_mask;
-	phy_mask = ~(sc->fixed_mask | sc->cpuports_mask);
+	phy_mask = ~(sc->fixed_mask | sc->cpuports_mask | sc->disable_mask);
 
 	return (phy_mask & (1 << port));
 }
@@ -1050,6 +1072,9 @@ e6000sw_tick (void *arg)
 
 	sc = arg;
 
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
+		e6000sw_ppu(sc, 0);
+
 	E6000SW_LOCK_ASSERT(sc, SA_UNLOCKED);
 	for (;;) {
 		E6000SW_LOCK(sc);
@@ -1068,12 +1093,17 @@ e6000sw_tick (void *arg)
 		E6000SW_UNLOCK(sc);
 		pause("e6000sw tick", 1000);
 	}
+
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
+		e6000sw_ppu(sc, 1);
 }
 
 static void
 e6000sw_setup(device_t dev, e6000sw_softc_t *sc)
 {
-	uint16_t grb_ctrl, atu_ctrl, atu_age;
+	uint16_t atu_ctrl, atu_age;
+
+	e6000sw_reg_dump(dev);
 
 	/* Set aging time */
 	e6000sw_writereg(sc, REG_GLOBAL, ATU_CONTROL,
@@ -1084,10 +1114,8 @@ e6000sw_setup(device_t dev, e6000sw_softc_t *sc)
 	e6000sw_writereg(sc, REG_GLOBAL2, MGMT_EN_2x, MGMT_EN_ALL);
 	e6000sw_writereg(sc, REG_GLOBAL2, MGMT_EN_0x, MGMT_EN_ALL);
 
-	/* Disable Phy polling unit */
-	grb_ctrl = e6000sw_readreg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL);
-	grb_ctrl &= ~PPU_ENABLE;
-	e6000sw_writereg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL, grb_ctrl);
+	if (sc->sw_model == SWITCH_ID_6131 || sc->sw_model == SWITCH_ID_6108)
+		e6000sw_ppu(sc, 1);
 
 	/* Disable Remote Management */
 	e6000sw_writereg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL2, 0);
@@ -1148,6 +1176,31 @@ e6000sw_port_vlan_conf(e6000sw_softc_t *sc)
 		ret = e6000sw_readreg(sc, REG_PORT(port), PORT_CONTROL);
 		e6000sw_writereg(sc, REG_PORT(port), PORT_CONTROL, (ret |
 		    PORT_CONTROL_ENABLE));
+	}
+}
+
+static void
+e6000sw_ppu(e6000sw_softc_t *sc, int enable)
+{
+	uint16_t grb_reg;
+
+	/* Disable Phy polling unit */
+	grb_reg = e6000sw_readreg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL);
+	if (enable == 1)
+		grb_reg |= PPU_CONTROL_ENABLE;
+	else
+		grb_reg &= ~PPU_CONTROL_ENABLE;
+	e6000sw_writereg(sc, REG_GLOBAL, SWITCH_GLOBAL_CONTROL, grb_reg);
+
+	while (1) {
+		grb_reg = e6000sw_readreg(sc, REG_GLOBAL, SWITCH_GLOBAL_STATUS);
+		if (enable == 1 && 
+		    ((grb_reg & PPU_STATUS_MASK) == PPU_STATUS_PPU_POLLING))
+			return;
+		if (enable == 0 && 
+		    ((grb_reg & PPU_STATUS_MASK) == PPU_STATUS_PPU_DISABLED))
+			return;
+		DELAY(10);
 	}
 }
 
@@ -1240,6 +1293,35 @@ e6000sw_atu_flush(device_t dev, e6000sw_softc_t *sc, int flag)
 
 		if (retries == 0)
 			device_printf(dev, "Timeout while flushing\n");
+	}
+
+	return (0);
+}
+
+static int
+e6000sw_reg_dump(device_t dev)
+{
+	e6000sw_softc_t *sc;
+	uint16_t ret[16];
+	int i, j;
+
+	sc = device_get_softc(dev);
+	/* port reg dump */
+	for (i = 0;i < 8; ++i) {
+		for (j = 0;j < 10; ++j) 
+			ret[j] = e6000sw_readreg(sc, REG_PORT(i), j);
+		device_printf(dev, "port %d %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", i, ret[0], ret[1], ret[2], ret[3], ret[4], ret[5], ret[6], ret[7], ret[8], ret[9]);
+	}
+
+	for (i = 0;i < 4; ++i) {
+		for (j = 0;j < 8; ++j) 
+			ret[j] = e6000sw_readreg(sc, REG_GLOBAL, j + i * 8);
+		device_printf(dev, "port REG_GLOBAL %02x %02x %02x %02x %02x %02x %02x %02x\n", ret[0], ret[1], ret[2], ret[3], ret[4], ret[5], ret[6], ret[7]);
+	}
+	for (i = 0;i < 4; ++i) {
+		for (j = 0;j < 8; ++j) 
+			ret[j] = e6000sw_readreg(sc, REG_GLOBAL2, j + i * 8);
+		device_printf(dev, "port REG_GLOBAL2 %02x %02x %02x %02x %02x %02x %02x %02x\n", ret[0], ret[1], ret[2], ret[3], ret[4], ret[5], ret[6], ret[7]);
 	}
 
 	return (0);

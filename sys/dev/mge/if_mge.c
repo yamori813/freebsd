@@ -1161,6 +1161,11 @@ mge_init_locked(void *arg)
 
 	/* Setup port configuration */
 	reg_val = mge_set_port_serial_control(media_status);
+	printf("MORI MORI MGE_PORT_SERIAL_CTRL %x\n", reg_val);
+	reg_val = MGE_READ(sc, MGE_PORT_SERIAL_CTRL);
+	printf("MORI MORI MGE_PORT_SERIAL_CTRL %x\n", reg_val);
+	reg_val = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 9) | ( 1 << 10) | (1 << 13) | (1 << 21) | (1 << 23) | (2 << 17);
+	printf("MORI MORI MGE_PORT_SERIAL_CTRL %x\n", reg_val);
 	MGE_WRITE(sc, MGE_PORT_SERIAL_CTRL, reg_val);
 
 	/* Setup SDMA configuration */
