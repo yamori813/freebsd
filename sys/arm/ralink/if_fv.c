@@ -70,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/miivar.h>
 
 /* Todo: move to options.arm */
-/* #define FV_MDIO */
+#define FV_MDIO
 
 #ifdef FV_MDIO
 #include <dev/mdio/mdio.h>
@@ -139,7 +139,9 @@ static device_method_t fv_methods[] = {
 	/* MII interface */
 	DEVMETHOD(miibus_readreg,	fv_miibus_readreg),
 	DEVMETHOD(miibus_writereg,	fv_miibus_writereg),
+#if !defined(FV_MDIO)
 	DEVMETHOD(miibus_statchg,	fv_miibus_statchg),
+#endif
 
 	/* bus interface */
 	DEVMETHOD(bus_add_child,	device_add_child_ordered),
@@ -165,6 +167,10 @@ DRIVER_MODULE(miibus, fv, miibus_driver, miibus_devclass, 0, 0);
 static int fvmdio_probe(device_t);
 static int fvmdio_attach(device_t);
 static int fvmdio_detach(device_t);
+
+static struct mtx miibus_mtx;
+
+MTX_SYSINIT(miibus_mtx, &miibus_mtx, "are mii lock", MTX_DEF);
 
 /*
  * Declare an additional, separate driver for accessing the MDIO bus.
@@ -516,6 +522,7 @@ fv_miibus_readreg(device_t dev, int phy, int reg)
 	struct fv_softc * sc = device_get_softc(dev);
 	int		result;
 
+	mtx_lock(&miibus_mtx);
 	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
 	fv_miibus_writebits(sc, MII_RDCMD, 4);
 	fv_miibus_writebits(sc, phy, 5);
@@ -523,6 +530,7 @@ fv_miibus_readreg(device_t dev, int phy, int reg)
 	fv_miibus_turnaround(sc, MII_RDCMD);
 	result = fv_miibus_readbits(sc, 16);
 	fv_miibus_turnaround(sc, MII_RDCMD);
+	mtx_unlock(&miibus_mtx);
 
 	return (result);
 }
@@ -532,16 +540,19 @@ fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
 	struct fv_softc * sc = device_get_softc(dev);
 
+	mtx_lock(&miibus_mtx);
 	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
 	fv_miibus_writebits(sc, MII_WRCMD, 4);
 	fv_miibus_writebits(sc, phy, 5);
 	fv_miibus_writebits(sc, reg, 5);
 	fv_miibus_turnaround(sc, MII_WRCMD);
 	fv_miibus_writebits(sc, data, 16);
+	mtx_unlock(&miibus_mtx);
 
 	return (0);
 }
 
+#if !defined(FV_MDIO)
 static void
 fv_miibus_statchg(device_t dev)
 {
@@ -550,6 +561,7 @@ fv_miibus_statchg(device_t dev)
 	sc = device_get_softc(dev);
 	taskqueue_enqueue(taskqueue_swi, &sc->fv_link_task);
 }
+#endif
 
 static void
 fv_link_task(void *arg, int pending)
@@ -592,7 +604,7 @@ fv_reset(struct fv_softc *sc)
 	 * The chip doesn't take itself out of reset automatically.
 	 * We need to do so after 2us.
 	 */
-	DELAY(10);
+	DELAY(1000);
 	CSR_WRITE_4(sc, CSR_BUSMODE, 0);
 
 	for (i = 0; i < 1000; i++) {
@@ -600,7 +612,7 @@ fv_reset(struct fv_softc *sc)
 		 * Wait a bit for the reset to complete before peeking
 		 * at the chip again.
 		 */
-		DELAY(10);
+		DELAY(1000);
 		if ((CSR_READ_4(sc, CSR_BUSMODE) & BUSMODE_SWR) == 0)
 			break;
 	}
