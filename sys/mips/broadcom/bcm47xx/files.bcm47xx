@@ -1,8 +1,0 @@
-# $FreeBSD$
-
-mips/broadcom/bcm47xx/bcm47xx_machdep.c		standard
-mips/mips/tick.c			standard
-mips/mips/intr_machdep.c		standard
-
-mips/broadcom/bcm47xx/uart_cpu_siba.c	optional uart
-mips/broadcom/bcm47xx/uart_bus_siba.c	optional uart
