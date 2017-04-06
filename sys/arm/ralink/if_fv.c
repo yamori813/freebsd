@@ -80,6 +80,9 @@ __FBSDID("$FreeBSD$");
 
 MODULE_DEPEND(are, ether, 1, 1, 1);
 MODULE_DEPEND(are, miibus, 1, 1, 1);
+#ifdef FV_MDIO
+MODULE_DEPEND(are, mdio, 1, 1, 1);
+#endif
 
 #include "miibus_if.h"
 

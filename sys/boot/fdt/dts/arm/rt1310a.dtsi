@@ -89,7 +89,7 @@
 			reg = <0x80000 0x20000>;
 		};
 
-		fv_mac0@80000 {
+		enet0:fv_mac0@80000 {
 			compatible = "fv,ethernet";
 			reg = <0x80000 0x20000>;
 			interrupts = <7>;

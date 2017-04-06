@@ -79,7 +79,7 @@
                 switch@0 {
                         #address-cells = <1>;
                         #size-cells = <0>;
-                        reg = <4 0>;
+//                        reg = <8 0>;
 
                         port@0 {
                                 reg = <0>;

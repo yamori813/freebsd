@@ -76,5 +76,10 @@
 		};
 	};
 
+	ip17x@0 {
+		compatible = "icplus,ip17x";
+		mii-poll = <0>;
+	};
+
 };
 
