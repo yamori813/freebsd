@@ -1,0 +1,162 @@
+/*
+ * Copyright (c) 2016 Hiroki Mori
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * Mindspeed M831XX Device Tree Source.
+ *
+ * $FreeBSD$
+ */
+
+/ {
+	compatible = "mindspeed,m83261g13-soc";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	aliases {
+		serial0 = &serial0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "ARM,1136J-S";
+			reg = <0x0>;
+			d-cache-line-size = <32>;	// 32 bytes
+			i-cache-line-size = <32>;	// 32 bytes
+			d-cache-size = <0x8000>;	// L1, 32K
+			i-cache-size = <0x8000>;	// L1, 32K
+			timebase-frequency = <0>;
+			bus-frequency = <0>;
+			clock-frequency = <650000000>;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "ARM,1136J-S";
+			reg = <0x0>;
+			d-cache-line-size = <32>;	// 32 bytes
+			i-cache-line-size = <32>;	// 32 bytes
+			d-cache-size = <0x8000>;	// L1, 32K
+			i-cache-size = <0x8000>;	// L1, 32K
+			timebase-frequency = <0>;
+			bus-frequency = <0>;
+			clock-frequency = <650000000>;
+		};
+	};
+
+	localbus@20000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x20000000 0x2000000>;
+	};
+
+	apb@10000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0x10000000 0x800000>;
+		bus-frequency = <125000000>;
+
+		intc: intc@A0000 {
+			compatible = "comcerto,intc";
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <1>;
+			reg = <0xa0000 0x10000>;
+		};
+
+		mac0@d0000 {
+			compatible = "comcerto,ethernet";
+			reg = <0xd0000 0x10000>;
+			interrupts = <6>;
+			interrupt-parent = <&intc>;	
+			local-mac-address = [ 00 1a f1 01 1f 23 ];
+		};
+
+		mac1@190000 {
+			compatible = "comcerto,ethernet";
+			reg = <0x190000 0x10000>;
+			interrupts = <7>;
+			interrupt-parent = <&intc>;	
+			local-mac-address = [ 00 1a f1 01 1f 23 ];
+		};
+
+		timer@50000 {
+			compatible = "comcerto,timer";
+			reg = <0x50000 0x10000>;
+			/* Timer0,1,2,3,4,5 */
+			interrupts = <31 30 29 28 27 26>;
+			interrupt-parent = <&intc>;
+		};
+
+		serial0: serial@90000 {
+			compatible = "ns16550";
+			reg = <0x90000 0x4000>;
+			reg-shift = <2>;
+			clock-frequency = <6758400>;
+			current-speed = <115200>;
+			interrupts = <41>;
+			interrupt-parent = <&intc>;
+		};
+
+		serial1: serial@94000 {
+			compatible = "ns16550";
+			reg = <0x94000 0x4000>;
+			reg-shift = <2>;
+			clock-frequency = <6758400>;
+			current-speed = <115200>;
+			interrupts = <58>;
+			interrupt-parent = <&intc>;
+		};
+
+		spi: spi@98000 {
+			compatible = "comcerto,spi";
+			reg = <0x98000 0x4000>;
+			interrupts = <11>;
+			interrupt-parent = <&intc>;	
+		};
+
+		i2c: i2c@9c000 {
+			compatible = "comcerto,i2c";
+			reg = <0x9c000 0x4000>;
+			interrupts = <21>;
+			interrupt-parent = <&intc>;	
+		};
+
+		gpio0: gpio@70000 {
+			compatible = "comcerto,gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupts = <33 34 35 36 37 38 39 40>;
+			interrupt-parent = <&intc>;
+			reg = <0x70000 0x10000>;
+		};
+
+	};
+
+};
+
