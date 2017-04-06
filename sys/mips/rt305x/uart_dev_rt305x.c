@@ -87,8 +87,8 @@ static void
 rt305x_uart_init(struct uart_bas *bas, int baudrate, int databits, 
     int stopbits, int parity)
 {
-#ifdef    notyet
-        /* CLKDIV  = SYSTEM_CLOCK / 16/ br */
+#ifdef notyet
+        /* CLKDIV  = 384000000/ 3/ 16/ br */
         /* for 384MHz CLKDIV = 8000000 / baudrate; */
         switch (databits) {
         case 5:
@@ -114,11 +114,11 @@ rt305x_uart_init(struct uart_bas *bas, int baudrate, int databits,
 	/* Unsupported */
 	default:		return;
 	}
+        uart_setreg(bas, UART_CDDL_REG, 8000000/baudrate);
+	uart_barrier(bas);
         uart_setreg(bas, UART_LCR_REG, databits | (stopbits==1?0:4) | parity);
 	uart_barrier(bas);
 #endif
-        uart_setreg(bas, UART_CDDL_REG, SYSTEM_CLOCK/UART_CDDL_DIV/baudrate);
-	uart_barrier(bas);
 }
 
 static void

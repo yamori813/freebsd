@@ -69,7 +69,7 @@ uart_cpu_getdev(int devtype, struct uart_devinfo *di)
 	di->bas.bst = mips_bus_space_generic;
 	di->bas.regshft = 2;
 	di->bas.rclk = SYSTEM_CLOCK;
-	di->baudrate = 57600;
+	di->baudrate = 115200;
 	di->databits = 8;
 	di->stopbits = 1;
 

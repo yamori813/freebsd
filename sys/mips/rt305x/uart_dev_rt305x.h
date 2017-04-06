@@ -116,8 +116,6 @@
 #define		UART_MSR_DCTS	(1<<0) /* Only full UART */
 
 #define	UART_CDDL_REG	0x28
-#define		UART_CDDL_DIV	16
-
 #define	UART_CDDLL_REG	0x2c
 #define	UART_CDDLH_REG	0x30
 

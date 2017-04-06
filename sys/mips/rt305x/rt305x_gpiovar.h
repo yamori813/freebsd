@@ -28,8 +28,6 @@
 #ifndef _RT305X_GPIOVAR_H_
 #define _RT305X_GPIOVAR_H_
 
-#include <sys/timepps.h>
-
 struct rt305x_gpio_softc {
 	device_t		dev;
 	device_t		busdev;
@@ -44,8 +42,6 @@ struct rt305x_gpio_softc {
 	int			reset_gpio;
 	int			reset_gpio_last;
 	time_t			reset_gpio_ontime;
-	struct pps_state	gpio_pps;
-	uint32_t		gpio_ppscounter;
 };
 
 #endif /* _RT305X_GPIOVAR_H_ */

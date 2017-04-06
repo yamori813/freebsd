@@ -43,10 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/rman.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
-#include <sys/sysctl.h>
 #include <sys/gpio.h>
-#include <sys/param.h>
-#include <sys/conf.h>
 
 #include <machine/bus.h>
 #include <machine/resource.h>
@@ -80,7 +77,6 @@ static int rt305x_gpio_attach(device_t dev);
 static int rt305x_gpio_detach(device_t dev);
 static int rt305x_gpio_intr(void *arg);
 
-
 int 	rt305x_get_int_mask  (device_t);
 void 	rt305x_set_int_mask  (device_t, uint32_t);
 int 	rt305x_get_int_status(device_t);
@@ -89,8 +85,6 @@ void 	rt305x_set_int_status(device_t, uint32_t);
 /*
  * GPIO interface
  */
-static void rt305x_gpio_attach_sysctl(device_t dev);
-
 static device_t rt305x_gpio_get_bus(device_t);
 static int rt305x_gpio_pin_max(device_t dev, int *maxpin);
 static int rt305x_gpio_pin_getcaps(device_t dev, uint32_t pin, uint32_t *caps);
@@ -101,61 +95,6 @@ static int rt305x_gpio_pin_setflags(device_t dev, uint32_t pin, uint32_t flags);
 static int rt305x_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value);
 static int rt305x_gpio_pin_get(device_t dev, uint32_t pin, unsigned int *val);
 static int rt305x_gpio_pin_toggle(device_t dev, uint32_t pin);
-
-#define PPS_NAME        "pps"           /* our official name */
-
-static  d_open_t	ppsopen;
-static  d_close_t	ppsclose;
-static  d_ioctl_t	ppsioctl;
-
-static struct cdevsw pps_cdevsw = {
-	.d_version =	D_VERSION,
-	.d_open =	ppsopen,
-	.d_close =	ppsclose,
-	.d_ioctl =	ppsioctl,
-	.d_name =	PPS_NAME,
-};
-
-static  int
-ppsopen(struct cdev *dev, int flags, int fmt, struct thread *td)
-{
-	return(0);
-}
-
-static  int
-ppsclose(struct cdev *dev, int flags, int fmt, struct thread *td)
-{
-	return(0);
-}
-
-static int
-ppsioctl(struct cdev *dev, u_long cmd, caddr_t data, int flags, struct thread *td)
-{
-	struct rt305x_gpio_softc *sc = dev->si_drv1;
-	int err;
-
-	GPIO_LOCK(sc);
-	err = pps_ioctl(cmd, data, &sc->gpio_pps);
-	GPIO_UNLOCK(sc);
-
-	return(err);
-}
-
-static void
-rt305x_gpio_attach_sysctl(device_t dev)
-{
-	struct rt305x_gpio_softc *sc;
-	struct sysctl_ctx_list *ctx;
-	struct sysctl_oid *tree;
-
-	sc = device_get_softc(dev);
-	ctx = device_get_sysctl_ctx(dev);
-	tree = device_get_sysctl_tree(dev);
-
-	SYSCTL_ADD_INT(ctx, SYSCTL_CHILDREN(tree), OID_AUTO,
-		"ppscount", CTLFLAG_RD, &sc->gpio_ppscounter, 0,
-		"rt305x_gpio pps enable counter");
-}
 
 static void
 rt305x_gpio_pin_configure(struct rt305x_gpio_softc *sc, struct gpio_pin *pin,
@@ -212,13 +151,9 @@ rt305x_gpio_pin_configure(struct rt305x_gpio_softc *sc, struct gpio_pin *pin,
 		GPIO_BIT_CLR(sc, pin->gp_pin, FENA);
 	}
 #else
-	if(pin->gp_pin == 10) {
-		GPIO_BIT_SET(sc, pin->gp_pin, FENA);
-	} else {
 	/* Disable generating interrupts for now */
 	GPIO_BIT_CLR(sc, pin->gp_pin, RENA);
 	GPIO_BIT_CLR(sc, pin->gp_pin, FENA);
-	}
 #endif
 
 	GPIO_UNLOCK(sc);
@@ -402,13 +337,6 @@ rt305x_gpio_intr(void *arg)
 	char notify[16];
 	char pinname[6];
 #endif
-	if (sc->gpio_pps.ppsparam.mode & PPS_CAPTUREBOTH) {
-	pps_capture(&sc->gpio_pps);
-	pps_event(&sc->gpio_pps, PPS_CAPTUREASSERT);
-	pps_event(&sc->gpio_pps, PPS_CAPTURECLEAR);
-	++sc->gpio_ppscounter;
-	rt305x_gpio_pin_toggle(sc->dev, 14);
-	}
 
 	/* Read all reported pins */
 	input  = GPIO_READ_ALL(sc, INT);
@@ -541,8 +469,7 @@ rt305x_gpio_attach(device_t dev)
 		return (ENXIO);
 	}
 
-//	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_MISC, 
-	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_TTY,
+	if ((bus_setup_intr(dev, sc->gpio_irq_res, INTR_TYPE_MISC, 
 	    /* rt305x_gpio_filter, */
 	    rt305x_gpio_intr, NULL, sc, &sc->gpio_ih))) {
 		device_printf(dev,
@@ -553,19 +480,6 @@ rt305x_gpio_attach(device_t dev)
 
 	sc->dev = dev;
 	avlpins = rt305x_gpio_init(dev);
-
-	struct cdev *d;
-	int unit = device_get_unit(dev);
-	d = make_dev(&pps_cdevsw, unit,
-		UID_ROOT, GID_WHEEL, 0600, PPS_NAME "%d", unit);
-	d->si_drv1 = sc;
-	d->si_drv2 = (void*)0;
-
-//	sc->gpio_pps.ppscap = PPS_CAPTUREASSERT | PPS_ECHOASSERT;
-	sc->gpio_pps.ppscap = PPS_CAPTUREBOTH;
-	sc->gpio_pps.driver_mtx = &sc->gpio_mtx;
-	sc->gpio_pps.driver_abi = PPS_ABI_VERSION;
-	pps_init_abi(&sc->gpio_pps);
 
 	/* Configure all pins as input */
 	/* disable interrupts for all pins */
@@ -604,9 +518,6 @@ rt305x_gpio_attach(device_t dev)
 		rt305x_gpio_detach(dev);
 		return (ENXIO);
 	}
-
-	sc->gpio_ppscounter = 0;
-	rt305x_gpio_attach_sysctl(dev);
 
 	return (0);
 }
