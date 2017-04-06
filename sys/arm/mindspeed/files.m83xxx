@@ -1,0 +1,7 @@
+# $FreeBSD$
+arm/mindspeed/m83xxx_machdep.c		standard
+arm/mindspeed/m83xxx_mp.c		optional smp
+arm/mindspeed/m83xxx_intc.c		standard
+arm/mindspeed/m83xxx_timer.c		standard
+
+kern/kern_clocksource.c			standard
