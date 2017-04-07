@@ -24,30 +24,30 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: head/sys/arm/lpc/lpcreg.h 260326 2014-01-05 18:40:06Z ian $
+ * $FreeBSD$
  */
 
-#ifndef	_ARM_RT_RTREG_H
-#define	_ARM_RT_RTREG_H
+#ifndef	_ARM_RALINK_RT1310REG_H
+#define	_ARM_RALINK_RT1310REG_H
 
 /*
  * Interrupt controller
  */
 
-#define RT_INTC_SCR0			0x00
-#define RT_INTC_SVR0			0x80
-#define RT_INTC_ISR			0x104
-#define RT_INTC_IPR			0x108
+#define	RT_INTC_SCR0			0x00
+#define	RT_INTC_SVR0			0x80
+#define	RT_INTC_ISR			0x104
+#define	RT_INTC_IPR			0x108
 #define	RT_INTC_IMR			0x10c
-#define RT_INTC_IECR			0x114
-#define RT_INTC_ICCR			0x118
+#define	RT_INTC_IECR			0x114
+#define	RT_INTC_ICCR			0x118
 
-#define RT_INTC_TRIG_LOW_LVL		(0)
-#define RT_INTC_TRIG_HIGH_LVL		(1)
-#define RT_INTC_TRIG_NEG_EDGE		(2)
-#define RT_INTC_TRIG_POS_EDGE		(3)
+#define	RT_INTC_TRIG_LOW_LVL		(0)
+#define	RT_INTC_TRIG_HIGH_LVL		(1)
+#define	RT_INTC_TRIG_NEG_EDGE		(2)
+#define	RT_INTC_TRIG_POS_EDGE		(3)
 
-#define RT_INTC_TRIG_SHIF		6
+#define	RT_INTC_TRIG_SHIF		6
 
 /*
  * Timer 0|1|2|3.
@@ -57,13 +57,13 @@
 #define	RT_TIMER_VALUE			0x04
 #define	RT_TIMER_CONTROL		0x08
 
-#define RT_TIMER_CTRL_INTCTL		(1 << 1)
-#define RT_TIMER_CTRL_INTCLR		(1 << 2)
-#define RT_TIMER_CTRL_INTMASK		(1 << 3)
-#define RT_TIMER_CTRL_DIV16		(3 << 4)
-#define RT_TIMER_CTRL_DIV256		(7 << 4)
-#define RT_TIMER_CTRL_PERIODCAL		(1 << 7)
-#define RT_TIMER_CTRL_ENABLE		(1 << 8)
+#define	RT_TIMER_CTRL_INTCTL		(1 << 1)
+#define	RT_TIMER_CTRL_INTCLR		(1 << 2)
+#define	RT_TIMER_CTRL_INTMASK		(1 << 3)
+#define	RT_TIMER_CTRL_DIV16		(3 << 4)
+#define	RT_TIMER_CTRL_DIV256		(7 << 4)
+#define	RT_TIMER_CTRL_PERIODCAL		(1 << 7)
+#define	RT_TIMER_CTRL_ENABLE		(1 << 8)
 
 #define	RT_TIMER_INTERVAL		(5000*150)
 
@@ -71,12 +71,12 @@
  * GPIO
  */
 
-#define RT_GPIO_PORTA	(0)
-#define RT_GPIO_PORTB	(1)
+#define	RT_GPIO_PORTA	(0)
+#define	RT_GPIO_PORTB	(1)
 
-#define RT_GPIO_OFF_PADR	(0x0)
-#define RT_GPIO_OFF_PADIR	(0x4)
-#define RT_GPIO_OFF_PBDR	(0x8)
-#define RT_GPIO_OFF_PBDIR	(0xC)
+#define	RT_GPIO_OFF_PADR	(0x0)
+#define	RT_GPIO_OFF_PADIR	(0x4)
+#define	RT_GPIO_OFF_PBDR	(0x8)
+#define	RT_GPIO_OFF_PBDIR	(0xC)
 
-#endif	/* _ARM_RT_RTREG_H */
+#endif	/* _ARM_RALINK_RT1310REG_H */

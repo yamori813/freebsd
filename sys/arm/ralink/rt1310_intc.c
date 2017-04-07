@@ -46,7 +46,7 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_page.h>
 #include <vm/vm_extern.h>
 
-#define _ARM32_BUS_DMA_PRIVATE
+#define	_ARM32_BUS_DMA_PRIVATE
 #include <machine/bus.h>
 #include <machine/intr.h>
 
@@ -58,7 +58,7 @@ __FBSDID("$FreeBSD$");
 
 #include <arm/ralink/rt1310reg.h>
 
-#define INTC_NIRQS	32
+#define	INTC_NIRQS	32
 
 #ifdef INTRNG
 #include "pic_if.h"

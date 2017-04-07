@@ -70,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/miivar.h>
 
 /* Todo: move to options.arm */
-#define FV_MDIO
+/* #define FV_MDIO */
 
 #ifdef FV_MDIO
 #include <dev/mdio/mdio.h>

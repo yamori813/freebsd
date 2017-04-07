@@ -28,7 +28,7 @@
  */
 
 #ifndef __IF_FVREG_H__
-#define __IF_FVREG_H__
+#define	__IF_FVREG_H__
 
 struct fv_desc {
 	uint32_t	fv_stat;
@@ -37,17 +37,17 @@ struct fv_desc {
 	uint32_t	fv_link;
 };
 
-#define FV_DMASIZE(len)		((len)  & ((1 << 11)-1))		
-#define FV_PKTSIZE(len)		((len & 0xffff0000) >> 16)
+#define	FV_DMASIZE(len)		((len)  & ((1 << 11)-1))		
+#define	FV_PKTSIZE(len)		((len & 0xffff0000) >> 16)
 
-#define FV_RX_RING_CNT		128
-#define FV_TX_RING_CNT		128
-#define FV_TX_RING_SIZE		sizeof(struct fv_desc) * FV_TX_RING_CNT
-#define FV_RX_RING_SIZE		sizeof(struct fv_desc) * FV_RX_RING_CNT
-#define FV_RING_ALIGN		sizeof(struct fv_desc)
-#define FV_RX_ALIGN		sizeof(uint32_t)
-#define FV_MAXFRAGS		8
-#define FV_TX_INTR_THRESH	8
+#define	FV_RX_RING_CNT		128
+#define	FV_TX_RING_CNT		128
+#define	FV_TX_RING_SIZE		sizeof(struct fv_desc) * FV_TX_RING_CNT
+#define	FV_RX_RING_SIZE		sizeof(struct fv_desc) * FV_RX_RING_CNT
+#define	FV_RING_ALIGN		sizeof(struct fv_desc)
+#define	FV_RX_ALIGN		sizeof(uint32_t)
+#define	FV_MAXFRAGS		8
+#define	FV_TX_INTR_THRESH	8
 
 #define	FV_TX_RING_ADDR(sc, i)	\
     ((sc)->fv_rdata.fv_tx_ring_paddr + sizeof(struct fv_desc) * (i))
@@ -138,10 +138,10 @@ struct fv_softc {
 /*
  * register space access macros
  */
-#define CSR_WRITE_4(sc, reg, val)	\
+#define	CSR_WRITE_4(sc, reg, val)	\
 	bus_space_write_4(sc->fv_btag, sc->fv_bhandle, reg, val)
 
-#define CSR_READ_4(sc, reg)		\
+#define	CSR_READ_4(sc, reg)		\
 	bus_space_read_4(sc->fv_btag, sc->fv_bhandle, reg)
 
 
@@ -282,13 +282,13 @@ struct fv_softc {
 #define	CSR_FULLDUP	(0x08*11)	/* Full Duplex Register */
 
 /* 21143 like register */
-#define FULLDUP_CS		0x80000000	/* Cycle Size */
-#define FULLDUP_TT_SHIFT	27	/* Transmit Timer */
-#define FULLDUP_NTP_SHIFT	24	/* Number of Transmit Packets */
-#define FULLDUP_RT_SHIFT	20	/* Receive Timer */
-#define FULLDUP_NRP_SHIFT	17	/* Number of Receive Packets */
-#define FULLDUP_CON_MODE	0x00010000	/* Continuous Mode */
-#define FULLDUP_TIM_SHIFT	0	/* Timer Value */
+#define	FULLDUP_CS		0x80000000	/* Cycle Size */
+#define	FULLDUP_TT_SHIFT	27	/* Transmit Timer */
+#define	FULLDUP_NTP_SHIFT	24	/* Number of Transmit Packets */
+#define	FULLDUP_RT_SHIFT	20	/* Receive Timer */
+#define	FULLDUP_NRP_SHIFT	17	/* Number of Receive Packets */
+#define	FULLDUP_CON_MODE	0x00010000	/* Continuous Mode */
+#define	FULLDUP_TIM_SHIFT	0	/* Timer Value */
 
 /* CSR_MACCTL - Mac Control */
 #define	MACCTL_RE		0x00000004	/* rx enable */
@@ -426,23 +426,23 @@ struct fv_softc {
 
 /* setup frame code refer dc code */
 
-#define FV_SFRAME_LEN		192
-#define FV_MIN_FRAMELEN		60
+#define	FV_SFRAME_LEN		192
+#define	FV_MIN_FRAMELEN		60
 
 /*
  * MII Definitions for the 21041 and 21140/21140A/21142
  * copy from if_devar.h
  */
-#define MII_PREAMBLE            (~0)
-#define MII_TEST                0xAAAAAAAA
-#define MII_RDCMD               0x06
-#define MII_WRCMD               0x05
-#define MII_DIN                 0x00080000
-#define MII_RD                  0x00040000
-#define MII_WR                  0x00000000
-#define MII_DOUT                0x00020000
-#define MII_CLK                 0x00010000
-#define MII_CLKON               MII_CLK
-#define MII_CLKOFF              MII_CLK
+#define	MII_PREAMBLE            (~0)
+#define	MII_TEST                0xAAAAAAAA
+#define	MII_RDCMD               0x06
+#define	MII_WRCMD               0x05
+#define	MII_DIN                 0x00080000
+#define	MII_RD                  0x00040000
+#define	MII_WR                  0x00000000
+#define	MII_DOUT                0x00020000
+#define	MII_CLK                 0x00010000
+#define	MII_CLKON               MII_CLK
+#define	MII_CLKOFF              MII_CLK
 
 #endif /* __IF_FVREG_H__ */
