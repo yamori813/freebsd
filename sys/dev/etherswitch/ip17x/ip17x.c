@@ -361,7 +361,7 @@ ip17x_tick(void *arg)
 
 	sc = arg;
 	ip17x_miipollstat(sc);
-//	callout_reset(&sc->callout_tick, hz, ip17x_tick, sc);
+	callout_reset(&sc->callout_tick, hz, ip17x_tick, sc);
 }
 
 static void
