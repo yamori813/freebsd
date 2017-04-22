@@ -174,8 +174,3 @@ void bootdebug3(int c)
 	bus_space_unmap(bst, bsh, 0x20000);
 }
 #endif
-
-/* Physical and virtual addresses for some global pages */
-
-struct pv_addr msgbufpv;
-struct pv_addr kernelstack;

@@ -119,6 +119,7 @@ struct fv_softc {
 #ifdef FV_MDIO
 	device_t		fv_miiproxy;
 #endif
+	int			fv_if_flags;
 	bus_dma_tag_t		fv_parent_tag;
 	bus_dma_tag_t		fv_tag;
 	struct mtx		fv_mtx;
@@ -406,6 +407,8 @@ struct fv_softc {
 #define	OPMODE_SR		0x00000002	/* start receive */
 #define	OPMODE_OSF		0x00000004	/* operate on second frame */
 #define	OPMODE_ST		0x00002000	/* start transmitter */
+#define	OPMODE_PR		0x00000020	/* promiscuous mode */
+#define	OPMODE_PM		0x00000040	/* pass all multicast */
 #define	OPMODE_TR		0x0000c000	/* threshold control */
 #define	OPMODE_TR_32		0x00000000	/*     32 words */
 #define	OPMODE_TR_64		0x00004000	/*     64 words */

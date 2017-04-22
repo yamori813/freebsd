@@ -70,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/miivar.h>
 
 /* Todo: move to options.arm */
-/* #define FV_MDIO */
+#define FV_MDIO
 
 #ifdef FV_MDIO
 #include <dev/mdio/mdio.h>
@@ -166,14 +166,13 @@ DRIVER_MODULE(fv, simplebus, fv_driver, fv_devclass, 0, 0);
 DRIVER_MODULE(miibus, fv, miibus_driver, miibus_devclass, 0, 0);
 #endif
 
+static struct mtx miibus_mtx;
+MTX_SYSINIT(miibus_mtx, &miibus_mtx, "are mii lock", MTX_DEF);
+
 #ifdef FV_MDIO
 static int fvmdio_probe(device_t);
 static int fvmdio_attach(device_t);
 static int fvmdio_detach(device_t);
-
-static struct mtx miibus_mtx;
-
-MTX_SYSINIT(miibus_mtx, &miibus_mtx, "are mii lock", MTX_DEF);
 
 /*
  * Declare an additional, separate driver for accessing the MDIO bus.
@@ -986,16 +985,25 @@ fv_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 	struct mii_data		*mii;
 #endif
 	int			error;
+	int			csr;
 
 	switch (command) {
 	case SIOCSIFFLAGS:
-#if 0
 		FV_LOCK(sc);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				if ((ifp->if_flags ^ sc->fv_if_flags) &
-				    (IFF_PROMISC | IFF_ALLMULTI))
-					fv_set_filter(sc);
+				    IFF_PROMISC) {
+					csr = CSR_READ_4(sc, CSR_OPMODE);
+					CSR_WRITE_4(sc, CSR_OPMODE, csr |
+					    OPMODE_PM | OPMODE_PR);
+				}
+				if ((ifp->if_flags ^ sc->fv_if_flags) &
+				    IFF_ALLMULTI) {
+					csr = CSR_READ_4(sc, CSR_OPMODE);
+					CSR_WRITE_4(sc, CSR_OPMODE, csr |
+					    OPMODE_PM);
+				}
 			} else {
 				if (sc->fv_detach == 0)
 					fv_init_locked(sc);
@@ -1006,7 +1014,6 @@ fv_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 		}
 		sc->fv_if_flags = ifp->if_flags;
 		FV_UNLOCK(sc);
-#endif
 		error = 0;
 		break;
 	case SIOCADDMULTI:
