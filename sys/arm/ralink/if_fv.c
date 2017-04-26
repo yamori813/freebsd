@@ -339,8 +339,8 @@ fv_attach(device_t dev)
 	ifp->if_init = fv_init;
 
 	/* XXX: add real size */
-	IFQ_SET_MAXLEN(&ifp->if_snd, 9);
-	ifp->if_snd.ifq_maxlen = 9;
+	IFQ_SET_MAXLEN(&ifp->if_snd, ifqmaxlen);
+	ifp->if_snd.ifq_maxlen = ifqmaxlen;
 	IFQ_SET_READY(&ifp->if_snd);
 
 	ifp->if_capenable = ifp->if_capabilities;
@@ -542,6 +542,8 @@ fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
 	struct fv_softc * sc = device_get_softc(dev);
 
+if (phy >= 29) return (0);
+
 	mtx_lock(&miibus_mtx);
 	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
 	fv_miibus_writebits(sc, MII_WRCMD, 4);
@@ -705,7 +707,7 @@ fv_init_locked(struct fv_softc *sc)
 	 * Write out the opmode.
 	 */
 	CSR_WRITE_4(sc, CSR_OPMODE, OPMODE_SR | OPMODE_ST |
-	    OPMODE_TR_128);
+	    OPMODE_TR_128 | OPMODE_FDX | OPMODE_SPEED);
 	/*
 	 * Start the receive process.
 	 */
@@ -737,22 +739,20 @@ fv_start(struct ifnet *ifp)
 /*
  * Encapsulate an mbuf chain in a descriptor by coupling the mbuf data
  * pointers to the fragment pointers.
+ * Use Implicit Chain implementation.
  */
 static int
 fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 {
 	struct fv_txdesc	*txd;
-	struct fv_desc		*desc, *prev_desc;
+	struct fv_desc		*desc;
 	struct mbuf		*m;
 	bus_dma_segment_t	txsegs[FV_MAXFRAGS];
-	uint32_t		link_addr;
 	int			error, i, nsegs, prod, si;
 	int			padlen;
-	int			isfirst;
+	int			txstat;
 
 	FV_LOCK_ASSERT(sc);
-
-	isfirst = sc->fv_cdata.fv_tx_cnt <= 1 ? 1 : 0;
 
 	/*
 	 * Some VIA Rhine wants packet buffers to be longword
@@ -812,7 +812,7 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	error = bus_dmamap_load_mbuf_sg(sc->fv_cdata.fv_tx_tag, txd->tx_dmamap,
 	    *m_head, txsegs, &nsegs, BUS_DMA_NOWAIT);
 	if (error == EFBIG) {
-	device_printf(sc->fv_dev, "fv_encap EFBIG error\n");
+		device_printf(sc->fv_dev, "fv_encap EFBIG error\n");
 		m = m_defrag(*m_head, M_NOWAIT);
 		if (m == NULL) {
 			m_freem(*m_head);
@@ -849,27 +849,24 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	si = prod;
 
 	/* 
-	 * Make a list of descriptors for this packet. DMA controller will
-	 * walk through it while fv_link is not zero. The last one should
-	 * have COF flag set, to pickup next chain from NDPTR
+	 * Make a list of descriptors for this packet. 
 	 */
-	desc = prev_desc = NULL;
+	desc = NULL;
 	for (i = 0; i < nsegs; i++) {
 		desc = &sc->fv_rdata.fv_tx_ring[prod];
 		desc->fv_stat = ADSTAT_OWN;
 		desc->fv_devcs = txsegs[i].ds_len;
-		/* link with previous descriptor */
+		/* end of descriptor */
 		if (prod == FV_TX_RING_CNT - 1)
-			desc->fv_devcs |= ADCTL_Tx_TER;
+			desc->fv_devcs |= ADCTL_ER;
 		desc->fv_addr = txsegs[i].ds_addr;
 
-		sc->fv_cdata.fv_tx_cnt++;
-		prev_desc = desc;
+		++sc->fv_cdata.fv_tx_cnt;
 		FV_INC(prod, FV_TX_RING_CNT);
 	}
 
 	/* 
-	 * Set mark last fragment with LD flag
+	 * Set mark last fragment with Last/Intr flag
 	 */
 	if (desc) {
 		desc->fv_devcs |= ADCTL_Tx_IC;
@@ -884,15 +881,13 @@ fv_encap(struct fv_softc *sc, struct mbuf **m_head)
 	    sc->fv_cdata.fv_tx_ring_map,
 	    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
 
-	/* Start transmitting */
-	/* Check if new list is queued in NDPTR */
-	if (isfirst) {
+	txstat = (CSR_READ_4(sc, CSR_STATUS) >> 20) & 7;
+	if (txstat == 0 || txstat == 6) {
 		/* Transmit Process Stat is stop or suspended */
 		desc = &sc->fv_rdata.fv_tx_ring[si];
 		desc->fv_devcs |= ADCTL_Tx_FS;
 	}
 	else {
-		link_addr = FV_TX_RING_ADDR(sc, si);
 		/* Get previous descriptor */
 		si = (si + FV_TX_RING_CNT - 1) % FV_TX_RING_CNT;
 		desc = &sc->fv_rdata.fv_tx_ring[si];
@@ -1465,7 +1460,6 @@ fv_rx_ring_init(struct fv_softc *sc)
 {
 	struct fv_ring_data	*rd;
 	struct fv_rxdesc	*rxd;
-	bus_addr_t		addr;
 	int			i;
 
 	sc->fv_cdata.fv_rx_cons = 0;
@@ -1476,16 +1470,11 @@ fv_rx_ring_init(struct fv_softc *sc)
 		rxd = &sc->fv_cdata.fv_rxdesc[i];
 		rxd->rx_m = NULL;
 		rxd->desc = &rd->fv_rx_ring[i];
-		if (i == FV_RX_RING_CNT - 1)
-			addr = FV_RX_RING_ADDR(sc, 0);
-		else
-			addr = FV_RX_RING_ADDR(sc, i + 1);
 		rd->fv_rx_ring[i].fv_stat = ADSTAT_OWN;
-		rd->fv_rx_ring[i].fv_devcs = ADCTL_CH;
+		rd->fv_rx_ring[i].fv_devcs = 0;
 		if (i == FV_RX_RING_CNT - 1)
 			rd->fv_rx_ring[i].fv_devcs |= ADCTL_ER;
 		rd->fv_rx_ring[i].fv_addr = 0;
-		rd->fv_rx_ring[i].fv_link = addr;
 		if (fv_newbuf(sc, i) != 0)
 			return (ENOBUFS);
 	}
@@ -1527,7 +1516,7 @@ fv_newbuf(struct fv_softc *sc, int idx)
 
 	rxd = &sc->fv_cdata.fv_rxdesc[idx];
 	if (rxd->rx_m != NULL) {
-/* This code make bug. Make scranble on buffer data.
+/* This code make bug. Make scranble on buffer data. 
 		bus_dmamap_sync(sc->fv_cdata.fv_rx_tag, rxd->rx_dmamap,
 		    BUS_DMASYNC_POSTREAD);
 */
@@ -1551,8 +1540,8 @@ fv_newbuf(struct fv_softc *sc, int idx)
 static __inline void
 fv_fixup_rx(struct mbuf *m)
 {
-        int		i;
-        uint16_t	*src, *dst;
+	int		i;
+	uint16_t	*src, *dst;
 
 	src = mtod(m, uint16_t *);
 	dst = src - 1;
@@ -1659,10 +1648,18 @@ fv_rx(struct fv_softc *sc)
 
 		if ((cur_rx->fv_stat & ADSTAT_OWN) == ADSTAT_OWN)
 		       break;	
-
+		
 		prog++;
 
-		packet_len = ADSTAT_Rx_LENGTH(cur_rx->fv_stat);
+		if (cur_rx->fv_stat & (ADSTAT_ES | ADSTAT_Rx_TL)) {
+			device_printf(sc->fv_dev, 
+			    "Receive Descriptor error %x\n", cur_rx->fv_stat);
+			if_inc_counter(ifp, IFCOUNTER_IERRORS, 1);
+			packet_len = 0;
+		} else {
+			packet_len = ADSTAT_Rx_LENGTH(cur_rx->fv_stat);
+		}
+	
 		/* Assume it's error */
 		error = 1;
 
@@ -1675,6 +1672,7 @@ fv_rx(struct fv_softc *sc)
 			m = rxd->rx_m;
 			/* Skip 4 bytes of CRC */
 			m->m_pkthdr.len = m->m_len = packet_len - ETHER_CRC_LEN;
+
 			fv_fixup_rx(m);
 			m->m_pkthdr.rcvif = ifp;
 			if_inc_counter(ifp, IFCOUNTER_IPACKETS, 1);
@@ -1742,6 +1740,10 @@ fv_intr(void *arg)
 		}
 		if (status & sc->sc_txint_mask) {
 			fv_tx(sc);
+		}
+		if (status & STATUS_AIS) {
+			device_printf(sc->fv_dev, "Abnormal Interrupt %x\n",
+			    status);
 		}
 		CSR_WRITE_4(sc, CSR_FULLDUP, FULLDUP_CS | 
 		    (1 << FULLDUP_TT_SHIFT) | (3 << FULLDUP_NTP_SHIFT) | 

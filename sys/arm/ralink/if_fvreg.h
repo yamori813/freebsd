@@ -243,7 +243,6 @@ struct fv_softc {
 #define	ADCTL_Tx_FS	0x20000000	/* First Segment */
 #define	ADCTL_Tx_SETUP	0x08000000	/* Setup frame */
 #define	ADCTL_Tx_AC	0x04000000	/* Add CRC Disable */
-#define	ADCTL_Tx_TER	0x02000000	/* Add CRC Disable */
 #define	ADCTL_Tx_DPD	0x00800000	/* Disabled Padding */
 
 /*
@@ -406,15 +405,17 @@ struct fv_softc {
 /* CSR_OPMODE - Operation Mode */
 #define	OPMODE_SR		0x00000002	/* start receive */
 #define	OPMODE_OSF		0x00000004	/* operate on second frame */
+#define	OPMODE_PR		0x00000040	/* promiscuous mode */
+#define	OPMODE_PM		0x00000080	/* pass all multicast */
+#define	OPMODE_FDX		0x00000200	/* full duplex mode */
 #define	OPMODE_ST		0x00002000	/* start transmitter */
-#define	OPMODE_PR		0x00000020	/* promiscuous mode */
-#define	OPMODE_PM		0x00000040	/* pass all multicast */
 #define	OPMODE_TR		0x0000c000	/* threshold control */
 #define	OPMODE_TR_32		0x00000000	/*     32 words */
 #define	OPMODE_TR_64		0x00004000	/*     64 words */
 #define	OPMODE_TR_128		0x00008000	/*    128 words */
 #define	OPMODE_TR_256		0x0000c000	/*    256 words */
 #define	OPMODE_SF		0x00200000	/* store and forward mode */
+#define	OPMODE_SPEED		0x80000000	/* speed 100M:1 10M:0 */
 
 /* CSR_INTEN - Interrupt Enable */
 	/* See bits for CSR_STATUS -- Status */
