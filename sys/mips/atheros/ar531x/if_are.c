@@ -303,8 +303,8 @@ are_attach(device_t dev)
 	sc->are_if_flags = ifp->if_flags;
 
 	/* XXX: add real size */
-	IFQ_SET_MAXLEN(&ifp->if_snd, 9);
-	ifp->if_snd.ifq_maxlen = 9;
+	IFQ_SET_MAXLEN(&ifp->if_snd, ifqmaxlen);
+	ifp->if_snd.ifq_maxlen = ifqmaxlen;
 	IFQ_SET_READY(&ifp->if_snd);
 
 	/* Tell the upper layer(s) we support long frames. */
