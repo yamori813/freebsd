@@ -550,25 +550,23 @@ ip17x_ifmedia_sts(struct ifnet *ifp, struct ifmediareq *ifmr)
 static int
 ip17x_readreg(device_t dev, int addr)
 {
-	struct ip17x_softc *sc;
+	int devaddr, regaddr;
 
-	sc = device_get_softc(dev);
-	IP17X_LOCK_ASSERT(sc, MA_OWNED);
+	devaddr = (addr >> 5) & 0x1f;
+	regaddr = addr & 0x1f;
 
-	/* Not supported. */
-	return (0);
+	return MDIO_READREG(device_get_parent(dev), devaddr, regaddr);
 }
 
 static int
 ip17x_writereg(device_t dev, int addr, int value)
 {
-	struct ip17x_softc *sc;
+	int devaddr, regaddr;
 
-	sc = device_get_softc(dev);
-	IP17X_LOCK_ASSERT(sc, MA_OWNED);
+	devaddr = (addr >> 5) & 0x1f;
+	regaddr = addr & 0x1f;
 
-	/* Not supported. */
-	return (0);
+	return (MDIO_WRITEREG(device_get_parent(dev), devaddr, regaddr, value));
 }
 
 static int
