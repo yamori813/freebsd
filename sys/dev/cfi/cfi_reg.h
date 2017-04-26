@@ -112,11 +112,8 @@ struct cfi_qry {
 #define	CFI_BCS_ERASE_RESUME	0xd0	/* Equals CONFIRM */
 #define	CFI_BCS_CONFIRM		0xd0
 #define	CFI_BCS_BUF_PROG_SETUP	0xe8
-#ifdef CFI_USE_MXFLASH
-#define	CFI_BCS_READ_ARRAY	0xf0
-#else
 #define	CFI_BCS_READ_ARRAY	0xff
-#endif
+#define	CFI_BCS_READ_ARRAY2	0xf0
 
 /* Intel commands. */
 #define	CFI_INTEL_LB		0x01	/* Lock Block */
