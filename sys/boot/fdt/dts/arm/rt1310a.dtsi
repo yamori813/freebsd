@@ -94,17 +94,14 @@
 			reg = <0x80000 0x20000>;
 			interrupts = <7>;
 			interrupt-parent = <&PIC>;	
-			local-mac-address = [ 00 1a f1 01 1f 23 ];
 
 		};
 
-		fv_mac1@A0000 {
+		enet1:fv_mac1@A0000 {
 			compatible = "fv,ethernet";
 			reg = <0xA0000 0x20000>;
 			interrupts = <8>;
 			interrupt-parent = <&PIC>;	
-			local-mac-address = [ 00 1a f1 01 1f 24 ];
-
 		};
 
 	};

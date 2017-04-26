@@ -83,3 +83,10 @@
 
 };
 
+&enet0 {
+	local-mac-address = [ 00 1a f1 01 1f 23 ];
+};
+
+&enet1 {
+	local-mac-address = [ 00 1a f1 01 1f 24 ];
+};
