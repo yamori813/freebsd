@@ -1515,6 +1515,7 @@ MLINKS+=sbuf.9 sbuf_bcat.9 \
 	sbuf.9 sbuf_bcpy.9 \
 	sbuf.9 sbuf_cat.9 \
 	sbuf.9 sbuf_clear.9 \
+	sbuf.9 sbuf_clear_flags.9 \
 	sbuf.9 sbuf_copyin.9 \
 	sbuf.9 sbuf_cpy.9 \
 	sbuf.9 sbuf_data.9 \
@@ -1522,6 +1523,7 @@ MLINKS+=sbuf.9 sbuf_bcat.9 \
 	sbuf.9 sbuf_done.9 \
 	sbuf.9 sbuf_error.9 \
 	sbuf.9 sbuf_finish.9 \
+	sbuf.9 sbuf_get_flags.9 \
 	sbuf.9 sbuf_hexdump.9 \
 	sbuf.9 sbuf_len.9 \
 	sbuf.9 sbuf_new.9 \
@@ -1530,6 +1532,7 @@ MLINKS+=sbuf.9 sbuf_bcat.9 \
 	sbuf.9 sbuf_printf.9 \
 	sbuf.9 sbuf_putc.9 \
 	sbuf.9 sbuf_set_drain.9 \
+	sbuf.9 sbuf_set_flags.9 \
 	sbuf.9 sbuf_setpos.9 \
 	sbuf.9 sbuf_start_section.9 \
 	sbuf.9 sbuf_end_section.9  \
@@ -1991,7 +1994,6 @@ MLINKS+=vrele.9 vput.9 \
 	vrele.9 vunref.9
 MLINKS+=vslock.9 vsunlock.9
 MLINKS+=zone.9 uma.9 \
-	zone.9 uma_find_refcnt.9 \
 	zone.9 uma_zalloc.9 \
 	zone.9 uma_zalloc_arg.9 \
 	zone.9 uma_zcreate.9 \
