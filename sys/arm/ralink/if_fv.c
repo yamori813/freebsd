@@ -70,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/mii/miivar.h>
 
 /* Todo: move to options.arm */
-#define FV_MDIO
+/*#define FV_MDIO*/
 
 #ifdef FV_MDIO
 #include <dev/mdio/mdio.h>
@@ -541,8 +541,6 @@ static int
 fv_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
 	struct fv_softc * sc = device_get_softc(dev);
-
-if (phy >= 29) return (0);
 
 	mtx_lock(&miibus_mtx);
 	fv_miibus_writebits(sc, MII_PREAMBLE, 32);
