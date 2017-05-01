@@ -302,7 +302,7 @@ are_attach(device_t dev)
 	ifp->if_init = are_init;
 	sc->are_if_flags = ifp->if_flags;
 
-	/* XXX: add real size */
+	/* ifqmaxlen is sysctl value in net/if.c */
 	IFQ_SET_MAXLEN(&ifp->if_snd, ifqmaxlen);
 	ifp->if_snd.ifq_maxlen = ifqmaxlen;
 	IFQ_SET_READY(&ifp->if_snd);
