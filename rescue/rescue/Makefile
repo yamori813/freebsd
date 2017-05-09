@@ -156,7 +156,6 @@ CRUNCH_PROGS_sbin+= bsdlabel fdisk
 CRUNCH_ALIAS_bsdlabel= disklabel
 .endif
 
-CRUNCH_SRCDIR_ilmid= ${SRCTOP}/sbin/atm/ilmid
 CRUNCH_SRCDIR_rtquery= ${SRCTOP}/sbin/routed/rtquery
 CRUNCH_SRCDIR_ipf= ${SRCTOP}/sbin/ipf/ipf
 .if ${MK_ZFS} != "no"
@@ -194,6 +193,10 @@ CRUNCH_ALIAS_less= more
 
 CRUNCH_PROGS_usr.bin+= xz
 CRUNCH_ALIAS_xz= unxz lzma unlzma xzcat lzcat
+
+CRUNCH_PROGS_usr.bin+= zstd
+CRUNCH_ALIAS_zstd= unzstd zstdcat zstdmt
+CRUNCH_LIBS+=	-lprivatezstd
 
 CRUNCH_PROGS_usr.bin+= tar
 CRUNCH_LIBS+= -larchive
