@@ -292,9 +292,8 @@ mtk_gpio_attach(device_t dev)
 
 	for (i = 0; i < sc->num_pins; i++) {
 		sc->pins[i].pin_caps |= GPIO_PIN_INPUT | GPIO_PIN_OUTPUT |
-		    GPIO_PIN_INVIN | GPIO_PIN_INVOUT;
-		sc->pins[i].pin_caps |= GPIO_INTR_EDGE_RISING |
-		    GPIO_INTR_EDGE_FALLING;
+		    GPIO_PIN_INVIN | GPIO_PIN_INVOUT |
+		    GPIO_INTR_EDGE_RISING | GPIO_INTR_EDGE_FALLING;
 		sc->pins[i].intr_polarity = INTR_POLARITY_HIGH;
 		sc->pins[i].intr_trigger = INTR_TRIGGER_EDGE;
 
@@ -564,12 +563,14 @@ mtk_gpio_pic_map_intr(device_t dev, struct intr_map_data *data,
 		    (struct intr_map_data_gpio *)data, &irq, NULL));
 		break;
 	default:
-		error = ENOTSUP;
+		error = EINVAL;
 		break;
 	}
 
-	if (error != 0)
-		return (ENOTSUP);
+	if (error != 0) {
+		device_printf(dev, "Invalid map type\n");
+		return (error);
+	}
 
 	*isrcp = PIC_INTR_ISRC(sc, irq);
 	return (0);
