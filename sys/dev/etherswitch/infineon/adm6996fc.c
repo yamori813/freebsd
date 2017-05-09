@@ -35,6 +35,7 @@
  * This code suppose ADM6996FC SDC/SDIO connect to SOC network interface
  * MDC/MDIO.
  * This code development on Netgear WGR614Cv7.
+ * etherswitchcfg command port option support addtag.
  */
 
 #include <sys/param.h>
