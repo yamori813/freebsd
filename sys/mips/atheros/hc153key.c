@@ -26,7 +26,7 @@
  */
 
 /*
- * 
+ * This is 74HC153 input evdev driver on gpio bus
  */
 
 #include <sys/cdefs.h>
@@ -97,12 +97,25 @@ key_scan(void *arg)
 
 	pins = getpins(sc);
 
-	if (sc->lastpins != pins) {
+	/* 1-3 bit push button */
+	if ((sc->lastpins & 0x0f) != (pins & 0x0f)) {
 		evdev_push_event(sc->sc_evdev,
-		    EV_MSC, MSC_SCAN, ~pins & 0xff);
+		    EV_MSC, MSC_SCAN, ~pins & 0x0f);
 		evdev_sync(sc->sc_evdev);
-		sc->lastpins = pins;
 	}
+	/* 4-7 bit is slide switch */
+	if ((sc->lastpins & 0xf0) != (pins & 0xf0)) {
+		evdev_push_sw(sc->sc_evdev,
+		    0, (~pins & 0x10) ? 1 : 0);
+		evdev_push_sw(sc->sc_evdev,
+		    1, (~pins & 0x20) ? 1 : 0);
+		evdev_push_sw(sc->sc_evdev,
+		    2, (~pins & 0x40) ? 1 : 0);
+		evdev_push_sw(sc->sc_evdev,
+		    3, (~pins & 0x80) ? 1 : 0);
+		evdev_sync(sc->sc_evdev);
+	}
+	sc->lastpins = pins;
 
 	callout_reset(&sc->scan_callout, hz, key_scan, sc);
 }
@@ -162,6 +175,11 @@ hc153key_attach(device_t dev)
 	evdev_support_event(sc->sc_evdev, EV_SYN);
 	evdev_support_event(sc->sc_evdev, EV_MSC);
 	evdev_support_msc(sc->sc_evdev, MSC_SCAN);
+	evdev_support_event(sc->sc_evdev, EV_SW);
+	evdev_support_sw(sc->sc_evdev, 0);
+	evdev_support_sw(sc->sc_evdev, 1);
+	evdev_support_sw(sc->sc_evdev, 2);
+	evdev_support_sw(sc->sc_evdev, 3);
 
 	err = evdev_register(sc->sc_evdev);
 	if (err) {
@@ -171,6 +189,14 @@ hc153key_attach(device_t dev)
 	}
 
 	sc->lastpins = getpins(sc);
+	evdev_push_sw(sc->sc_evdev,
+	    0, (~sc->lastpins & 0x10) ? 1 : 0);
+	evdev_push_sw(sc->sc_evdev,
+	    1, (~sc->lastpins & 0x20) ? 1 : 0);
+	evdev_push_sw(sc->sc_evdev,
+	    2, (~sc->lastpins & 0x40) ? 1 : 0);
+	evdev_push_sw(sc->sc_evdev,
+	    3, (~sc->lastpins & 0x80) ? 1 : 0);
 
 	callout_init(&sc->scan_callout, 0);
 
