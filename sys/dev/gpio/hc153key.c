@@ -27,6 +27,7 @@
 
 /*
  * This is 74HC153 input evdev driver on gpio bus
+ * Developed on Buffalo WZR-HP-G300NH
  */
 
 #include <sys/cdefs.h>
@@ -94,6 +95,7 @@ key_scan(void *arg)
 	struct hc153key_softc *sc;
 	int pins;
 	int bitmask;
+	int i, j;
 
 	sc = arg;
 
@@ -103,20 +105,18 @@ key_scan(void *arg)
 	bitmask = ~sc->swmask & 0xff;
 	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
 		evdev_push_event(sc->sc_evdev,
-		    EV_MSC, MSC_SCAN, ~pins & 0x0f);
+		    EV_MSC, MSC_SCAN, ~pins & bitmask);
 		evdev_sync(sc->sc_evdev);
 	}
 	/* slide switch check */
 	bitmask = sc->swmask;
 	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
-		if (sc->swmask != 0x00) {
-			j = 0;
-			for (i = 0; i < 8; ++i) {
-				if (sw->swmask & (1 << i) == 1) {
-					evdev_push_sw(sc->sc_evdev, j,
-					    (~pins & (1 << i)) ? 1 : 0);
-					++j;
-				}
+		j = 0;
+		for (i = 0; i < 8; ++i) {
+			if (bitmask & (1 << i)) {
+				evdev_push_sw(sc->sc_evdev, j,
+				    (~pins & (1 << i)) ? 1 : 0);
+				++j;
 			}
 		}
 		evdev_sync(sc->sc_evdev);
@@ -197,7 +197,7 @@ hc153key_attach(device_t dev)
 		j = 0;
 		evdev_support_event(sc->sc_evdev, EV_SW);
 		for (i = 0; i < 8; ++i) {
-			if (sw->swmask & (1 << i) == 1) {
+			if (sc->swmask & (1 << i)) {
 				evdev_support_sw(sc->sc_evdev, j);
 				++j;
 			}
@@ -217,7 +217,7 @@ hc153key_attach(device_t dev)
 	if (sc->swmask != 0x00) {
 		j = 0;
 		for (i = 0; i < 8; ++i) {
-			if (sw->swmask & (1 << i) == 1) {
+			if (sc->swmask & (1 << i)) {
 				evdev_push_sw(sc->sc_evdev,
 				    j, (~sc->lastpins & (1 << i)) ? 1 : 0);
 				++j;
