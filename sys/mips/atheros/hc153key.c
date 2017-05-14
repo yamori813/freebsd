@@ -57,6 +57,7 @@ struct hc153key_softc {
 	int			pin1y;
 	int			pin2y;
 	int			lastpins;
+	int			swmask;
 	struct callout		scan_callout;
 	struct evdev_dev	*sc_evdev;
 };
@@ -92,27 +93,32 @@ key_scan(void *arg)
 {
 	struct hc153key_softc *sc;
 	int pins;
+	int bitmask;
 
 	sc = arg;
 
 	pins = getpins(sc);
 
-	/* 1-3 bit push button */
-	if ((sc->lastpins & 0x0f) != (pins & 0x0f)) {
+	/* push button check */
+	bitmask = ~sc->swmask & 0xff;
+	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
 		evdev_push_event(sc->sc_evdev,
 		    EV_MSC, MSC_SCAN, ~pins & 0x0f);
 		evdev_sync(sc->sc_evdev);
 	}
-	/* 4-7 bit is slide switch */
-	if ((sc->lastpins & 0xf0) != (pins & 0xf0)) {
-		evdev_push_sw(sc->sc_evdev,
-		    0, (~pins & 0x10) ? 1 : 0);
-		evdev_push_sw(sc->sc_evdev,
-		    1, (~pins & 0x20) ? 1 : 0);
-		evdev_push_sw(sc->sc_evdev,
-		    2, (~pins & 0x40) ? 1 : 0);
-		evdev_push_sw(sc->sc_evdev,
-		    3, (~pins & 0x80) ? 1 : 0);
+	/* slide switch check */
+	bitmask = sc->swmask;
+	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
+		if (sc->swmask != 0x00) {
+			j = 0;
+			for (i = 0; i < 8; ++i) {
+				if (sw->swmask & (1 << i) == 1) {
+					evdev_push_sw(sc->sc_evdev, j,
+					    (~pins & (1 << i)) ? 1 : 0);
+					++j;
+				}
+			}
+		}
 		evdev_sync(sc->sc_evdev);
 	}
 	sc->lastpins = pins;
@@ -124,7 +130,7 @@ static int
 hc153key_probe(device_t dev)
 {
 
-	device_set_desc(dev, "GPIO 74HC153 controller");
+	device_set_desc(dev, "GPIO 74HC153 evdev controller");
 	return (BUS_PROBE_DEFAULT);
 }
 
@@ -134,6 +140,7 @@ hc153key_attach(device_t dev)
 	struct hc153key_softc *sc;
 	int err;
 	int value;
+	int i, j;
 
 	sc = device_get_softc(dev);
 	sc->sc_dev = dev;
@@ -159,6 +166,11 @@ hc153key_attach(device_t dev)
 		return (ENXIO);
 	sc->pin2y = value & 0xff;
 
+	if (resource_int_value(device_get_name(dev),
+	    device_get_unit(dev), "swmask", &value))
+		return (ENXIO);
+	sc->swmask = value & 0xff;
+
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->pina,
 	    GPIO_PIN_OUTPUT);
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->pinb,
@@ -172,14 +184,25 @@ hc153key_attach(device_t dev)
 	evdev_set_name(sc->sc_evdev, device_get_desc(sc->sc_dev));
 	evdev_set_phys(sc->sc_evdev, device_get_nameunit(sc->sc_dev));
 	evdev_set_id(sc->sc_evdev, BUS_HOST, 0, 0, 0);
-	evdev_support_event(sc->sc_evdev, EV_SYN);
-	evdev_support_event(sc->sc_evdev, EV_MSC);
-	evdev_support_msc(sc->sc_evdev, MSC_SCAN);
-	evdev_support_event(sc->sc_evdev, EV_SW);
-	evdev_support_sw(sc->sc_evdev, 0);
-	evdev_support_sw(sc->sc_evdev, 1);
-	evdev_support_sw(sc->sc_evdev, 2);
-	evdev_support_sw(sc->sc_evdev, 3);
+
+	/* key regist */
+	if (sc->swmask != 0xff) {
+		evdev_support_event(sc->sc_evdev, EV_SYN);
+		evdev_support_event(sc->sc_evdev, EV_MSC);
+		evdev_support_msc(sc->sc_evdev, MSC_SCAN);
+	}
+
+	/* switch regist */
+	if (sc->swmask != 0x00) {
+		j = 0;
+		evdev_support_event(sc->sc_evdev, EV_SW);
+		for (i = 0; i < 8; ++i) {
+			if (sw->swmask & (1 << i) == 1) {
+				evdev_support_sw(sc->sc_evdev, j);
+				++j;
+			}
+		}
+	}
 
 	err = evdev_register(sc->sc_evdev);
 	if (err) {
@@ -189,14 +212,19 @@ hc153key_attach(device_t dev)
 	}
 
 	sc->lastpins = getpins(sc);
-	evdev_push_sw(sc->sc_evdev,
-	    0, (~sc->lastpins & 0x10) ? 1 : 0);
-	evdev_push_sw(sc->sc_evdev,
-	    1, (~sc->lastpins & 0x20) ? 1 : 0);
-	evdev_push_sw(sc->sc_evdev,
-	    2, (~sc->lastpins & 0x40) ? 1 : 0);
-	evdev_push_sw(sc->sc_evdev,
-	    3, (~sc->lastpins & 0x80) ? 1 : 0);
+
+	/* push initial value */
+	if (sc->swmask != 0x00) {
+		j = 0;
+		for (i = 0; i < 8; ++i) {
+			if (sw->swmask & (1 << i) == 1) {
+				evdev_push_sw(sc->sc_evdev,
+				    j, (~sc->lastpins & (1 << i)) ? 1 : 0);
+				++j;
+			}
+		}
+		evdev_sync(sc->sc_evdev);
+	}
 
 	callout_init(&sc->scan_callout, 0);
 
