@@ -33,4 +33,4 @@ mips/atheros/ar71xx_fixup.c	optional ar71xx_ath_eeprom
 mips/atheros/qca955x_apb.c	optional qca955x_apb
 mips/atheros/qca955x_pci.c	optional qca955x_pci pci
 
-mips/atheros/hc153key.c		standard
+dev/gpio/hc153key.c		standard
