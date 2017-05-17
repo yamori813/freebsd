@@ -50,9 +50,23 @@ __FBSDID("$FreeBSD$");
 #include <dev/evdev/input.h>
 #include <dev/evdev/evdev.h>
 
+#define HC153KEY_LOCK(_sc)		\
+	mtx_lock(&(_sc)->sc_mtx)
+#define HC153KEY_UNLOCK(_sc)		\
+	mtx_unlock(&(_sc)->sc_mtx)
+#define HC153KEY_LOCK_INIT(_sc)		\
+	mtx_init(&_sc->sc_mtx, device_get_nameunit(_sc->sc_dev), \
+	    "ft5406", MTX_DEF)
+#define HC153KEY_LOCK_DESTROY(_sc)	\
+	mtx_destroy(&_sc->sc_mtx);
+#define HC153KEY_LOCK_ASSERT(_sc)	\
+	mtx_assert(&(_sc)->sc_mtx, MA_OWNED)
+
+
 struct hc153key_softc {
 	device_t		sc_dev;
 	device_t		sc_busdev;
+	struct mtx		sc_mtx;
 	int			pina;
 	int			pinb;
 	int			pin1y;
@@ -62,6 +76,41 @@ struct hc153key_softc {
 	struct callout		scan_callout;
 	struct evdev_dev	*sc_evdev;
 };
+
+static evdev_open_t hc153key_ev_open;
+static evdev_close_t hc153key_ev_close;
+static void key_scan(void *arg);
+
+static const struct evdev_methods hc153key_evdev_methods = {
+	.ev_open = &hc153key_ev_open,
+	.ev_close = &hc153key_ev_close,
+};
+
+static void
+hc153key_ev_close(struct evdev_dev *evdev, void *data)
+{
+	struct hc153key_softc *sc;
+
+	sc = (struct hc153key_softc *)data;
+
+	HC153KEY_LOCK_ASSERT(sc);
+
+	callout_stop(&sc->scan_callout);
+}
+
+static int
+hc153key_ev_open(struct evdev_dev *evdev, void *data)
+{
+	struct hc153key_softc *sc;
+
+	sc = (struct hc153key_softc *)data;
+
+	HC153KEY_LOCK_ASSERT(sc);
+
+	callout_reset(&sc->scan_callout, hz, key_scan, sc);
+
+	return (0);
+}
 
 static int
 getpins(struct hc153key_softc *sc)
@@ -99,13 +148,22 @@ key_scan(void *arg)
 
 	sc = arg;
 
+	HC153KEY_LOCK_ASSERT(sc);
+
 	pins = getpins(sc);
 
 	/* push button check */
 	bitmask = ~sc->swmask & 0xff;
 	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
-		evdev_push_event(sc->sc_evdev,
-		    EV_MSC, MSC_SCAN, ~pins & bitmask);
+		for (i = 0; i < 8; ++i) {
+			if (bitmask & (1 << i) && 
+			    ((sc->lastpins & (1 << i)) !=
+			    (pins & (1 << i)))) {
+				evdev_push_event(sc->sc_evdev,
+				    EV_KEY, i, (pins & (1 << i)) ? 1 : 0);
+			}
+		}
+				
 		evdev_sync(sc->sc_evdev);
 	}
 	/* slide switch check */
@@ -180,16 +238,23 @@ hc153key_attach(device_t dev)
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->pin2y,
 	    GPIO_PIN_INPUT);
 
+	HC153KEY_LOCK_INIT(sc);
+	callout_init_mtx(&sc->scan_callout, &sc->sc_mtx, 0);
+
 	sc->sc_evdev = evdev_alloc();
 	evdev_set_name(sc->sc_evdev, device_get_desc(sc->sc_dev));
 	evdev_set_phys(sc->sc_evdev, device_get_nameunit(sc->sc_dev));
 	evdev_set_id(sc->sc_evdev, BUS_HOST, 0, 0, 0);
+	evdev_set_methods(sc->sc_evdev, sc, &hc153key_evdev_methods);
 
 	/* key regist */
 	if (sc->swmask != 0xff) {
-		evdev_support_event(sc->sc_evdev, EV_SYN);
-		evdev_support_event(sc->sc_evdev, EV_MSC);
-		evdev_support_msc(sc->sc_evdev, MSC_SCAN);
+		evdev_support_event(sc->sc_evdev, EV_KEY);
+		for (i = 0; i < 8; ++i) {
+			if ((sc->swmask & (1 << i)) == 0) {
+				evdev_support_key(sc->sc_evdev, i);
+			}
+		}
 	}
 
 	/* switch regist */
@@ -226,9 +291,7 @@ hc153key_attach(device_t dev)
 		evdev_sync(sc->sc_evdev);
 	}
 
-	callout_init(&sc->scan_callout, 0);
 
-	callout_reset(&sc->scan_callout, hz, key_scan, sc);
 
 	return (0);
 error:
