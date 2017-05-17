@@ -156,11 +156,10 @@ key_scan(void *arg)
 	bitmask = ~sc->swmask & 0xff;
 	if (bitmask != 0 && (sc->lastpins & bitmask) != (pins & bitmask)) {
 		for (i = 0; i < 8; ++i) {
-			if (bitmask & (1 << i) && 
-			    ((sc->lastpins & (1 << i)) !=
-			    (pins & (1 << i)))) {
+			if (bitmask & (1 << i)) {
 				evdev_push_event(sc->sc_evdev,
-				    EV_KEY, i, (pins & (1 << i)) ? 1 : 0);
+				    EV_KEY, i + BTN_MISC,
+				    (pins & (1 << i)) ? 1 : 0);
 			}
 		}
 				
@@ -242,7 +241,7 @@ hc153key_attach(device_t dev)
 	callout_init_mtx(&sc->scan_callout, &sc->sc_mtx, 0);
 
 	sc->sc_evdev = evdev_alloc();
-	evdev_set_name(sc->sc_evdev, device_get_desc(sc->sc_dev));
+	evdev_set_name(sc->sc_evdev, "74HC153 input driver on gpiobus");
 	evdev_set_phys(sc->sc_evdev, device_get_nameunit(sc->sc_dev));
 	evdev_set_id(sc->sc_evdev, BUS_HOST, 0, 0, 0);
 	evdev_set_methods(sc->sc_evdev, sc, &hc153key_evdev_methods);
@@ -252,7 +251,7 @@ hc153key_attach(device_t dev)
 		evdev_support_event(sc->sc_evdev, EV_KEY);
 		for (i = 0; i < 8; ++i) {
 			if ((sc->swmask & (1 << i)) == 0) {
-				evdev_support_key(sc->sc_evdev, i);
+				evdev_support_key(sc->sc_evdev, i + BTN_MISC);
 			}
 		}
 	}
@@ -269,10 +268,11 @@ hc153key_attach(device_t dev)
 		}
 	}
 
-	err = evdev_register(sc->sc_evdev);
+	err = evdev_register_mtx(sc->sc_evdev, &sc->sc_mtx);
 	if (err) {
 		device_printf(dev,
 		    "failed to register evdev: error=%d\n", err);
+		HC153KEY_LOCK_DESTROY(sc);
 		goto error;
 	}
 
