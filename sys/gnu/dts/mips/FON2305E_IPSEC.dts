@@ -7,7 +7,8 @@
 	model = "FON FON2405E";
 
         aliases {
-		serial0 = &uart;
+//		serial0 = &uart;
+		serial0 = &uartlite;
         };
 
 	gpio-leds {
@@ -92,8 +93,12 @@
 &pinctrl {
 	state_default: pinctrl0 {
 		gpio {
-			ralink,group = "i2c", "jtag", "uartf", "rgmii", "mdio";
+			ralink,group = "i2c", "jtag", "rgmii", "mdio";
 			ralink,function = "gpio";
+		};
+		uartf {
+			ralink,group = "uartf";
+			ralink,function = "gpio uartf";
 		};
 
 	};

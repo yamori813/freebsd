@@ -86,6 +86,7 @@ gpio_delay(struct gpio_spi_softc *sc)
 	if (d == 0)
 		d = 1;
 
+return;
 	DELAY(d);
 }
 
