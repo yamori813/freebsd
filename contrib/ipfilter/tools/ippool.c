@@ -201,16 +201,26 @@ poolnodecommand(remove, argc, argv)
 			}
 			break;
 		case 'T' :
-			ttl = atoi(optarg);
-			if (ttl < 0) {
-				fprintf(stderr, "cannot set negative ttl\n");
-				return -1;
+			if (remove == 0) {
+				ttl = atoi(optarg);
+				if (ttl < 0) {
+					fprintf(stderr, "cannot set negative ttl\n");
+					return -1;
+				}
+			} else {
+				usage(argv[0]);
 			}
 			break;
 		case 'v' :
 			opts |= OPT_VERBOSE;
 			break;
+		default :
+			usage(argv[0]);
+			break;		/* keep compiler happy */
 		}
+
+	if (argc - 1 - optind > 0)
+		usage(argv[0]);
 
 	if (argv[optind] != NULL && ipset == 0) {
 		if (setnodeaddr(type, role, ptr, argv[optind]) == 0)
@@ -292,7 +302,10 @@ poolcommand(remove, argc, argv)
 			opts |= OPT_NORESOLVE;
 			break;
 		case 'S' :
-			iph.iph_seed = atoi(optarg);
+			if (remove == 0)
+				iph.iph_seed = atoi(optarg);
+			else
+				usage(argv[0]);
 			break;
 		case 'v' :
 			opts |= OPT_VERBOSE;
@@ -574,7 +587,7 @@ poolflush(argc, argv)
 			break;		/* keep compiler happy */
 		}
 
-	if (argc - 1 - optind > 0)
+	if (argc - optind > 0)
 		usage(argv[0]);
 
 	if (opts & OPT_DEBUG)
