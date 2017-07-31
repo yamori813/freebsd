@@ -93,6 +93,7 @@ struct atu_opt {
 #define SWITCH_ID			0x3
 #define PORT_CONTROL			0x4
 #define PORT_CONTROL_1			0x5
+#define	PORT_CONTROL_1_FID_MASK		0xf
 #define PORT_VLAN_MAP			0x6
 #define PORT_VID			0x7
 #define PORT_CONTROL2			0x8
@@ -110,6 +111,7 @@ struct atu_opt {
 /* PORT_VLAN fields */
 #define PORT_VLAN_MAP_FID		12
 #define PORT_VLAN_MAP_FID_MASK		0xf000
+
 /*
  * Switch Global Register 1 accessed via REG_GLOBAL_ADDR
  */
@@ -215,9 +217,7 @@ struct atu_opt {
 #define SCR_AND_MISC_DATA_CFG_MASK	0xf0
 
 #define E6000SW_NUM_PHY_REGS		29
-#define E6000SW_NUM_VGROUPS		8
-#define E6000SW_MAX_PORTS		10
-#define E6000SW_PORT_NO_VGROUP		-1
+#define	E6000SW_MAX_PORTS		8
 #define E6000SW_DEFAULT_AGETIME		20
 #define E6000SW_RETRIES			100
 #define E6000SW_SMI_TIMEOUT		16

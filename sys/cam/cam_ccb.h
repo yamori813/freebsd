@@ -42,6 +42,7 @@
 #include <cam/scsi/scsi_all.h>
 #include <cam/ata/ata_all.h>
 #include <cam/nvme/nvme_all.h>
+#include <cam/mmc/mmc_all.h>
 
 /* General allocation length definitions for CCB structures */
 #define	IOCDBLEN	CAM_MAX_CDBLEN	/* Space for CDB bytes/pointer */
@@ -206,14 +207,17 @@ typedef enum {
 				/* Serial Management Protocol */
 
 	XPT_NVME_IO		= 0x1c | XPT_FC_DEV_QUEUED,
-				/* Execiute the requestred NVMe I/O operation */
+				/* Execute the requested NVMe I/O operation */
 
-	XPT_MMCSD_IO		= 0x1d | XPT_FC_DEV_QUEUED,
+	XPT_MMC_IO		= 0x1d | XPT_FC_DEV_QUEUED,
 				/* Placeholder for MMC / SD / SDIO I/O stuff */
 
-	XPT_SCAN_TGT		= 0x1E | XPT_FC_QUEUED | XPT_FC_USER_CCB
+	XPT_SCAN_TGT		= 0x1e | XPT_FC_QUEUED | XPT_FC_USER_CCB
 				       | XPT_FC_XPT_ONLY,
 				/* Scan Target */
+
+	XPT_NVME_ADMIN		= 0x1f | XPT_FC_DEV_QUEUED,
+				/* Execute the requested NVMe Admin operation */
 
 /* HBA engine commands 0x20->0x2F */
 	XPT_ENG_INQ		= 0x20 | XPT_FC_XPT_ONLY,
@@ -267,6 +271,7 @@ typedef enum {
 	PROTO_SATAPM,	/* SATA Port Multiplier */
 	PROTO_SEMB,	/* SATA Enclosure Management Bridge */
 	PROTO_NVME,	/* NVME */
+	PROTO_MMCSD,	/* MMC, SD, SDIO */
 } cam_proto;
 
 typedef enum {
@@ -283,6 +288,7 @@ typedef enum {
 	XPORT_ISCSI,	/* iSCSI */
 	XPORT_SRP,	/* SCSI RDMA Protocol */
 	XPORT_NVME,	/* NVMe over PCIe */
+	XPORT_MMCSD,	/* MMC, SD, SDIO card */
 } cam_xport;
 
 #define XPORT_IS_NVME(t)	((t) == XPORT_NVME)
@@ -499,6 +505,7 @@ struct device_match_result {
 	struct scsi_inquiry_data	inq_data;
 	struct ata_params		ident_data;
 	dev_result_flags		flags;
+	struct mmc_params		mmc_ident_data;
 };
 
 struct bus_match_result {
@@ -773,6 +780,16 @@ struct ccb_ataio {
 	uint32_t   unused;
 };
 
+/*
+ * MMC I/O Request CCB used for the XPT_MMC_IO function code.
+ */
+struct ccb_mmcio {
+	struct	   ccb_hdr ccb_h;
+	union	   ccb *next_ccb;	/* Ptr for next CCB for action */
+	struct mmc_command cmd;
+        struct mmc_command stop;
+};
+
 struct ccb_accept_tio {
 	struct	   ccb_hdr ccb_h;
 	cdb_t	   cdb_io;		/* Union for CDB bytes/pointer */
@@ -805,7 +822,7 @@ struct ccb_relsim {
 };
 
 /*
- * NVMe I/O Request CCB used for the XPT_NVME_IO function code.
+ * NVMe I/O Request CCB used for the XPT_NVME_IO and XPT_NVME_ADMIN function codes.
  */
 struct ccb_nvmeio {
 	struct	   ccb_hdr ccb_h;
@@ -1005,7 +1022,28 @@ struct ccb_trans_settings_nvme
 	u_int		max_xfer;	/* Max transfer size (0 -> unlimited */
 	u_int		caps;
 };
-	
+
+#include <cam/mmc/mmc_bus.h>
+struct ccb_trans_settings_mmc {
+	struct mmc_ios ios;
+#define MMC_CLK		(1 << 1)
+#define MMC_VDD		(1 << 2)
+#define MMC_CS		(1 << 3)
+#define MMC_BW		(1 << 4)
+#define MMC_PM		(1 << 5)
+#define MMC_BT		(1 << 6)
+#define MMC_BM		(1 << 7)
+	uint32_t ios_valid;
+/* The folowing is used only for GET_TRAN_SETTINGS */
+	uint32_t	host_ocr;
+	int host_f_min;
+	int host_f_max;
+#define MMC_CAP_4_BIT_DATA	(1 << 0) /* Can do 4-bit data transfers */
+#define MMC_CAP_8_BIT_DATA	(1 << 1) /* Can do 8-bit data transfers */
+#define MMC_CAP_HSPEED		(1 << 2) /* Can do High Speed transfers */
+	uint32_t host_caps;
+};
+
 /* Get/Set transfer rate/width/disconnection/tag queueing settings */
 struct ccb_trans_settings {
 	struct	  ccb_hdr ccb_h;
@@ -1019,6 +1057,7 @@ struct ccb_trans_settings {
 		struct ccb_trans_settings_ata ata;
 		struct ccb_trans_settings_scsi scsi;
 		struct ccb_trans_settings_nvme nvme;
+		struct ccb_trans_settings_mmc mmc;
 	} proto_specific;
 	union {
 		u_int  valid;	/* Which fields to honor */
@@ -1284,6 +1323,7 @@ union ccb {
 	struct	ccb_dev_advinfo		cdai;
 	struct	ccb_async		casync;
 	struct	ccb_nvmeio		nvmeio;
+	struct	ccb_mmcio		mmcio;
 };
 
 #define CCB_CLEAR_ALL_EXCEPT_HDR(ccbp)			\
@@ -1324,6 +1364,13 @@ cam_fill_smpio(struct ccb_smpio *smpio, uint32_t retries,
 	       void (*cbfcnp)(struct cam_periph *, union ccb *), uint32_t flags,
 	       uint8_t *smp_request, int smp_request_len,
 	       uint8_t *smp_response, int smp_response_len,
+	       uint32_t timeout);
+
+static __inline void
+cam_fill_mmcio(struct ccb_mmcio *mmcio, uint32_t retries,
+	       void (*cbfcnp)(struct cam_periph *, union ccb *), uint32_t flags,
+               uint32_t mmc_opcode, uint32_t mmc_arg, uint32_t mmc_flags,
+	       struct mmc_data *mmc_d,
 	       uint32_t timeout);
 
 static __inline void
@@ -1415,6 +1462,34 @@ cam_fill_smpio(struct ccb_smpio *smpio, uint32_t retries,
 }
 
 static __inline void
+cam_fill_mmcio(struct ccb_mmcio *mmcio, uint32_t retries,
+	       void (*cbfcnp)(struct cam_periph *, union ccb *), uint32_t flags,
+	       uint32_t mmc_opcode, uint32_t mmc_arg, uint32_t mmc_flags,
+	       struct mmc_data *mmc_d,
+	       uint32_t timeout)
+{
+	mmcio->ccb_h.func_code = XPT_MMC_IO;
+	mmcio->ccb_h.flags = flags;
+	mmcio->ccb_h.retry_count = retries;
+	mmcio->ccb_h.cbfcnp = cbfcnp;
+	mmcio->ccb_h.timeout = timeout;
+	mmcio->cmd.opcode = mmc_opcode;
+	mmcio->cmd.arg = mmc_arg;
+	mmcio->cmd.flags = mmc_flags;
+	mmcio->stop.opcode = 0;
+	mmcio->stop.arg = 0;
+	mmcio->stop.flags = 0;
+	if (mmc_d != NULL) {
+		mmcio->cmd.data = mmc_d;
+	} else
+		mmcio->cmd.data = NULL;
+	mmcio->cmd.resp[0] = 0;
+	mmcio->cmd.resp[1] = 0;
+	mmcio->cmd.resp[2] = 0;
+	mmcio->cmd.resp[3] = 0;
+}
+
+static __inline void
 cam_set_ccbstatus(union ccb *ccb, cam_status status)
 {
 	ccb->ccb_h.status &= ~CAM_STATUS_MASK;
@@ -1436,6 +1511,21 @@ cam_fill_nvmeio(struct ccb_nvmeio *nvmeio, u_int32_t retries,
 	      u_int32_t timeout)
 {
 	nvmeio->ccb_h.func_code = XPT_NVME_IO;
+	nvmeio->ccb_h.flags = flags;
+	nvmeio->ccb_h.retry_count = retries;
+	nvmeio->ccb_h.cbfcnp = cbfcnp;
+	nvmeio->ccb_h.timeout = timeout;
+	nvmeio->data_ptr = data_ptr;
+	nvmeio->dxfer_len = dxfer_len;
+}
+
+static __inline void
+cam_fill_nvmeadmin(struct ccb_nvmeio *nvmeio, u_int32_t retries,
+	      void (*cbfcnp)(struct cam_periph *, union ccb *),
+	      u_int32_t flags, u_int8_t *data_ptr, u_int32_t dxfer_len,
+	      u_int32_t timeout)
+{
+	nvmeio->ccb_h.func_code = XPT_NVME_ADMIN;
 	nvmeio->ccb_h.flags = flags;
 	nvmeio->ccb_h.retry_count = retries;
 	nvmeio->ccb_h.cbfcnp = cbfcnp;
