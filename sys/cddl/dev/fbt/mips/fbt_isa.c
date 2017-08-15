@@ -59,7 +59,12 @@ fbt_invop(uintptr_t addr, struct trapframe *frame, uintptr_t rval)
 
 			dtrace_probe(fbt->fbtp_id, frame->a0,
 			    frame->a1, frame->a2,
-			    frame->a3, frame->a4);
+			    frame->a3,
+#if defined(__mips_n32) || defined(__mips_n64)
+			    frame->a4);
+#else
+			    frame->t0);
+#endif
 
 			cpu->cpu_dtrace_caller = 0;
 			return (fbt->fbtp_savedval);
