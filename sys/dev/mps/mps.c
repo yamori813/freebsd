@@ -56,6 +56,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/taskqueue.h>
 #include <sys/endian.h>
 #include <sys/eventhandler.h>
+#include <sys/sbuf.h>
 
 #include <machine/bus.h>
 #include <machine/resource.h>
@@ -80,6 +81,7 @@ __FBSDID("$FreeBSD$");
 
 static int mps_diag_reset(struct mps_softc *sc, int sleep_flag);
 static int mps_init_queues(struct mps_softc *sc);
+static void mps_resize_queues(struct mps_softc *sc);
 static int mps_message_unit_reset(struct mps_softc *sc, int sleep_flag);
 static int mps_transition_operational(struct mps_softc *sc);
 static int mps_iocfacts_allocate(struct mps_softc *sc, uint8_t attaching);
@@ -101,6 +103,9 @@ static int mps_reregister_events(struct mps_softc *sc);
 static void mps_enqueue_request(struct mps_softc *sc, struct mps_command *cm);
 static int mps_get_iocfacts(struct mps_softc *sc, MPI2_IOC_FACTS_REPLY *facts);
 static int mps_wait_db_ack(struct mps_softc *sc, int timeout, int sleep_flag);
+static int mps_debug_sysctl(SYSCTL_HANDLER_ARGS);
+static void mps_parse_debug(struct mps_softc *sc, char *list);
+
 SYSCTL_NODE(_hw, OID_AUTO, mps, CTLFLAG_RD, 0, "MPS Driver Parameters");
 
 MALLOC_DEFINE(M_MPT2, "mps", "mpt2 driver memory");
@@ -368,6 +373,46 @@ mps_transition_operational(struct mps_softc *sc)
 	return (error);
 }
 
+static void
+mps_resize_queues(struct mps_softc *sc)
+{
+	int reqcr, prireqcr;
+ 
+	/*
+	 * Size the queues. Since the reply queues always need one free
+	 * entry, we'll deduct one reply message here.  The LSI documents
+	 * suggest instead to add a count to the request queue, but I think
+	 * that it's better to deduct from reply queue.
+	 */
+	prireqcr = MAX(1, sc->max_prireqframes);
+	prireqcr = MIN(prireqcr, sc->facts->HighPriorityCredit);
+
+	reqcr = MAX(2, sc->max_reqframes);
+	reqcr = MIN(reqcr, sc->facts->RequestCredit);
+
+	sc->num_reqs = prireqcr + reqcr;
+	sc->num_replies = MIN(sc->max_replyframes + sc->max_evtframes,
+	    sc->facts->MaxReplyDescriptorPostQueueDepth) - 1;
+
+	/*
+	 * Figure out the number of MSIx-based queues.  If the firmware or
+	 * user has done something crazy and not allowed enough credit for
+	 * the queues to be useful then don't enable multi-queue.
+	 */
+	if (sc->facts->MaxMSIxVectors < 2)
+		sc->msi_msgs = 1;
+
+	if (sc->msi_msgs > 1) {
+		sc->msi_msgs = MIN(sc->msi_msgs, mp_ncpus);
+		sc->msi_msgs = MIN(sc->msi_msgs, sc->facts->MaxMSIxVectors);
+		if (sc->num_reqs / sc->msi_msgs < 2)
+			sc->msi_msgs = 1;
+	}
+
+	mps_dprint(sc, MPS_INIT, "Sized queues to q=%d reqs=%d replies=%d\n",
+	    sc->msi_msgs, sc->num_reqs, sc->num_replies);
+}
+
 /*
  * This is called during attach and when re-initializing due to a Diag Reset.
  * IOC Facts is used to allocate many of the structures needed by the driver.
@@ -518,13 +563,7 @@ mps_iocfacts_allocate(struct mps_softc *sc, uint8_t attaching)
 		if (sc->facts->IOCCapabilities & MPI2_IOCFACTS_CAPABILITY_TLR)
 			sc->control_TLR = TRUE;
 
-		/*
-		 * Size the queues. Since the reply queues always need one free
-		 * entry, we'll just deduct one reply message here.
-		 */
-		sc->num_reqs = MIN(MPS_REQ_FRAMES, sc->facts->RequestCredit);
-		sc->num_replies = MIN(MPS_REPLY_FRAMES + MPS_EVT_REPLY_FRAMES,
-		    sc->facts->MaxReplyDescriptorPostQueueDepth) - 1;
+		mps_resize_queues(sc);
 
 		/*
 		 * Initialize all Tail Queues
@@ -1121,11 +1160,11 @@ mps_alloc_queues(struct mps_softc *sc)
 	struct mps_queue *q;
 	int nq, i;
 
-	nq = MIN(sc->msi_msgs, mp_ncpus);
-	sc->msi_msgs = nq;
+	nq = sc->msi_msgs;
 	mps_dprint(sc, MPS_INIT|MPS_XINFO, "Allocating %d I/O queues\n", nq);
 
-	sc->queues = malloc(sizeof(struct mps_queue) * nq, M_MPT2, M_NOWAIT|M_ZERO);
+	sc->queues = malloc(sizeof(struct mps_queue) * nq, M_MPT2,
+	    M_NOWAIT|M_ZERO);
 	if (sc->queues == NULL)
 		return (ENOMEM);
 
@@ -1417,34 +1456,48 @@ mps_init_queues(struct mps_softc *sc)
 void
 mps_get_tunables(struct mps_softc *sc)
 {
-	char tmpstr[80];
+	char tmpstr[80], mps_debug[80];
 
 	/* XXX default to some debugging for now */
 	sc->mps_debug = MPS_INFO|MPS_FAULT;
 	sc->disable_msix = 0;
 	sc->disable_msi = 0;
+	sc->max_msix = MPS_MSIX_MAX;
 	sc->max_chains = MPS_CHAIN_FRAMES;
 	sc->max_io_pages = MPS_MAXIO_PAGES;
 	sc->enable_ssu = MPS_SSU_ENABLE_SSD_DISABLE_HDD;
 	sc->spinup_wait_time = DEFAULT_SPINUP_WAIT;
 	sc->use_phynum = 1;
+	sc->max_reqframes = MPS_REQ_FRAMES;
+	sc->max_prireqframes = MPS_PRI_REQ_FRAMES;
+	sc->max_replyframes = MPS_REPLY_FRAMES;
+	sc->max_evtframes = MPS_EVT_REPLY_FRAMES;
 
 	/*
 	 * Grab the global variables.
 	 */
-	TUNABLE_INT_FETCH("hw.mps.debug_level", &sc->mps_debug);
+	bzero(mps_debug, 80);
+	if (TUNABLE_STR_FETCH("hw.mps.debug_level", mps_debug, 80) != 0)
+		mps_parse_debug(sc, mps_debug);
 	TUNABLE_INT_FETCH("hw.mps.disable_msix", &sc->disable_msix);
 	TUNABLE_INT_FETCH("hw.mps.disable_msi", &sc->disable_msi);
+	TUNABLE_INT_FETCH("hw.mps.max_msix", &sc->max_msix);
 	TUNABLE_INT_FETCH("hw.mps.max_chains", &sc->max_chains);
 	TUNABLE_INT_FETCH("hw.mps.max_io_pages", &sc->max_io_pages);
 	TUNABLE_INT_FETCH("hw.mps.enable_ssu", &sc->enable_ssu);
 	TUNABLE_INT_FETCH("hw.mps.spinup_wait_time", &sc->spinup_wait_time);
 	TUNABLE_INT_FETCH("hw.mps.use_phy_num", &sc->use_phynum);
+	TUNABLE_INT_FETCH("hw.mps.max_reqframes", &sc->max_reqframes);
+	TUNABLE_INT_FETCH("hw.mps.max_prireqframes", &sc->max_prireqframes);
+	TUNABLE_INT_FETCH("hw.mps.max_replyframes", &sc->max_replyframes);
+	TUNABLE_INT_FETCH("hw.mps.max_evtframes", &sc->max_evtframes);
 
 	/* Grab the unit-instance variables */
 	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.debug_level",
 	    device_get_unit(sc->mps_dev));
-	TUNABLE_INT_FETCH(tmpstr, &sc->mps_debug);
+	bzero(mps_debug, 80);
+	if (TUNABLE_STR_FETCH(tmpstr, mps_debug, 80) != 0)
+		mps_parse_debug(sc, mps_debug);
 
 	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.disable_msix",
 	    device_get_unit(sc->mps_dev));
@@ -1453,6 +1506,10 @@ mps_get_tunables(struct mps_softc *sc)
 	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.disable_msi",
 	    device_get_unit(sc->mps_dev));
 	TUNABLE_INT_FETCH(tmpstr, &sc->disable_msi);
+
+	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_msix",
+	    device_get_unit(sc->mps_dev));
+	TUNABLE_INT_FETCH(tmpstr, &sc->max_msix);
 
 	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_chains",
 	    device_get_unit(sc->mps_dev));
@@ -1478,6 +1535,23 @@ mps_get_tunables(struct mps_softc *sc)
 	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.use_phy_num",
 	    device_get_unit(sc->mps_dev));
 	TUNABLE_INT_FETCH(tmpstr, &sc->use_phynum);
+
+	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_reqframes",
+	    device_get_unit(sc->mps_dev));
+	TUNABLE_INT_FETCH(tmpstr, &sc->max_reqframes);
+
+	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_prireqframes",
+	    device_get_unit(sc->mps_dev));
+	TUNABLE_INT_FETCH(tmpstr, &sc->max_prireqframes);
+
+	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_replyframes",
+	    device_get_unit(sc->mps_dev));
+	TUNABLE_INT_FETCH(tmpstr, &sc->max_replyframes);
+
+	snprintf(tmpstr, sizeof(tmpstr), "dev.mps.%d.max_evtframes",
+	    device_get_unit(sc->mps_dev));
+	TUNABLE_INT_FETCH(tmpstr, &sc->max_evtframes);
+
 }
 
 static void
@@ -1510,9 +1584,9 @@ mps_setup_sysctl(struct mps_softc *sc)
 		sysctl_tree = sc->sysctl_tree;
 	}
 
-	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
-	    OID_AUTO, "debug_level", CTLFLAG_RW, &sc->mps_debug, 0,
-	    "mps debug level");
+	SYSCTL_ADD_PROC(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "debug_level", CTLTYPE_STRING | CTLFLAG_RW, sc, 0,
+	    mps_debug_sysctl, "A", "mps debug level");
 
 	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
 	    OID_AUTO, "disable_msix", CTLFLAG_RD, &sc->disable_msix, 0,
@@ -1521,6 +1595,30 @@ mps_setup_sysctl(struct mps_softc *sc)
 	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
 	    OID_AUTO, "disable_msi", CTLFLAG_RD, &sc->disable_msi, 0,
 	    "Disable the use of MSI interrupts");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "max_msix", CTLFLAG_RD, &sc->max_msix, 0,
+	    "User-defined maximum number of MSIX queues");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "msix_msgs", CTLFLAG_RD, &sc->msi_msgs, 0,
+	    "Negotiated number of MSIX queues");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "max_reqframes", CTLFLAG_RD, &sc->max_reqframes, 0,
+	    "Total number of allocated request frames");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "max_prireqframes", CTLFLAG_RD, &sc->max_prireqframes, 0,
+	    "Total number of allocated high priority request frames");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "max_replyframes", CTLFLAG_RD, &sc->max_replyframes, 0,
+	    "Total number of allocated reply frames");
+
+	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
+	    OID_AUTO, "max_evtframes", CTLFLAG_RD, &sc->max_evtframes, 0,
+	    "Total number of event frames allocated");
 
 	SYSCTL_ADD_STRING(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
 	    OID_AUTO, "firmware_version", CTLFLAG_RW, sc->fw_version,
@@ -1579,6 +1677,104 @@ mps_setup_sysctl(struct mps_softc *sc)
 	SYSCTL_ADD_INT(sysctl_ctx, SYSCTL_CHILDREN(sysctl_tree),
 	    OID_AUTO, "use_phy_num", CTLFLAG_RD, &sc->use_phynum, 0,
 	    "Use the phy number for enumeration");
+}
+
+struct mps_debug_string {
+	char	*name;
+	int	flag;
+} mps_debug_strings[] = {
+	{"info", MPS_INFO},
+	{"fault", MPS_FAULT},
+	{"event", MPS_EVENT},
+	{"log", MPS_LOG},
+	{"recovery", MPS_RECOVERY},
+	{"error", MPS_ERROR},
+	{"init", MPS_INIT},
+	{"xinfo", MPS_XINFO},
+	{"user", MPS_USER},
+	{"mapping", MPS_MAPPING},
+	{"trace", MPS_TRACE}
+};
+
+static int
+mps_debug_sysctl(SYSCTL_HANDLER_ARGS)
+{
+	struct mps_softc *sc;
+	struct mps_debug_string *string;
+	struct sbuf sbuf;
+	char *buffer;
+	size_t sz;
+	int i, len, debug, error;
+
+	sc = (struct mps_softc *)arg1;
+
+	error = sysctl_wire_old_buffer(req, 0);
+	if (error != 0)
+		return (error);
+
+	sbuf_new_for_sysctl(&sbuf, NULL, 128, req);
+	debug = sc->mps_debug;
+
+	sbuf_printf(&sbuf, "%#x", debug);
+
+	sz = sizeof(mps_debug_strings) / sizeof(mps_debug_strings[0]);
+	for (i = 0; i < sz; i++) {
+		string = &mps_debug_strings[i];
+		if (debug & string->flag)
+			sbuf_printf(&sbuf, ",%s", string->name);
+	}
+
+	error = sbuf_finish(&sbuf);
+	sbuf_delete(&sbuf);
+
+	if (error || req->newptr == NULL)
+		return (error);
+
+	len = req->newlen - req->newidx;
+	if (len == 0)
+		return (0);
+
+	buffer = malloc(len, M_MPT2, M_ZERO|M_WAITOK);
+	error = SYSCTL_IN(req, buffer, len);
+
+	mps_parse_debug(sc, buffer);
+
+	free(buffer, M_MPT2);
+	return (error);
+}
+
+static void
+mps_parse_debug(struct mps_softc *sc, char *list)
+{
+	struct mps_debug_string *string;
+	char *token, *endtoken;
+	size_t sz;
+	int flags, i;
+
+	if (list == NULL || *list == '\0')
+		return;
+
+	flags = 0;
+	sz = sizeof(mps_debug_strings) / sizeof(mps_debug_strings[0]);
+	while ((token = strsep(&list, ":,")) != NULL) {
+
+		/* Handle integer flags */
+		flags |= strtol(token, &endtoken, 0);
+		if (token != endtoken)
+			continue;
+
+		/* Handle text flags */
+		for (i = 0; i < sz; i++) {
+			string = &mps_debug_strings[i];
+			if (strcasecmp(token, string->name) == 0) {
+				flags |= string->flag;
+				break;
+			}
+		}
+	}
+
+	sc->mps_debug = flags;
+	return;
 }
 
 int
