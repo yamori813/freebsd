@@ -1,4 +1,6 @@
 /*-
+ * Copyright (C) 2015-2016 by Stanislav Galabov. All rights reserved.
+ * Copyright (C) 2010-2011 by Aleksandr Rybalko. All rights reserved.
  * Copyright (C) 2007 by Oleksandr Tymoshenko. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,6 +32,7 @@
 __FBSDID("$FreeBSD$");
 
 #include "opt_ddb.h"
+#include "opt_platform.h"
 
 #include <sys/param.h>
 #include <sys/conf.h>
@@ -51,6 +54,11 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysent.h>
 #include <sys/sysproto.h>
 #include <sys/user.h>
+
+#ifdef FDT
+#include <dev/fdt/fdt_common.h>
+#include <dev/ofw/openfirm.h>
+#endif
 
 #include <vm/vm.h>
 #include <vm/vm_object.h>
@@ -96,6 +104,7 @@ platform_reset(void)
 	__asm __volatile("j	$25");
 }
 
+#ifndef FDT
 void
 platform_start(__register_t a0, __register_t a1,
     __register_t a2 __unused, __register_t a3 __unused)
@@ -176,3 +185,236 @@ platform_start(__register_t a0, __register_t a1,
 		kdb_enter(KDB_WHY_BOOTFLAGS, "Boot flags requested debugger");
 #endif
 }
+
+#else
+
+/* Todo: move prototype to sys/mips/include/hwfunc.h */
+
+uint32_t platform_get_timerclk(void);
+uint32_t platform_get_cpuclk(void);
+uint32_t platform_get_uartclk(void);
+
+uint32_t platform_get_timerclk()
+{ 
+	return 150 * 1000 * 1000;
+}
+
+uint32_t platform_get_cpuclk()
+{
+	return 150 * 1000 * 1000;
+}
+
+uint32_t platform_get_uartclk()
+{
+	return 150 * 1000 * 1000;
+}
+
+/* Todo: move to sys/mips/mips/machdep.c */
+
+static char     boot1_env[0x1000];
+
+static void
+mips_init(void)
+{
+	struct mem_region mr[FDT_MEM_REGIONS];
+	uint64_t val;
+	int i, j, mr_cnt;
+
+	printf("entry: mips_init()\n");
+
+	bootverbose = 1;
+
+	for (i = 0; i < 10; i++)
+		phys_avail[i] = 0;
+
+	dump_avail[0] = phys_avail[0] = MIPS_KSEG0_TO_PHYS(kernel_kseg0_end);
+
+	/*
+	 * The most low memory MT7621 can have. Currently MT7621 is the chip
+	 * that supports the most memory, so that seems reasonable.
+	 */
+	realmem = btoc(448 * 1024 * 1024);
+
+	if (fdt_get_mem_regions(mr, &mr_cnt, &val) == 0) {
+		physmem = btoc(val);
+
+		printf("RAM size: %ldMB (from FDT)\n",
+		    ctob(physmem) / (1024 * 1024));
+
+		KASSERT((phys_avail[0] >= mr[0].mr_start) && \
+			(phys_avail[0] < (mr[0].mr_start + mr[0].mr_size)),
+			("First region is not within FDT memory range"));
+
+		/* Limit size of the first region */
+		phys_avail[1] = (mr[0].mr_start +
+		    MIN(mr[0].mr_size, ctob(realmem)));
+		dump_avail[1] = phys_avail[1];
+
+		/* Add the rest of the regions */
+		for (i = 1, j = 2; i < mr_cnt; i++, j+=2) {
+			phys_avail[j] = mr[i].mr_start;
+			phys_avail[j+1] = (mr[i].mr_start + mr[i].mr_size);
+			dump_avail[j] = phys_avail[j];
+			dump_avail[j+1] = phys_avail[j+1];
+		}
+	} else {
+		/* platform default memory setup */
+		
+	}
+
+	if (physmem < realmem)
+		realmem = physmem;
+
+	init_param1();
+	init_param2(physmem);
+	mips_cpu_init();
+	pmap_bootstrap();
+	mips_proc0_init();
+	mutex_init();
+	kdb_init();
+#ifdef KDB
+	if (boothowto & RB_KDB)
+		kdb_enter(KDB_WHY_BOOTFLAGS, "Boot flags requested debugger");
+#endif
+}
+
+static void
+_parse_bootarg(char *v)
+{
+	char *n;
+
+	if (*v == '-') {
+		while (*v != '\0') {
+			v++;
+			switch (*v) {
+			case 'a': boothowto |= RB_ASKNAME; break;
+			/* Someone should simulate that ;-) */
+			case 'C': boothowto |= RB_CDROM; break;
+			case 'd': boothowto |= RB_KDB; break;
+			case 'D': boothowto |= RB_MULTIPLE; break;
+			case 'm': boothowto |= RB_MUTE; break;
+			case 'g': boothowto |= RB_GDB; break;
+			case 'h': boothowto |= RB_SERIAL; break;
+			case 'p': boothowto |= RB_PAUSE; break;
+			case 'r': boothowto |= RB_DFLTROOT; break;
+			case 's': boothowto |= RB_SINGLE; break;
+			case 'v': boothowto |= RB_VERBOSE; break;
+			}
+		}
+	} else {
+		n = strsep(&v, "=");
+		if (v == NULL)
+			kern_setenv(n, "1");
+		else
+			kern_setenv(n, v);
+	}
+}
+
+/* Parse cmd line args as env - copied from xlp_machdep. */
+/* XXX-BZ this should really be centrally provided for all (boot) code. */
+static void
+_parse_bootargs(char *cmdline)
+{
+	char *v;
+
+	while ((v = strsep(&cmdline, " \n")) != NULL) {
+		if (*v == '\0')
+			continue;
+		_parse_bootarg(v);
+	}
+}
+
+void
+platform_start(__register_t a0 __unused, __register_t a1 __unused, 
+    __register_t a2 __unused, __register_t a3 __unused)
+{
+	vm_offset_t kernend;
+	int argc = a0, i;//, res;
+	uint32_t timer_clk;
+	char **argv = (char **)MIPS_PHYS_TO_KSEG0(a1);
+	char **envp = (char **)MIPS_PHYS_TO_KSEG0(a2);
+	void *dtbp;
+	phandle_t chosen;
+	char buf[2048];
+
+	/* clear the BSS and SBSS segments */
+	kernend = (vm_offset_t)&end;
+	memset(&edata, 0, kernend - (vm_offset_t)(&edata));
+
+	mips_postboot_fixup();
+
+	/* Initialize pcpu stuff */
+	mips_pcpu0_init();
+
+	dtbp = &fdt_static_dtb;
+	if (OF_install(OFW_FDT, 0) == FALSE)
+		while (1);
+	if (OF_init((void *)dtbp) != 0)
+		while (1);
+
+	if ((timer_clk = platform_get_timerclk()) == 0)
+		timer_clk = 1000000000; /* no such speed yet */
+
+	mips_timer_early_init(timer_clk);
+
+	/* initialize console so that we have printf */
+	boothowto |= (RB_SERIAL | RB_MULTIPLE);	/* Use multiple consoles */
+	boothowto |= (RB_VERBOSE);
+	cninit();
+
+	init_static_kenv(boot1_env, sizeof(boot1_env));
+
+	/*
+	 * Get bsdbootargs from FDT if specified.
+	 */
+	chosen = OF_finddevice("/chosen");
+	if (OF_getprop(chosen, "bsdbootargs", buf, sizeof(buf)) != -1)
+		_parse_bootargs(buf);
+
+	printf("FDT DTB  at: 0x%08x\n", (uint32_t)dtbp);
+
+	printf("CPU   clock: %4dMHz\n", platform_get_cpuclk()/(1000*1000));
+	printf("Timer clock: %4dMHz\n", timer_clk/(1000*1000));
+	printf("UART  clock: %4dMHz\n\n", platform_get_uartclk()/(1000*1000));
+
+	printf("U-Boot args (from %d args):\n", argc - 1);
+
+	if (argc == 1)
+		printf("\tNone\n");
+
+	for (i = 1; i < argc; i++) {
+		char *n = "argv  ", *arg;
+
+		if (i > 99)
+			break;
+
+		if (argv[i])
+		{
+			arg = (char *)(intptr_t)MIPS_PHYS_TO_KSEG0(argv[i]);
+			printf("\targv[%d] = %s\n", i, arg);
+			sprintf(n, "argv%d", i);
+			kern_setenv(n, arg);
+		}
+	}
+
+	printf("Environment:\n");
+
+	for (i = 0; envp[i] && MIPS_IS_VALID_PTR(envp[i]); i++) {
+		char *n, *arg;
+
+		arg = (char *)(intptr_t)MIPS_PHYS_TO_KSEG0(envp[i]);
+		if (! MIPS_IS_VALID_PTR(arg))
+			continue;
+		printf("\t%s\n", arg);
+		n = strsep(&arg, "=");
+		if (arg == NULL)
+			kern_setenv(n, "1");
+		else
+			kern_setenv(n, arg);
+	}
+
+
+	mips_init();
+	mips_timer_init_params(timer_clk, 0);
+}
+#endif
