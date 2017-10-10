@@ -117,6 +117,12 @@
 			status = "disabled";
 		};
 
+		i2c0: i2c@b00 {
+			compatible = "ralink,rt2880-i2c";
+			reg = <0x900 0x100>;
+		};
+
+
 		uartlite: uartlite@c00 {
 			compatible = "ralink,rt2880-uart", "ns16550a";
 			reg = <0xc00 0x100>;
