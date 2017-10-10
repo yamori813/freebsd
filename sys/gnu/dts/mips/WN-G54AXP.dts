@@ -1,0 +1,74 @@
+/dts-v1/;
+
+#include "79rc32334.dtsi"
+
+/ {
+	compatible = "WN-G54AXP", "idt,79rc32334-soc";
+	model = "IO Data WN-G54AXP";
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x1000000>;
+	};
+
+	cfi@1fc00000 {
+		compatible = "cfi-flash";
+		reg = <0x1fc00000 0x400000>;
+/*
+		bank-width = <2>;
+		device-width = <2>;
+*/
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "Bootloader";
+			reg = <0x0 0x40000>;
+			read-only;
+		};
+
+		partition@40000 {
+			label = "Config";
+			reg = <0x00040000 0x00020000>;
+			read-only;
+		};
+		kernel: partition@60000 {
+			label = "kernel";
+			reg = <0x00060000 0x00160000>;
+			read-only;
+		};
+		rootfs: partition@1c0000 {
+			label = "rootfs";
+			reg = <0x001c0000 0x00240000>;
+			read-only;
+		};
+
+	};
+
+/*
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		status {
+			label = "status";
+			gpios = <&gpio0 12 0>;
+		};
+
+	};
+	gpio-keys-polled {
+		compatible = "gpio-keys-polled";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		poll-interval = <20>;
+
+		reset {
+			label = "reset";
+			gpios = <&gpio0 10 1>;
+			linux,code = <0x198>;
+		};
+
+	};
+
+*/
+};
+
