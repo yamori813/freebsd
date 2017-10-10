@@ -85,6 +85,7 @@ static int mtk_iic_repeated_start(device_t dev, u_char slave, int timeout);
 static int mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs);
 
 static struct ofw_compat_data compat_data[] = {
+	{ "ralink,rt2880-i2c",  1 },
 	{ "ralink,rt3050-i2c",  1 },
 	{ NULL,                 0 }
 };

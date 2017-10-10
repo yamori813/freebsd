@@ -27,6 +27,7 @@
  * $FreeBSD$
  */
 
+#include "opt_platform.h"
 #include "opt_etherswitch.h"
 
 #include <sys/param.h>
@@ -58,6 +59,12 @@
 
 #include <dev/etherswitch/etherswitch.h>
 #include <dev/etherswitch/rtl8366/rtl8366rbvar.h>
+
+#ifdef FDT
+#include <dev/fdt/fdt_common.h>
+#include <dev/ofw/ofw_bus.h>
+#include <dev/ofw/ofw_bus_subr.h>
+#endif
 
 #include "mdio_if.h"
 #include "iicbus_if.h"
@@ -143,9 +150,21 @@ static int
 rtl8366rb_probe(device_t dev)
 {
 	struct rtl8366rb_softc *sc;
+#ifdef FDT
+	phandle_t rtl8366_node;
+
+	if (!ofw_bus_status_okay(dev))
+		return (ENXIO);
+
+	rtl8366_node = fdt_find_compatible(OF_finddevice("/"),
+	    "realtek,rtl8366", 0);
+
+	if (rtl8366_node == 0)
+		return (ENXIO);
+#endif
 
 	sc = device_get_softc(dev);
-
+	
 	bzero(sc, sizeof(*sc));
 	if (smi_probe(dev) != 0)
 		return (ENXIO);
@@ -952,9 +971,13 @@ static devclass_t rtl8366rb_devclass;
 
 DRIVER_MODULE(rtl8366rb, iicbus, rtl8366rb_driver, rtl8366rb_devclass, 0, 0);
 DRIVER_MODULE(miibus, rtl8366rb, miibus_driver, miibus_devclass, 0, 0);
-DRIVER_MODULE(mdio, rtl8366rb, mdio_driver, mdio_devclass, 0, 0);
 DRIVER_MODULE(etherswitch, rtl8366rb, etherswitch_driver, etherswitch_devclass, 0, 0);
 MODULE_VERSION(rtl8366rb, 1);
+#ifdef FDT
+MODULE_DEPEND(rtl8366rb, mdio, 1, 1, 1); /* XXX which versions? */
+#else
+DRIVER_MODULE(mdio, rtl8366rb, mdio_driver, mdio_devclass, 0, 0);
 MODULE_DEPEND(rtl8366rb, iicbus, 1, 1, 1); /* XXX which versions? */
 MODULE_DEPEND(rtl8366rb, miibus, 1, 1, 1); /* XXX which versions? */
 MODULE_DEPEND(rtl8366rb, etherswitch, 1, 1, 1); /* XXX which versions? */
+#endif
