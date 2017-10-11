@@ -66,7 +66,8 @@
 #define	I2C_OP_READ		1
 #define	I2C_OP_WRITE		0
 
-#define	CLKDIV_VALUE		4264
+//#define	CLKDIV_VALUE		4264
+#define	CLKDIV_VALUE		333
 
 #define	i2c_busy_loop		(sc->clkdiv*30)
 #define	max_ee_busy_loop	(sc->clkdiv*25)

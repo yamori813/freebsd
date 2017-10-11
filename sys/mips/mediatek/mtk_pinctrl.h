@@ -298,6 +298,18 @@ DECL_TABLE(mt7620_pintable) = {
 	GROUP_END
 };
 
+DECL_TABLE(rt2880_pintable) = {
+	GROUP("i2c", SYSCTL_GPIOMODE, 0, 1, i2c_func),
+	GROUP("uartf", SYSCTL_GPIOMODE, 1, 1, uartf_func),
+	GROUP("spi", SYSCTL_GPIOMODE, 2, 1, spi_func),
+	GROUP("uartlite", SYSCTL_GPIOMODE, 3, 1, uartlite_func),
+	GROUP("jtag", SYSCTL_GPIOMODE, 4, 1, jtag_func),
+	GROUP("mdio", SYSCTL_GPIOMODE, 5, 1, mdio_func),
+	GROUP("sdram", SYSCTL_GPIOMODE, 6, 1, sdram_func),
+	GROUP("pci", SYSCTL_GPIOMODE, 7, 1, rgmii_func),
+	GROUP_END
+};
+
 DECL_TABLE(rt3050_pintable) = {
 	GROUP("i2c", SYSCTL_GPIOMODE, 0, 1, i2c_func),
 	GROUP("spi", SYSCTL_GPIOMODE, 1, 1, spi_func),

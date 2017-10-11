@@ -31,6 +31,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include "opt_platform.h"
+
 /*
  * This code do not test 
  */
@@ -51,8 +53,6 @@ __FBSDID("$FreeBSD$");
 #include <dev/iicbus/iicbus.h>
 
 #include "iicbus_if.h"
-
-#include "opt_platform.h"
 
 #include <dev/ofw/openfirm.h>
 #include <dev/ofw/ofw_bus.h>
@@ -80,9 +80,11 @@ static int mtk_iic_start(device_t dev, u_char slave, int timeout);
 static int mtk_iic_stop(device_t dev);
 static int mtk_iic_read(device_t dev, char *buf, int len, int *read, int last, int delay);
 static int mtk_iic_write(device_t dev, const char *buf, int len, int *sent, int timeout);
-static int mtk_iic_callback(device_t dev, int index, caddr_t data);
-static int mtk_iic_repeated_start(device_t dev, u_char slave, int timeout);
 static int mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs);
+
+#if 0
+static int mtk_iic_repeated_start(device_t dev, u_char slave, int timeout);
+#endif
 
 static struct ofw_compat_data compat_data[] = {
 	{ "ralink,rt2880-i2c",  1 },
@@ -222,7 +224,7 @@ mtk_iic_read(device_t dev, char *buf, int len, int *read, int last,
 	for (i=0; i < len; i++) {
 		for (j=0; j < max_ee_busy_loop; j++) {
 			r = I2C_READ(sc, RA_I2C_STATUS);
-			if ((r & I2C_STATUS_DATARDY) != 0) {
+			if (r == (I2C_STATUS_DATARDY | I2C_STATUS_SDOEMPTY)) {
 				buf[i] = I2C_READ(sc, RA_I2C_DATAIN);
 				break;
 			}
@@ -272,17 +274,13 @@ mtk_iic_write(device_t dev, const char *buf, int len, int *sent,
 	return 0;
 }
 
-static int
-mtk_iic_callback(device_t dev, int index, caddr_t data)
-{
-	return 0;
-}
-
+#if 0
 static int
 mtk_iic_repeated_start(device_t dev, u_char slave, int timeout)
 {
 	return 0;
 }
+#endif
 
 int
 mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs)
@@ -302,7 +300,9 @@ mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs)
 			    &lenwrote, 0);
 		}
         }	
-	error = mtk_iic_stop(bus);
+	mtk_iic_stop(bus);
+	if (error == -1)
+		error = IIC_ENOACK;
         return (error);
 }
 
@@ -320,32 +320,22 @@ mtk_iic_get_node(device_t bus, device_t dev)
 	return (ofw_bus_get_node(bus));
 }
 
-
 static device_method_t mtk_iic_methods[] = {
 	/* device interface */
 	DEVMETHOD(device_probe, mtk_iic_probe),
 	DEVMETHOD(device_attach, mtk_iic_attach),
 	DEVMETHOD(device_detach, mtk_iic_detach),
 
-	/* Bus interface */
-	DEVMETHOD(bus_setup_intr,	bus_generic_setup_intr),
-	DEVMETHOD(bus_teardown_intr,	bus_generic_teardown_intr),
-	DEVMETHOD(bus_alloc_resource,	bus_generic_alloc_resource),
-	DEVMETHOD(bus_release_resource,	bus_generic_release_resource),
-	DEVMETHOD(bus_activate_resource, bus_generic_activate_resource),
-	DEVMETHOD(bus_deactivate_resource, bus_generic_deactivate_resource),
-	DEVMETHOD(bus_adjust_resource,	bus_generic_adjust_resource),
-	DEVMETHOD(bus_set_resource,	bus_generic_rl_set_resource),
-	DEVMETHOD(bus_get_resource,	bus_generic_rl_get_resource),
-
 	/* iicbus interface */
-	DEVMETHOD(iicbus_reset, mtk_iic_reset),
-	DEVMETHOD(iicbus_callback, mtk_iic_callback),
+#if 0
 	DEVMETHOD(iicbus_repeated_start, mtk_iic_repeated_start),
 	DEVMETHOD(iicbus_start, mtk_iic_start),
 	DEVMETHOD(iicbus_stop, mtk_iic_stop),
 	DEVMETHOD(iicbus_write, mtk_iic_write),
 	DEVMETHOD(iicbus_read, mtk_iic_read),
+#endif
+	DEVMETHOD(iicbus_callback, iicbus_null_callback),
+	DEVMETHOD(iicbus_reset, mtk_iic_reset),
 	DEVMETHOD(iicbus_transfer, mtk_iic_transfer),
 
 	/* ofw_bus interface */
@@ -355,7 +345,7 @@ static device_method_t mtk_iic_methods[] = {
 };
 
 static driver_t mtk_iic_driver = {
-	"mtkiic",
+	"iichb",
 	mtk_iic_methods,
 	sizeof(struct mtk_iic_softc),
 };
