@@ -82,6 +82,7 @@
 
 };
 
+/*
 &pinctrl {
 	state_default: pinctrl0 {
 		i2c {
@@ -90,6 +91,7 @@
 		};
 	};
 };
+*/
 
 &ethernet {
 	mtd-mac-address = <&factory 0x28>;
@@ -98,3 +100,8 @@
 &wmac {
 	ralink,mtd-eeprom = <&factory 0>;
 };
+
+&i2c {
+	status = "okay";
+};
+
