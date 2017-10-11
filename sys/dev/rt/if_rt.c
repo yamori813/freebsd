@@ -2909,7 +2909,7 @@ rtmdio_probe(device_t dev)
 	if (!ofw_bus_is_compatible(dev, "ralink,rt2880-mdio"))
 		return (ENXIO);
 
-	device_set_desc(dev, "FV built-in ethernet interface, MDIO controller");
+	device_set_desc(dev, "RT built-in ethernet interface, MDIO controller");
 	return(0);
 }
 
