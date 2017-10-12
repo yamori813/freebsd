@@ -3,8 +3,8 @@
 #include "rt2880.dtsi"
 
 / {
-	compatible = "MZK-WNH", "ralink,rt2880-soc";
-	model = "Planex MZK-WNH";
+	compatible = "MZK-W300NAG", "ralink,rt2880-soc";
+	model = "Planex MZK-W300NAG";
 
 	memory@0 {
 		device_type = "memory";
@@ -87,17 +87,6 @@
 	};
 
 };
-
-/*
-&pinctrl {
-	state_default: pinctrl0 {
-		i2c {
-			ralink,group = "i2c";
-			ralink,function = "i2c";
-		};
-	};
-};
-*/
 
 &ethernet {
 	mtd-mac-address = <&factory 0x28>;
