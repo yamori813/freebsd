@@ -57,8 +57,13 @@ struct gpioiic_softc
 {
 	device_t	sc_dev;
 	device_t	sc_busdev;
+#ifdef FDT
+	gpio_pin_t	scl_pin;
+	gpio_pin_t	sda_pin;
+#else
 	int		scl_pin;
 	int		sda_pin;
+#endif
 };
 
 static int gpioiic_probe(device_t);
@@ -75,14 +80,14 @@ static int gpioiic_reset(device_t, u_char, u_char, u_char *);
 static int
 gpioiic_probe(device_t dev)
 {
-	struct gpiobus_ivar *devi;
-
 #ifdef FDT
 	if (!ofw_bus_status_okay(dev))
 		return (ENXIO);
 	if (!ofw_bus_is_compatible(dev, "gpioiic"))
 		return (ENXIO);
-#endif
+#else
+	struct gpiobus_ivar *devi;
+
 	devi = GPIOBUS_IVAR(dev);
 	if (devi->npins < GPIOIIC_MIN_PINS) {
 		device_printf(dev,
@@ -90,6 +95,7 @@ gpioiic_probe(device_t dev)
 		    GPIOIIC_MIN_PINS, devi->npins);
 		return (ENXIO);
 	}
+#endif
 	device_set_desc(dev, "GPIO I2C bit-banging driver");
 
 	return (BUS_PROBE_DEFAULT);
@@ -101,29 +107,22 @@ gpioiic_attach(device_t dev)
 	device_t		bitbang;
 #ifdef FDT
 	phandle_t		node;
-	pcell_t			pin;
-#endif
+	int			err;
+#else
 	struct gpiobus_ivar	*devi;
+#endif
 	struct gpioiic_softc	*sc;
 
 	sc = device_get_softc(dev);
 	sc->sc_dev = dev;
 	sc->sc_busdev = device_get_parent(dev);
+#ifndef FDT
 	if (resource_int_value(device_get_name(dev),
 		device_get_unit(dev), "scl", &sc->scl_pin))
 		sc->scl_pin = GPIOIIC_SCL_DFLT;
 	if (resource_int_value(device_get_name(dev),
 		device_get_unit(dev), "sda", &sc->sda_pin))
 		sc->sda_pin = GPIOIIC_SDA_DFLT;
-
-#ifdef FDT
-	if ((node = ofw_bus_get_node(dev)) == -1)
-		return (ENXIO);
-	if (OF_getencprop(node, "scl", &pin, sizeof(pin)) > 0)
-		sc->scl_pin = (int)pin;
-	if (OF_getencprop(node, "sda", &pin, sizeof(pin)) > 0)
-		sc->sda_pin = (int)pin;
-#endif
 
 	if (sc->scl_pin < 0 || sc->scl_pin > 1)
 		sc->scl_pin = GPIOIIC_SCL_DFLT;
@@ -133,6 +132,17 @@ gpioiic_attach(device_t dev)
 	devi = GPIOBUS_IVAR(dev);
 	device_printf(dev, "SCL pin: %d, SDA pin: %d\n",
 	    devi->pins[sc->scl_pin], devi->pins[sc->sda_pin]);
+#else
+	node = ofw_bus_get_node(sc->sc_dev);
+	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 0, &sc->scl_pin);
+	if (err != 0) {
+		device_printf(sc->sc_dev, "cannot get pin scl\n");
+	}
+	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 1, &sc->sda_pin);
+	if (err != 0) {
+		device_printf(sc->sc_dev, "cannot get pin sda\n");
+	}
+#endif
 
 	/* add generic bit-banging code */
 	bitbang = device_add_child(dev, "iicbb", -1);
@@ -148,53 +158,92 @@ gpioiic_attach(device_t dev)
 static void
 gpioiic_reset_bus(device_t dev)
 {
-	struct gpioiic_softc		*sc = device_get_softc(dev);
+	struct gpioiic_softc		*sc;
 
+	sc = device_get_softc(dev);
+
+#ifdef FDT
+	gpio_pin_setflags(sc->sda_pin, GPIO_PIN_INPUT);
+	gpio_pin_setflags(sc->scl_pin, GPIO_PIN_INPUT);
+#else
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sda_pin,
 	    GPIO_PIN_INPUT);
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->scl_pin,
 	    GPIO_PIN_INPUT);
+#endif
 }
 
 static void
 gpioiic_setsda(device_t dev, int val)
 {
-	struct gpioiic_softc		*sc = device_get_softc(dev);
+	struct gpioiic_softc		*sc;
+
+	sc = device_get_softc(dev);
 
 	if (val == 0) {
+#ifdef FDT
+		gpio_pin_set_active(sc->sda_pin, 0);
+		gpio_pin_setflags(sc->sda_pin, GPIO_PIN_OUTPUT);
+#else
 		GPIOBUS_PIN_SET(sc->sc_busdev, sc->sc_dev, sc->sda_pin, 0);
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sda_pin,
 		    GPIO_PIN_OUTPUT);
+#endif
 	} else {
+#ifdef FDT
+		gpio_pin_set_active(sc->sda_pin, 1);
+		gpio_pin_setflags(sc->sda_pin, GPIO_PIN_OUTPUT);
+#else
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sda_pin,
 		    GPIO_PIN_INPUT);
+#endif
 	}
 }
 
 static void
 gpioiic_setscl(device_t dev, int val)
 {
-	struct gpioiic_softc		*sc = device_get_softc(dev);
+	struct gpioiic_softc		*sc;
+
+	sc = device_get_softc(dev);
 
 	if (val == 0) {
+#ifdef FDT
+		gpio_pin_set_active(sc->scl_pin, 0);
+		gpio_pin_setflags(sc->scl_pin, GPIO_PIN_OUTPUT);
+#else
 		GPIOBUS_PIN_SET(sc->sc_busdev, sc->sc_dev, sc->scl_pin, 0);
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->scl_pin,
 		    GPIO_PIN_OUTPUT);
+#endif
 	} else {
+#ifdef FDT
+		gpio_pin_set_active(sc->scl_pin, 1);
+		gpio_pin_setflags(sc->scl_pin, GPIO_PIN_OUTPUT);
+#else
 		GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->scl_pin,
 		    GPIO_PIN_INPUT);
+#endif
 	}
 }
 
 static int
 gpioiic_getscl(device_t dev)
 {
-	struct gpioiic_softc		*sc = device_get_softc(dev);
-	unsigned int			val;
+	struct gpioiic_softc		*sc;
 
+	sc = device_get_softc(dev);
+
+#ifdef FDT
+	bool			val;
+	gpio_pin_setflags(sc->scl_pin, GPIO_PIN_INPUT);
+	gpio_pin_is_active(sc->scl_pin, &val);
+#else
+	unsigned int			val;
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->scl_pin,
 	    GPIO_PIN_INPUT);
 	GPIOBUS_PIN_GET(sc->sc_busdev, sc->sc_dev, sc->scl_pin, &val);
+#endif
 
 	return ((int)val);
 }
@@ -202,12 +251,20 @@ gpioiic_getscl(device_t dev)
 static int
 gpioiic_getsda(device_t dev)
 {
-	struct gpioiic_softc		*sc = device_get_softc(dev);
-	unsigned int			val;
+	struct gpioiic_softc		*sc;
 
+	sc = device_get_softc(dev);
+
+#ifdef FDT
+	bool			val;
+	gpio_pin_setflags(sc->sda_pin, GPIO_PIN_INPUT);
+	gpio_pin_is_active(sc->sda_pin, &val);
+#else
+	unsigned int			val;
 	GPIOBUS_PIN_SETFLAGS(sc->sc_busdev, sc->sc_dev, sc->sda_pin,
 	    GPIO_PIN_INPUT);
 	GPIOBUS_PIN_GET(sc->sc_busdev, sc->sc_dev, sc->sda_pin, &val);
+#endif
 
 	return ((int)val);
 }
@@ -262,6 +319,9 @@ static driver_t gpioiic_driver = {
 	sizeof(struct gpioiic_softc),
 };
 
+#ifdef FDT
+DRIVER_MODULE(gpioiic, ofwbus, gpioiic_driver, gpioiic_devclass, 0, 0);
+#endif
 DRIVER_MODULE(gpioiic, gpiobus, gpioiic_driver, gpioiic_devclass, 0, 0);
 DRIVER_MODULE(iicbb, gpioiic, iicbb_driver, iicbb_devclass, 0, 0);
 MODULE_DEPEND(gpioiic, iicbb, IICBB_MINVER, IICBB_PREFVER, IICBB_MAXVER);
