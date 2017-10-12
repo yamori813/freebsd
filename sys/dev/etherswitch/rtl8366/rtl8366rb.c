@@ -157,7 +157,7 @@ rtl8366rb_probe(device_t dev)
 		return (ENXIO);
 
 	rtl8366_node = fdt_find_compatible(OF_finddevice("/"),
-	    "realtek,rtl8366", 0);
+	    "realtek,rtl8366rb", 0);
 
 	if (rtl8366_node == 0)
 		return (ENXIO);
@@ -974,7 +974,7 @@ DRIVER_MODULE(miibus, rtl8366rb, miibus_driver, miibus_devclass, 0, 0);
 DRIVER_MODULE(etherswitch, rtl8366rb, etherswitch_driver, etherswitch_devclass, 0, 0);
 MODULE_VERSION(rtl8366rb, 1);
 #ifdef FDT
-MODULE_DEPEND(rtl8366rb, mdio, 1, 1, 1); /* XXX which versions? */
+MODULE_DEPEND(rtl8366rb, ofwbus, 1, 1, 1); /* XXX which versions? */
 #else
 DRIVER_MODULE(mdio, rtl8366rb, mdio_driver, mdio_devclass, 0, 0);
 MODULE_DEPEND(rtl8366rb, iicbus, 1, 1, 1); /* XXX which versions? */
