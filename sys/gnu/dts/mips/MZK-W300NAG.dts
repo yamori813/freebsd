@@ -76,6 +76,12 @@
 
 	};
 
+	gpioiic {
+		compatible = "gpioiic";
+		gpios = <&gpio0 23 0
+			&gpio0 22 0>;
+	};
+
 	rtl8366rb {
 		compatible = "realtek,rtl8366rb";
 	};
@@ -95,6 +101,7 @@
 
 &ethernet {
 	mtd-mac-address = <&factory 0x28>;
+	port-mode = "gigasw";
 };
 
 &wmac {
