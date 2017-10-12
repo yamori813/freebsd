@@ -352,9 +352,17 @@ rt_attach(device_t dev)
 	struct rt_softc *sc;
 	struct ifnet *ifp;
 	int error, i;
+#ifdef FDT
+	phandle_t node;
+	char fdtval[32];
+#endif
 
 	sc = device_get_softc(dev);
 	sc->dev = dev;
+
+#ifdef FDT
+	node = ofw_bus_get_node(sc->dev);
+#endif
 
 	mtx_init(&sc->lock, device_get_nameunit(dev), MTX_NETWORK_LOCK,
 	    MTX_DEF | MTX_RECURSE);
@@ -477,8 +485,16 @@ rt_attach(device_t dev)
 		GDM_DST_PORT_CPU << GDM_OFRC_P_SHIFT   /* fwd Other to CPU */
 		));
 
-	if (sc->rt_chipid == RT_CHIPID_RT2880)
-		RT_WRITE(sc, MDIO_CFG, MDIO_2880_100T_INIT);
+	/* RT2880 is only support FDT */
+#ifdef FDT
+	if (sc->rt_chipid == RT_CHIPID_RT2880) {
+		if (OF_getprop(node, "port-mode", fdtval, sizeof(fdtval)) > 0 &&
+		    strcmp(fdtval, "gigasw") == 0)
+			RT_WRITE(sc, MDIO_CFG, MDIO_2880_GIGA_INIT);
+		else
+			RT_WRITE(sc, MDIO_CFG, MDIO_2880_100T_INIT);
+	}
+#endif
 
 	/* allocate Tx and Rx rings */
 	for (i = 0; i < RT_SOFTC_TX_RING_COUNT; i++) {
