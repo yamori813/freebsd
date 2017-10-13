@@ -1,6 +1,7 @@
 /*-
  * Copyright (c) 2009 Oleksandr Tymoshenko <gonzo@freebsd.org>
  * Copyright (c) 2010 Luiz Otavio O Souza
+ * Copyright (c) 2017 Hiroki Mori
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -134,13 +135,17 @@ gpioiic_attach(device_t dev)
 	    devi->pins[sc->scl_pin], devi->pins[sc->sda_pin]);
 #else
 	node = ofw_bus_get_node(sc->sc_dev);
-	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 0, &sc->scl_pin);
+//	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 0, &sc->scl_pin);
+	err = gpio_pin_get_by_ofw_name(sc->sc_dev, node, "scl", &sc->scl_pin);
 	if (err != 0) {
 		device_printf(sc->sc_dev, "cannot get pin scl\n");
+		return (ENXIO);
 	}
-	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 1, &sc->sda_pin);
+//	err = gpio_pin_get_by_ofw_idx(sc->sc_dev, node, 1, &sc->sda_pin);
+	err = gpio_pin_get_by_ofw_name(sc->sc_dev, node, "sda", &sc->sda_pin);
 	if (err != 0) {
 		device_printf(sc->sc_dev, "cannot get pin sda\n");
+		return (ENXIO);
 	}
 #endif
 

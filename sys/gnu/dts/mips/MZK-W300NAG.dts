@@ -80,6 +80,7 @@
 		compatible = "gpioiic";
 		gpios = <&gpio0 23 0
 			&gpio0 22 0>;
+		gpio-names = "scl", "sda";
 	};
 
 	rtl8366rb {
