@@ -81,7 +81,6 @@ static int mtk_iic_stop(device_t dev);
 static int mtk_iic_read(device_t dev, char *buf, int len, int *read, int last, int delay);
 static int mtk_iic_write(device_t dev, const char *buf, int len, int *sent, int timeout);
 static int mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs);
-
 #if 0
 static int mtk_iic_repeated_start(device_t dev, u_char slave, int timeout);
 #endif
@@ -138,6 +137,8 @@ mtk_iic_attach(device_t dev)
 
 	sc->clkdiv = CLKDIV_VALUE;
 
+	I2C_WRITE(sc, RA_I2C_CLKDIV, sc->clkdiv);
+
 	sc->iicbus = device_add_child(dev, "iicbus", -1);
 	if (sc->iicbus == NULL) {
 		device_printf(dev, "cannot add iicbus child device\n");
@@ -162,12 +163,14 @@ mtk_iic_detach(device_t dev)
 static int 
 mtk_iic_start(device_t dev, u_char slave, int timeout)
 {
-	int error = 0;
+	int error;
 	struct mtk_iic_softc *sc;
 	uint32_t r;
+	int i;
 
 	sc = device_get_softc(dev);
         mtx_lock(&sc->sc_mtx);
+	error = IIC_NOERR;
 	sc->sc_started = 1;
 	sc->i2cdev_addr = (slave >> 1);
 
@@ -176,8 +179,24 @@ mtk_iic_start(device_t dev, u_char slave, int timeout)
 	    I2C_CONFIG_ADDRDIS;
 	I2C_WRITE(sc, RA_I2C_CONFIG, r);
 
-	I2C_WRITE(sc, RA_I2C_CLKDIV, sc->clkdiv);
+	/* dmmy write */
+	I2C_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
+	I2C_WRITE(sc, RA_I2C_BYTECNT, 0);
+	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
+	I2C_WRITE(sc, RA_I2C_DATAOUT, 0);
 
+	for (i = 0; i < max_ee_busy_loop; i++) {
+		r = I2C_READ(sc, RA_I2C_STATUS);
+		if ((r & I2C_STATUS_BUSY) == 0) {
+			break;
+		}
+	}
+	if (r & I2C_STATUS_ACKERR) {
+		error = IIC_ENOACK;
+	}
+	if (i == max_ee_busy_loop) {
+		error = IIC_EBUSERR;
+	}
 	return error;
 
 }
@@ -185,11 +204,13 @@ mtk_iic_start(device_t dev, u_char slave, int timeout)
 static int 
 mtk_iic_stop(device_t dev)
 {
-	int error = 0;
+	int error;
 	struct mtk_iic_softc *sc;
 
 	sc = device_get_softc(dev);
 	mtx_unlock(&sc->sc_mtx);
+	sc->sc_started = 0;
+	error = IIC_NOERR;
 	return error;
 
 }
@@ -217,27 +238,26 @@ mtk_iic_read(device_t dev, char *buf, int len, int *read, int last,
 
 	sc = device_get_softc(dev);
 
-	I2C_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
 	I2C_WRITE(sc, RA_I2C_BYTECNT, len - 1);
 	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_READ);
 
-	for (i=0; i < len; i++) {
+	for (i = 0; i < len; i++) {
 		for (j=0; j < max_ee_busy_loop; j++) {
 			r = I2C_READ(sc, RA_I2C_STATUS);
-			if (r == (I2C_STATUS_DATARDY | I2C_STATUS_SDOEMPTY)) {
+			if (r & I2C_STATUS_DATARDY) {
 				buf[i] = I2C_READ(sc, RA_I2C_DATAIN);
 				break;
 			}
 		}
 		if (j == max_ee_busy_loop) {
-			return -1;
+			return (IIC_ENOACK);
 		}
 	}
 
 	*read =  i;
 
 	mtk_iic_busy_wait(sc);
-	return 0;
+	return (IIC_NOERR);
 
 }
 
@@ -251,11 +271,10 @@ mtk_iic_write(device_t dev, const char *buf, int len, int *sent,
 
 	sc = device_get_softc(dev);
 
-	I2C_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
 	I2C_WRITE(sc, RA_I2C_BYTECNT, len - 1);
 	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
 
-	for (i=0; i < len; i++) {
+	for (i = 0; i < len; i++) {
 		for (j=0; j < max_ee_busy_loop; j++) {
 			r = I2C_READ(sc, RA_I2C_STATUS);
 			if ((r & I2C_STATUS_SDOEMPTY) != 0) {
@@ -264,14 +283,14 @@ mtk_iic_write(device_t dev, const char *buf, int len, int *sent,
 			}
 		}
 		if (j == max_ee_busy_loop) {
-			return -1;
+			return (IIC_ENOACK);
 		}
 	}
 
 	*sent = i;
 
 	mtk_iic_busy_wait(sc);
-	return 0;
+	return (IIC_NOERR);
 }
 
 #if 0
@@ -290,7 +309,7 @@ mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs)
  
 	addr = msgs[0].slave | LSB;
 	error = mtk_iic_start(bus, addr, 0);
-        for (i = 0, error = 0; i < nmsgs && error == 0; i++) {
+        for (i = 0, error = IIC_NOERR; i < nmsgs && error == IIC_NOERR; i++) {
                 if (msgs[i].flags & IIC_M_RD) {
 		        error = mtk_iic_read((bus), msgs[i].buf, msgs[i].len,
 			    &lenread, IIC_LAST_READ, 0);
@@ -299,17 +318,15 @@ mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs)
 		        error = mtk_iic_write((bus), msgs[i].buf, msgs[i].len,
 			    &lenwrote, 0);
 		}
-        }	
+        }
 	mtk_iic_stop(bus);
-	if (error == -1)
-		error = IIC_ENOACK;
         return (error);
 }
 
 static int
 mtk_iic_reset(device_t dev, u_char speed, u_char addr, u_char *oldaddr)
 {
-	return (IIC_ENOADDR);
+	return (IIC_NOERR);
 }
 
 static phandle_t
@@ -329,11 +346,11 @@ static device_method_t mtk_iic_methods[] = {
 	/* iicbus interface */
 #if 0
 	DEVMETHOD(iicbus_repeated_start, mtk_iic_repeated_start),
+#endif
 	DEVMETHOD(iicbus_start, mtk_iic_start),
 	DEVMETHOD(iicbus_stop, mtk_iic_stop),
 	DEVMETHOD(iicbus_write, mtk_iic_write),
 	DEVMETHOD(iicbus_read, mtk_iic_read),
-#endif
 	DEVMETHOD(iicbus_callback, iicbus_null_callback),
 	DEVMETHOD(iicbus_reset, mtk_iic_reset),
 	DEVMETHOD(iicbus_transfer, mtk_iic_transfer),
