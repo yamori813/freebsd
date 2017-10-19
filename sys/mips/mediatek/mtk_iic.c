@@ -63,11 +63,11 @@ __FBSDID("$FreeBSD$");
 /*
  * register space access macros
  */
-#define	I2C_WRITE(sc, reg, val) do {	\
+#define	I2CREG_WRITE(sc, reg, val) do {	\
 		bus_write_4(sc->sc_mem_res, (reg), (val));	\
 	} while (0)
 
-#define	I2C_READ(sc, reg)	bus_read_4(sc->sc_mem_res, (reg))
+#define	I2CREG_READ(sc, reg)	bus_read_4(sc->sc_mem_res, (reg))
 
 /*
  * Device methods
@@ -81,7 +81,7 @@ static int mtk_iic_stop(device_t dev);
 static int mtk_iic_read(device_t dev, char *buf, int len, int *read, int last, int delay);
 static int mtk_iic_write(device_t dev, const char *buf, int len, int *sent, int timeout);
 static int mtk_iic_transfer(device_t bus, struct iic_msg *msgs, uint32_t nmsgs);
-#if 0
+#ifdef notyet
 static int mtk_iic_repeated_start(device_t dev, u_char slave, int timeout);
 #endif
 
@@ -99,6 +99,7 @@ struct mtk_iic_softc {
 	int sc_started;
 	uint8_t i2cdev_addr;
 	struct mtx sc_mtx;
+	int last_slave;
 };
 
 static int
@@ -137,13 +138,17 @@ mtk_iic_attach(device_t dev)
 
 	sc->clkdiv = CLKDIV_VALUE;
 
-	I2C_WRITE(sc, RA_I2C_CLKDIV, sc->clkdiv);
+	I2CREG_WRITE(sc, RA_I2C_CLKDIV, sc->clkdiv);
 
 	sc->iicbus = device_add_child(dev, "iicbus", -1);
 	if (sc->iicbus == NULL) {
 		device_printf(dev, "cannot add iicbus child device\n");
 		return (ENXIO);
 	}
+
+	sc->sc_started = 0;
+	sc->last_slave = -1;
+
 	return (bus_generic_attach(dev));
 }
 
@@ -169,36 +174,56 @@ mtk_iic_start(device_t dev, u_char slave, int timeout)
 	int i;
 
 	sc = device_get_softc(dev);
+
+	if (sc->sc_started == 1)
+		return (IIC_EBUSERR);
+
         mtx_lock(&sc->sc_mtx);
 	error = IIC_NOERR;
-	sc->sc_started = 1;
 	sc->i2cdev_addr = (slave >> 1);
 
-	r = I2C_CONFIG_ADDRLEN(I2C_CONFIG_ADDRLEN_8) |
-	    I2C_CONFIG_DEVADLEN(I2C_CONFIG_DEVADLEN_7) |
-	    I2C_CONFIG_ADDRDIS;
-	I2C_WRITE(sc, RA_I2C_CONFIG, r);
+	/* This is work around for Ralink I2C device.
+	 * Ralink I2C device can't send one byte. Most smoll is two byte.
+	 * Then We send only first time dummy write
+	 */
 
-	/* dmmy write */
-	I2C_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
-	I2C_WRITE(sc, RA_I2C_BYTECNT, 0);
-	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
-	I2C_WRITE(sc, RA_I2C_DATAOUT, 0);
+	if (sc->last_slave != sc->i2cdev_addr) {
+		r = I2C_CONFIG_ADDRLEN(I2C_CONFIG_ADDRLEN_8) |
+		    I2C_CONFIG_DEVADLEN(I2C_CONFIG_DEVADLEN_7) |
+		    I2C_CONFIG_ADDRDIS;
+		I2CREG_WRITE(sc, RA_I2C_CONFIG, r);
 
-	for (i = 0; i < max_ee_busy_loop; i++) {
-		r = I2C_READ(sc, RA_I2C_STATUS);
-		if ((r & I2C_STATUS_BUSY) == 0) {
-			break;
+		/* dmmy write */
+		I2CREG_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
+		I2CREG_WRITE(sc, RA_I2C_BYTECNT, 0);
+		I2CREG_WRITE(sc, RA_I2C_DATAOUT, slave);
+		I2CREG_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
+
+		for (i = 0; i < max_ee_busy_loop; i++) {
+			r = I2CREG_READ(sc, RA_I2C_STATUS);
+			if (r & I2C_STATUS_ACKERR) {
+				error = IIC_ENOACK;
+			}
+			if ((r & I2C_STATUS_BUSY) == 0) {
+				break;
+			}
+		}
+		if (i == max_ee_busy_loop) {
+			error = IIC_EBUSERR;
+		}
+		if (error == IIC_NOERR) {
+			sc->last_slave = sc->i2cdev_addr;
 		}
 	}
-	if (r & I2C_STATUS_ACKERR) {
-		error = IIC_ENOACK;
-	}
-	if (i == max_ee_busy_loop) {
-		error = IIC_EBUSERR;
-	}
-	return error;
 
+	if (error == IIC_NOERR) {
+		sc->sc_started = 1;
+	} else {
+		mtx_unlock(&sc->sc_mtx);
+	}
+
+
+	return (error);
 }
 
 static int 
@@ -208,9 +233,14 @@ mtk_iic_stop(device_t dev)
 	struct mtk_iic_softc *sc;
 
 	sc = device_get_softc(dev);
-	mtx_unlock(&sc->sc_mtx);
-	sc->sc_started = 0;
-	error = IIC_NOERR;
+
+	if (sc->sc_started) {
+		mtx_unlock(&sc->sc_mtx);
+		error = IIC_NOERR;
+		sc->sc_started = 0;
+	} else {
+		error = IIC_EBUSERR;
+	}
 	return error;
 
 }
@@ -222,7 +252,7 @@ mtk_iic_busy_wait(struct mtk_iic_softc *sc)
 	uint32_t r;
 
 	for (i = 0; i < i2c_busy_loop; ++i) {
-		r = I2C_READ(sc, RA_I2C_STATUS);
+		r = I2CREG_READ(sc, RA_I2C_STATUS);
 		if ((r & I2C_STATUS_BUSY) == 0)
 			break;
 	}
@@ -238,14 +268,18 @@ mtk_iic_read(device_t dev, char *buf, int len, int *read, int last,
 
 	sc = device_get_softc(dev);
 
-	I2C_WRITE(sc, RA_I2C_BYTECNT, len - 1);
-	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_READ);
+	mtk_iic_busy_wait(sc);
+
+	I2CREG_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
+	I2CREG_WRITE(sc, RA_I2C_BYTECNT, len - 1);
+	I2CREG_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_READ);
 
 	for (i = 0; i < len; i++) {
 		for (j=0; j < max_ee_busy_loop; j++) {
-			r = I2C_READ(sc, RA_I2C_STATUS);
-			if (r & I2C_STATUS_DATARDY) {
-				buf[i] = I2C_READ(sc, RA_I2C_DATAIN);
+			r = I2CREG_READ(sc, RA_I2C_STATUS);
+			if ((r & I2C_STATUS_BUSY) == 0 &&
+			    (r & I2C_STATUS_DATARDY) != 0) {
+				buf[i] = I2CREG_READ(sc, RA_I2C_DATAIN);
 				break;
 			}
 		}
@@ -268,17 +302,26 @@ mtk_iic_write(device_t dev, const char *buf, int len, int *sent,
 	struct mtk_iic_softc *sc;
 	int i, j;
 	uint32_t r;
+	int loopcount;
 
 	sc = device_get_softc(dev);
 
-	I2C_WRITE(sc, RA_I2C_BYTECNT, len - 1);
-	I2C_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
+	mtk_iic_busy_wait(sc);
 
-	for (i = 0; i < len; i++) {
-		for (j=0; j < max_ee_busy_loop; j++) {
-			r = I2C_READ(sc, RA_I2C_STATUS);
+	I2CREG_WRITE(sc, RA_I2C_DEVADDR, sc->i2cdev_addr);
+	I2CREG_WRITE(sc, RA_I2C_BYTECNT, len - 1);
+	I2CREG_WRITE(sc, RA_I2C_DATAOUT, buf[0]);
+	I2CREG_WRITE(sc, RA_I2C_STARTXFR, I2C_OP_WRITE);
+
+	for (i = 1; i < len; i++) {
+		if (i == 1)   /* first loop send 2 byte */
+			loopcount = max_ee_busy_loop * 2;
+		else
+			loopcount = max_ee_busy_loop;
+		for (j=0; j < loopcount; j++) {
+			r = I2CREG_READ(sc, RA_I2C_STATUS);
 			if ((r & I2C_STATUS_SDOEMPTY) != 0) {
-				I2C_WRITE(sc, RA_I2C_DATAOUT, buf[i]);
+				I2CREG_WRITE(sc, RA_I2C_DATAOUT, buf[i]);
 				break;
 			}
 		}
@@ -293,11 +336,11 @@ mtk_iic_write(device_t dev, const char *buf, int len, int *sent,
 	return (IIC_NOERR);
 }
 
-#if 0
+#ifdef notyet
 static int
 mtk_iic_repeated_start(device_t dev, u_char slave, int timeout)
 {
-	return 0;
+	return (IIC_NOERR);
 }
 #endif
 
@@ -344,9 +387,6 @@ static device_method_t mtk_iic_methods[] = {
 	DEVMETHOD(device_detach, mtk_iic_detach),
 
 	/* iicbus interface */
-#if 0
-	DEVMETHOD(iicbus_repeated_start, mtk_iic_repeated_start),
-#endif
 	DEVMETHOD(iicbus_start, mtk_iic_start),
 	DEVMETHOD(iicbus_stop, mtk_iic_stop),
 	DEVMETHOD(iicbus_write, mtk_iic_write),
@@ -354,6 +394,9 @@ static device_method_t mtk_iic_methods[] = {
 	DEVMETHOD(iicbus_callback, iicbus_null_callback),
 	DEVMETHOD(iicbus_reset, mtk_iic_reset),
 	DEVMETHOD(iicbus_transfer, mtk_iic_transfer),
+#ifdef notyet
+	DEVMETHOD(iicbus_repeated_start, mtk_iic_repeated_start),
+#endif
 
 	/* ofw_bus interface */
 	DEVMETHOD(ofw_bus_get_node, mtk_iic_get_node),
