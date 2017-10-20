@@ -277,8 +277,7 @@ mtk_iic_read(device_t dev, char *buf, int len, int *read, int last,
 	for (i = 0; i < len; i++) {
 		for (j=0; j < max_ee_busy_loop; j++) {
 			r = I2CREG_READ(sc, RA_I2C_STATUS);
-			if ((r & I2C_STATUS_BUSY) == 0 &&
-			    (r & I2C_STATUS_DATARDY) != 0) {
+			if((r & I2C_STATUS_DATARDY) != 0) {
 				buf[i] = I2CREG_READ(sc, RA_I2C_DATAIN);
 				break;
 			}
