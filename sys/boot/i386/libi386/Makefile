@@ -1,5 +1,7 @@
 # $FreeBSD$
 #
+.include "../../defs.mk"
+
 LIB=			i386
 INTERNALLIB=
 
@@ -12,13 +14,6 @@ SRCS=	biosacpi.c bioscd.c biosdisk.c biosmem.c biospnp.c \
 .PATH:	${.CURDIR}/../../zfs
 SRCS+=	devicename_stubs.c
 
-.if defined(LOADER_TFTP_SUPPORT)
-CFLAGS+=	-DLOADER_TFTP_SUPPORT
-.endif
-.if defined(LOADER_NFS_SUPPORT)
-CFLAGS+=	-DLOADER_NFS_SUPPORT
-.endif
-
 BOOT_COMCONSOLE_PORT?= 0x3f8
 CFLAGS+=	-DCOMPORT=${BOOT_COMCONSOLE_PORT}
 
@@ -30,10 +25,10 @@ CFLAGS+=	-DCOMSPEED=${BOOT_COMCONSOLE_SPEED}
 CFLAGS+= -DDISK_DEBUG
 .endif
 
-.if !defined(LOADER_NO_GELI_SUPPORT)
+.if ${LOADER_GELI_SUPPORT:Uyes} == "yes"
 # Decrypt encrypted drives
 CFLAGS+= -DLOADER_GELI_SUPPORT
-CFLAGS+= -I${.CURDIR}/../../geli
+CFLAGS+= -I${BOOTDIR}/geli
 .endif
 
 .if !defined(BOOT_HIDE_SERIAL_NUMBERS)
