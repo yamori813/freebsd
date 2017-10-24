@@ -63,6 +63,13 @@ __FBSDID("$FreeBSD$");
 /*
  * register space access macros
  */
+
+#define	MTK_IIC_LOCK(sc)		mtx_lock_spin(&(sc)->mtx)
+#define	MTK_IIC_UNLOCK(sc)		mtx_unlock_spin(&(sc)->mtx)
+#define	MTK_IIC_LOCK_INIT(sc)		\
+    mtx_init(&(sc)->mtx, "mtk_iic", "mtk_iic", MTX_DEF)
+#define	MTK_IIC_LOCK_DESTROY(sc)	mtx_destroy(&(sc)->mtx)
+
 #define	I2CREG_WRITE(sc, reg, val) do {	\
 		bus_write_4(sc->sc_mem_res, (reg), (val));	\
 	} while (0)
@@ -92,13 +99,13 @@ static struct ofw_compat_data compat_data[] = {
 };
 
 struct mtk_iic_softc {
-	device_t sc_dev;
+	device_t dev;
 	struct resource *sc_mem_res;
 	device_t iicbus;
 	unsigned int clkdiv;
 	int sc_started;
 	uint8_t i2cdev_addr;
-	struct mtx sc_mtx;
+	struct mtx mtx;
 	int last_slave;
 };
 
@@ -122,12 +129,14 @@ mtk_iic_attach(device_t dev)
 {
 	int rid;
 	struct mtk_iic_softc *sc;
+	phandle_t node;
 
 	sc = device_get_softc(dev);
 
-	mtx_init(&sc->sc_mtx, "mtk_iic", "mtk_iic", MTX_DEF);
+	MTK_IIC_LOCK_INIT(sc);
 
-	sc->sc_dev = dev;
+	node = ofw_bus_get_node(dev);
+	sc->dev = dev;
 	rid = 0;
 	sc->sc_mem_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY, &rid,
 	    RF_ACTIVE);
@@ -136,7 +145,10 @@ mtk_iic_attach(device_t dev)
 		return (ENXIO);
 	}
 
-	sc->clkdiv = CLKDIV_VALUE;
+	if (OF_getencprop(node, "clock-div", &sc->clkdiv, 
+	    sizeof(sc->clkdiv)) <= 0) {
+		sc->clkdiv = RT2880_CLKDIV_VALUE;
+	}
 
 	I2CREG_WRITE(sc, RA_I2C_CLKDIV, sc->clkdiv);
 
@@ -162,6 +174,8 @@ mtk_iic_detach(device_t dev)
 	if (sc->sc_mem_res)
 		bus_release_resource(dev, SYS_RES_MEMORY, 0, sc->sc_mem_res);
 
+	MTK_IIC_LOCK_DESTROY(sc);
+
 	return (0);
 }
 
@@ -178,7 +192,7 @@ mtk_iic_start(device_t dev, u_char slave, int timeout)
 	if (sc->sc_started == 1)
 		return (IIC_EBUSERR);
 
-        mtx_lock(&sc->sc_mtx);
+	MTK_IIC_LOCK(sc);
 	error = IIC_NOERR;
 	sc->i2cdev_addr = (slave >> 1);
 
@@ -219,7 +233,7 @@ mtk_iic_start(device_t dev, u_char slave, int timeout)
 	if (error == IIC_NOERR) {
 		sc->sc_started = 1;
 	} else {
-		mtx_unlock(&sc->sc_mtx);
+		MTK_IIC_UNLOCK(sc);
 	}
 
 
@@ -235,7 +249,7 @@ mtk_iic_stop(device_t dev)
 	sc = device_get_softc(dev);
 
 	if (sc->sc_started) {
-		mtx_unlock(&sc->sc_mtx);
+		MTK_IIC_UNLOCK(sc);
 		error = IIC_NOERR;
 		sc->sc_started = 0;
 	} else {
@@ -414,6 +428,6 @@ static devclass_t mtk_iic_devclass;
 DRIVER_MODULE(mtk_iic, simplebus, mtk_iic_driver, mtk_iic_devclass, 0, 0);
 DRIVER_MODULE(iicbus, mtk_iic, iicbus_driver, iicbus_devclass, 0, 0);
 
-MODULE_DEPEND(mtk_iic, iicbus, 1, 1, 1);
+MODULE_DEPEND(mtk_iic, iicbus, IICBUS_MINVER, IICBUS_PREFVER, IICBUS_MAXVER);
 
 MODULE_VERSION(mtk_iic, 1);
