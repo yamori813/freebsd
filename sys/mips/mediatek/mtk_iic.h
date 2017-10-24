@@ -66,7 +66,10 @@
 #define	I2C_OP_READ			1
 #define	I2C_OP_WRITE			0
 
-/* This is RT2880 default value. Please set clock-div property in other socs */
+/*
+ * This is RT2880 default value. Please set clock-div property in dts file 
+ * other socs.
+ */
 #define	RT2880_CLKDIV_VALUE		333
 
 #define	i2c_busy_loop			(sc->clkdiv*30)

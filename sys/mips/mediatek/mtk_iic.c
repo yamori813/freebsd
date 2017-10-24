@@ -168,6 +168,7 @@ static int
 mtk_iic_detach(device_t dev)
 {
 	struct mtk_iic_softc *sc;
+	int error;
 
 	sc = device_get_softc(dev);
 
@@ -175,6 +176,9 @@ mtk_iic_detach(device_t dev)
 		bus_release_resource(dev, SYS_RES_MEMORY, 0, sc->sc_mem_res);
 
 	MTK_IIC_LOCK_DESTROY(sc);
+	if (sc->iicbus &&
+	    (error = device_delete_child(dev, sc->iicbus)) != 0)
+		return error;
 
 	return (0);
 }
