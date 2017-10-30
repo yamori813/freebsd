@@ -185,6 +185,7 @@ rtc8583_gettime(device_t dev, struct timespec *ts)
 		return (EINVAL);
 
 	y = tregs.day >> 6;
+	/* get year from sram */
 	rtc8583_read1(sc, 0x10,  &sreg);
 	if (sreg % 4 != y) {
 		/* 3 year is valid because of only 2 bit rtc value */
