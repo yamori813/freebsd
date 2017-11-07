@@ -218,7 +218,6 @@ SUBDIR=	\
 	lge \
 	libalias \
 	libiconv \
-	libmbpool \
 	libmchain \
 	${_linprocfs} \
 	${_linsysfs} \
@@ -562,6 +561,7 @@ _cxgb=		cxgb
 
 .if ${MACHINE_CPUARCH} == "aarch64"
 _armv8crypto=	armv8crypto
+_efirt=		efirt
 _em=		em
 .endif
 
@@ -603,6 +603,9 @@ _ixv=		ixv
 _linprocfs=	linprocfs
 _linsysfs=	linsysfs
 _linux=		linux
+.if ${MK_SOURCELESS_UCODE} != "no"
+_lio=		lio
+.endif
 _nctgpio=	nctgpio
 _ndis=		ndis
 _pccard=	pccard
@@ -711,9 +714,6 @@ _ixl=		ixl
 _ixlv=		ixlv
 _linux64=	linux64
 _linux_common=	linux_common
-.if ${MK_SOURCELESS_UCODE} != "no"
-_lio=		lio
-.endif
 _ntb=		ntb
 _pms=		pms
 _qlxge=		qlxge
