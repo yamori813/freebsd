@@ -447,7 +447,7 @@ TUNABLE_INT("hw.cxgbe.iscsicaps_allowed", &t4_iscsicaps_allowed);
 static int t4_fcoecaps_allowed = 0;
 TUNABLE_INT("hw.cxgbe.fcoecaps_allowed", &t4_fcoecaps_allowed);
 
-static int t5_write_combine = 0;
+static int t5_write_combine = 1;
 TUNABLE_INT("hw.cxl.write_combine", &t5_write_combine);
 
 static int t4_num_vis = 1;
@@ -466,11 +466,11 @@ static int vi_mac_funcs[] = {
 
 struct intrs_and_queues {
 	uint16_t intr_type;	/* INTx, MSI, or MSI-X */
+	uint16_t num_vis;	/* number of VIs for each port */
 	uint16_t nirq;		/* Total # of vectors */
 	uint16_t intr_flags;	/* Interrupt flags for each port */
 	uint16_t ntxq;		/* # of NIC txq's for each port */
 	uint16_t nrxq;		/* # of NIC rxq's for each port */
-	uint16_t rsrv_noflowq;	/* Flag whether to reserve queue 0 */
 	uint16_t nofldtxq;	/* # of TOE txq's for each port */
 	uint16_t nofldrxq;	/* # of TOE rxq's for each port */
 
@@ -505,8 +505,7 @@ static int fwmtype_to_hwmtype(int);
 static int validate_mt_off_len(struct adapter *, int, uint32_t, int,
     uint32_t *);
 static int fixup_devlog_params(struct adapter *);
-static int cfg_itype_and_nqueues(struct adapter *, int, int,
-    struct intrs_and_queues *);
+static int cfg_itype_and_nqueues(struct adapter *, struct intrs_and_queues *);
 static int prep_firmware(struct adapter *);
 static int partition_resources(struct adapter *, const struct firmware *,
     const char *);
@@ -678,6 +677,7 @@ struct {
 	/* Custom */
 	{0x6480, "Chelsio T6225 80"},
 	{0x6481, "Chelsio T62100 81"},
+	{0x6484, "Chelsio T62100 84"},
 };
 
 #ifdef TCP_OFFLOAD
@@ -965,24 +965,6 @@ t4_attach(device_t dev)
 		goto done; /* error message displayed already */
 
 	/*
-	 * Number of VIs to create per-port.  The first VI is the "main" regular
-	 * VI for the port.  The rest are additional virtual interfaces on the
-	 * same physical port.  Note that the main VI does not have native
-	 * netmap support but the extra VIs do.
-	 *
-	 * Limit the number of VIs per port to the number of available
-	 * MAC addresses per port.
-	 */
-	if (t4_num_vis >= 1)
-		num_vis = t4_num_vis;
-	else
-		num_vis = 1;
-	if (num_vis > nitems(vi_mac_funcs)) {
-		num_vis = nitems(vi_mac_funcs);
-		device_printf(dev, "Number of VIs limited to %d\n", num_vis);
-	}
-
-	/*
 	 * First pass over all the ports - allocate VIs and initialize some
 	 * basic parameters like mac address, port type, etc.
 	 */
@@ -999,7 +981,7 @@ t4_attach(device_t dev)
 		 * XXX: vi[0] is special so we can't delay this allocation until
 		 * pi->nvi's final value is known.
 		 */
-		pi->vi = malloc(sizeof(struct vi_info) * num_vis, M_CXGBE,
+		pi->vi = malloc(sizeof(struct vi_info) * t4_num_vis, M_CXGBE,
 		    M_ZERO | M_WAITOK);
 
 		/*
@@ -1040,12 +1022,11 @@ t4_attach(device_t dev)
 	 * Interrupt type, # of interrupts, # of rx/tx queues, etc.
 	 */
 	nports = sc->params.nports;
-	rc = cfg_itype_and_nqueues(sc, nports, num_vis, &iaq);
+	rc = cfg_itype_and_nqueues(sc, &iaq);
 	if (rc != 0)
 		goto done; /* error message displayed already */
-	if (iaq.nrxq_vi + iaq.nofldrxq_vi + iaq.nnmrxq_vi == 0)
-		num_vis = 1;
 
+	num_vis = iaq.num_vis;
 	sc->intr_type = iaq.intr_type;
 	sc->intr_count = iaq.nirq;
 
@@ -1143,7 +1124,7 @@ t4_attach(device_t dev)
 			tqidx += vi->ntxq;
 
 			if (j == 0 && vi->ntxq > 1)
-				vi->rsrv_noflowq = iaq.rsrv_noflowq ? 1 : 0;
+				vi->rsrv_noflowq = t4_rsrv_noflowq ? 1 : 0;
 			else
 				vi->rsrv_noflowq = 0;
 
@@ -2278,6 +2259,7 @@ t4_map_bar_2(struct adapter *sc)
 				setbit(&sc->doorbells, DOORBELL_WCWR);
 				setbit(&sc->doorbells, DOORBELL_UDBWC);
 			} else {
+				t5_write_combine = 0;
 				device_printf(sc->dev,
 				    "couldn't enable write combining: %d\n",
 				    rc);
@@ -2287,7 +2269,10 @@ t4_map_bar_2(struct adapter *sc)
 			t4_write_reg(sc, A_SGE_STAT_CFG,
 			    V_STATSOURCE_T5(7) | mode);
 		}
+#else
+		t5_write_combine = 0;
 #endif
+		sc->iwt.wc_en = t5_write_combine;
 	}
 
 	return (0);
@@ -2662,20 +2647,20 @@ fixup_devlog_params(struct adapter *sc)
 }
 
 static int
-cfg_itype_and_nqueues(struct adapter *sc, int nports, int num_vis,
-    struct intrs_and_queues *iaq)
+cfg_itype_and_nqueues(struct adapter *sc, struct intrs_and_queues *iaq)
 {
-	int rc, itype, navail, nrxq, n;
+	int rc, itype, navail, nrxq, nports, n;
 	int nofldrxq = 0;
 
+	nports = sc->params.nports;
 	MPASS(nports > 0);
 
 	bzero(iaq, sizeof(*iaq));
+	iaq->num_vis = t4_num_vis;
 	iaq->ntxq = t4_ntxq;
 	iaq->ntxq_vi = t4_ntxq_vi;
 	iaq->nrxq = nrxq = t4_nrxq;
 	iaq->nrxq_vi = t4_nrxq_vi;
-	iaq->rsrv_noflowq = t4_rsrv_noflowq;
 #ifdef TCP_OFFLOAD
 	if (is_offload(sc)) {
 		iaq->nofldtxq = t4_nofldtxq;
@@ -2716,9 +2701,9 @@ restart:
 		 */
 		iaq->nirq = T4_EXTRA_INTR;
 		iaq->nirq += nports * (nrxq + nofldrxq);
-		iaq->nirq += nports * (num_vis - 1) *
+		iaq->nirq += nports * (iaq->num_vis - 1) *
 		    max(iaq->nrxq_vi, iaq->nnmrxq_vi);	/* See comment above. */
-		iaq->nirq += nports * (num_vis - 1) * iaq->nofldrxq_vi;
+		iaq->nirq += nports * (iaq->num_vis - 1) * iaq->nofldrxq_vi;
 		if (iaq->nirq <= navail &&
 		    (itype != INTR_MSI || powerof2(iaq->nirq))) {
 			iaq->intr_flags = INTR_ALL;
@@ -2726,15 +2711,15 @@ restart:
 		}
 
 		/* Disable the VIs (and netmap) if there aren't enough intrs */
-		if (num_vis > 1) {
+		if (iaq->num_vis > 1) {
 			device_printf(sc->dev, "virtual interfaces disabled "
 			    "because num_vis=%u with current settings "
 			    "(nrxq=%u, nofldrxq=%u, nrxq_vi=%u nofldrxq_vi=%u, "
 			    "nnmrxq_vi=%u) would need %u interrupts but "
-			    "only %u are available.\n", num_vis, nrxq,
+			    "only %u are available.\n", iaq->num_vis, nrxq,
 			    nofldrxq, iaq->nrxq_vi, iaq->nofldrxq_vi,
 			    iaq->nnmrxq_vi, iaq->nirq, navail);
-			num_vis = 1;
+			iaq->num_vis = 1;
 			iaq->ntxq_vi = iaq->nrxq_vi = 0;
 			iaq->nofldtxq_vi = iaq->nofldrxq_vi = 0;
 			iaq->nnmtxq_vi = iaq->nnmrxq_vi = 0;
@@ -3455,7 +3440,10 @@ get_params__post_init(struct adapter *sc)
 	param[3] = FW_PARAM_PFVF(FILTER_END);
 	param[4] = FW_PARAM_PFVF(L2T_START);
 	param[5] = FW_PARAM_PFVF(L2T_END);
-	rc = -t4_query_params(sc, sc->mbox, sc->pf, 0, 6, param, val);
+	param[6] = V_FW_PARAMS_MNEM(FW_PARAMS_MNEM_DEV) |
+	    V_FW_PARAMS_PARAM_X(FW_PARAMS_PARAM_DEV_DIAG) |
+	    V_FW_PARAMS_PARAM_Y(FW_PARAM_DEV_DIAG_VDD);
+	rc = -t4_query_params(sc, sc->mbox, sc->pf, 0, 7, param, val);
 	if (rc != 0) {
 		device_printf(sc->dev,
 		    "failed to query parameters (post_init): %d.\n", rc);
@@ -3473,6 +3461,7 @@ get_params__post_init(struct adapter *sc)
 	KASSERT(sc->vres.l2t.size <= L2T_SIZE,
 	    ("%s: L2 table size (%u) larger than expected (%u)",
 	    __func__, sc->vres.l2t.size, L2T_SIZE));
+	sc->params.core_vdd = val[6];
 
 	/*
 	 * MPSBGMAP is queried separately because only recent firmwares support
@@ -5179,6 +5168,9 @@ t4_sysctls(struct adapter *sc)
 	SYSCTL_ADD_PROC(ctx, children, OID_AUTO, "temperature", CTLTYPE_INT |
 	    CTLFLAG_RD, sc, 0, sysctl_temperature, "I",
 	    "chip temperature (in Celsius)");
+
+	SYSCTL_ADD_INT(ctx, children, OID_AUTO, "core_vdd", CTLFLAG_RD,
+	    &sc->params.core_vdd, 0, "core Vdd (in mV)");
 
 #ifdef SBUF_DRAIN
 	/*
@@ -9928,6 +9920,22 @@ tweak_tunables(void)
 		t4_qsize_rxq++;
 
 	t4_intr_types &= INTR_MSIX | INTR_MSI | INTR_INTX;
+
+	/*
+	 * Number of VIs to create per-port.  The first VI is the "main" regular
+	 * VI for the port.  The rest are additional virtual interfaces on the
+	 * same physical port.  Note that the main VI does not have native
+	 * netmap support but the extra VIs do.
+	 *
+	 * Limit the number of VIs per port to the number of available
+	 * MAC addresses per port.
+	 */
+	if (t4_num_vis < 1)
+		t4_num_vis = 1;
+	if (t4_num_vis > nitems(vi_mac_funcs)) {
+		t4_num_vis = nitems(vi_mac_funcs);
+		printf("cxgbe: number of VIs limited to %d\n", t4_num_vis);
+	}
 }
 
 #ifdef DDB

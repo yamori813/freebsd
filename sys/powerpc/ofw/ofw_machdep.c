@@ -65,6 +65,8 @@ __FBSDID("$FreeBSD$");
 #include <machine/ofw_machdep.h>
 #include <machine/trap.h>
 
+#include <contrib/libfdt/libfdt.h>
+
 static void	*fdt;
 int		ofw_real_mode;
 
@@ -184,14 +186,6 @@ parse_ofw_memory(phandle_t node, const char *prop, struct mem_region *output)
 	i = 0;
 	j = 0;
 	while (i < sz/sizeof(cell_t)) {
-	      #if !defined(__powerpc64__) && !defined(BOOKE)
-		/* On 32-bit PPC (OEA), ignore regions starting above 4 GB */
-		if (address_cells > 1 && OFmem[i] > 0) {
-			i += address_cells + size_cells;
-			continue;
-		}
-	      #endif
-
 		output[j].mr_start = OFmem[i++];
 		if (address_cells == 2) {
 			output[j].mr_start <<= 32;
@@ -204,19 +198,20 @@ parse_ofw_memory(phandle_t node, const char *prop, struct mem_region *output)
 			output[j].mr_size += OFmem[i++];
 		}
 
-	      #if !defined(__powerpc64__) && !defined(BOOKE)
-		/* Book-E can support 36-bit addresses. */
+		if (output[j].mr_start > BUS_SPACE_MAXADDR)
+			continue;
+
 		/*
-		 * Check for memory regions extending above 32-bit
-		 * memory space, and restrict them to stay there.
+		 * Constrain memory to that which we can access.
+		 * 32-bit AIM can only reference 32 bits of address currently,
+		 * but Book-E can access 36 bits.
 		 */
 		if (((uint64_t)output[j].mr_start +
-		    (uint64_t)output[j].mr_size) >
-		    BUS_SPACE_MAXADDR_32BIT) {
-			output[j].mr_size = BUS_SPACE_MAXADDR_32BIT -
-			    output[j].mr_start;
+		    (uint64_t)output[j].mr_size - 1) >
+		    BUS_SPACE_MAXADDR) {
+			output[j].mr_size = BUS_SPACE_MAXADDR -
+			    output[j].mr_start + 1;
 		}
-	      #endif
 
 		j++;
 	}
@@ -240,8 +235,17 @@ excise_fdt_reserved(struct mem_region *avail, int asz)
 	fdtmapsize = OF_getprop(chosen, "fdtmemreserv", fdtmap, sizeof(fdtmap));
 
 	for (j = 0; j < fdtmapsize/sizeof(fdtmap[0]); j++) {
-		fdtmap[j].address = be64toh(fdtmap[j].address);
-		fdtmap[j].size = be64toh(fdtmap[j].size);
+		fdtmap[j].address = be64toh(fdtmap[j].address) & ~PAGE_MASK;
+		fdtmap[j].size = round_page(be64toh(fdtmap[j].size));
+	}
+
+	KASSERT(j*sizeof(fdtmap[0]) < sizeof(fdtmap),
+	    ("Exceeded number of FDT reservations"));
+	/* Add a virtual entry for the FDT itself */
+	if (fdt != NULL) {
+		fdtmap[j].address = (vm_offset_t)fdt & ~PAGE_MASK;
+		fdtmap[j].size = round_page(fdt_totalsize(fdt));
+		fdtmapsize += sizeof(fdtmap[0]);
 	}
 
 	for (i = 0; i < asz; i++) {
@@ -526,11 +530,16 @@ openfirmware(void *args)
 		return (-1);
 
 	#ifdef SMP
-	rv_args.args = args;
-	rv_args.in_progress = 1;
-	smp_rendezvous(smp_no_rendezvous_barrier, ofw_rendezvous_dispatch,
-	    smp_no_rendezvous_barrier, &rv_args);
-	result = rv_args.retval;
+	if (cold) {
+		result = openfirmware_core(args);
+	} else {
+		rv_args.args = args;
+		rv_args.in_progress = 1;
+		smp_rendezvous(smp_no_rendezvous_barrier,
+		    ofw_rendezvous_dispatch, smp_no_rendezvous_barrier,
+		    &rv_args);
+		result = rv_args.retval;
+	}
 	#else
 	result = openfirmware_core(args);
 	#endif
