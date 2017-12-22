@@ -630,6 +630,9 @@ NFS_MINDIRATTRTIMO	opt_nfs.h
 NFS_MAXDIRATTRTIMO	opt_nfs.h
 NFS_DEBUG		opt_nfs.h
 
+# TMPFS options
+TMPFS_PAGES_MINRESERVED		opt_tmpfs.h
+
 # For the Bt848/Bt848A/Bt849/Bt878/Bt879 driver
 OVERRIDE_CARD			opt_bktr.h
 OVERRIDE_TUNER			opt_bktr.h
@@ -928,7 +931,6 @@ VNET_DEBUG		opt_global.h
 CFI_SUPPORT_STRATAFLASH	opt_cfi.h
 CFI_ARMEDANDDANGEROUS	opt_cfi.h
 CFI_HARDWAREBYTESWAP	opt_cfi.h
-CFI_USE_MXFLASH		opt_cfi.h
 
 # Sound options
 SND_DEBUG		opt_snd.h
