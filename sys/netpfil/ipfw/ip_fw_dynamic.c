@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2002 Luigi Rizzo, Universita` di Pisa
  *
  * Redistribution and use in source and binary forms, with or without
@@ -582,7 +584,8 @@ dyn_update_proto_state(ipfw_dyn_rule *q, const struct ipfw_flow_id *id,
 			q->expire = time_uptime + V_dyn_rst_lifetime;
 			break;
 		}
-	} else if (id->proto == IPPROTO_UDP) {
+	} else if (id->proto == IPPROTO_UDP ||
+	    id->proto == IPPROTO_UDPLITE) {
 		q->expire = time_uptime + V_dyn_udp_lifetime;
 	} else {
 		/* other protocols */

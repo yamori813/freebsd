@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2002-2009 Luigi Rizzo, Universita` di Pisa
  *
  * Redistribution and use in source and binary forms, with or without
@@ -336,7 +338,10 @@ ipfw_log(struct ip_fw_chain *chain, struct ip_fw *f, u_int hlen,
 			break;
 
 		case IPPROTO_UDP:
-			len = snprintf(SNPARGS(proto, 0), "UDP %s", src);
+		case IPPROTO_UDPLITE:
+			len = snprintf(SNPARGS(proto, 0), "UDP%s%s",
+			    args->f_id.proto == IPPROTO_UDP ? " ": "Lite ",
+			    src);
 			if (offset == 0)
 				snprintf(SNPARGS(proto, len), ":%d %s:%d",
 				    ntohs(udp->uh_sport),

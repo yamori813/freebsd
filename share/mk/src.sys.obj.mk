@@ -132,12 +132,16 @@ __objdir:=	${MAKEOBJDIR}
 .if ${.MAKE.LEVEL} == 0 && \
     ${MK_AUTO_OBJ} == "no" && empty(.MAKEOVERRIDES:MMK_AUTO_OBJ) && \
     !defined(WITHOUT_AUTO_OBJ) && !make(showconfig) && !make(print-dir) && \
-    !defined(NO_OBJ)
+    !defined(NO_OBJ) && \
+    empty(RELDIR:Msys/*/compile/*)
 # Find the last existing directory component and check if we can write to it.
 # If the last component is a symlink then recurse on the new path.
 CheckAutoObj= \
 DirIsCreatable() { \
-	[ -w "$${1}" ] && return 0; \
+	if [ -w "$${1}" ]; then \
+		[ -d "$${1}" ] || return 1; \
+		return 0; \
+	fi; \
 	d="$${1}"; \
 	IFS=/; \
 	set -- $${d}; \
@@ -154,13 +158,16 @@ DirIsCreatable() { \
 				ret=0; \
 				DirIsCreatable "$${dir%/}" || ret=$$?; \
 				return $${ret}; \
+			elif [ -e "/$${dir}$${d}" ]; then \
+				return 1; \
 			else \
 				break; \
 			fi; \
 		fi; \
 		dir="$${dir}$${d}/"; \
 	done; \
-	[ -w "$${dir}" ]; \
+	[ -w "$${dir}" ] && [ -d "$${dir}" ] && return 0; \
+	return 1; \
 }; \
 CheckAutoObj() { \
 	if DirIsCreatable "$${1}"; then \
@@ -172,7 +179,7 @@ CheckAutoObj() { \
 .if !empty(__objdir)
 .if ${.CURDIR} == ${__objdir}
 __objdir_writable?= yes
-.else
+.elif empty(__objdir_writable)
 __objdir_writable!= \
 	${CheckAutoObj}; CheckAutoObj "${__objdir}" || echo no
 .endif

@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2002 Doug Rabson
  * All rights reserved.
  *
@@ -3012,6 +3014,24 @@ freebsd32_cpuset_setaffinity(struct thread *td,
 
 	return (kern_cpuset_setaffinity(td, uap->level, uap->which,
 	    PAIR32TO64(id_t,uap->id), uap->cpusetsize, uap->mask));
+}
+
+int
+freebsd32_cpuset_getdomain(struct thread *td,
+    struct freebsd32_cpuset_getdomain_args *uap)
+{
+
+	return (kern_cpuset_getdomain(td, uap->level, uap->which,
+	    PAIR32TO64(id_t,uap->id), uap->domainsetsize, uap->mask, uap->policy));
+}
+
+int
+freebsd32_cpuset_setdomain(struct thread *td,
+    struct freebsd32_cpuset_setdomain_args *uap)
+{
+
+	return (kern_cpuset_setdomain(td, uap->level, uap->which,
+	    PAIR32TO64(id_t,uap->id), uap->domainsetsize, uap->mask, uap->policy));
 }
 
 int

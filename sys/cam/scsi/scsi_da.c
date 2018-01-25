@@ -1,6 +1,8 @@
 /*-
  * Implementation of SCSI Direct Access Peripheral driver for CAM.
  *
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 1997 Justin T. Gibbs.
  * All rights reserved.
  *
@@ -79,6 +81,7 @@ __FBSDID("$FreeBSD$");
  *    ATA -> LOGDIR -> IDDIR -> SUP -> ATA_ZONE
  */
 typedef enum {
+	DA_STATE_PROBE_WP,
 	DA_STATE_PROBE_RC,
 	DA_STATE_PROBE_RC16,
 	DA_STATE_PROBE_LBP,
@@ -149,12 +152,13 @@ typedef enum {
 	DA_CCB_BUFFER_IO	= 0x07,
 	DA_CCB_DUMP		= 0x0A,
 	DA_CCB_DELETE		= 0x0B,
- 	DA_CCB_TUR		= 0x0C,
+	DA_CCB_TUR		= 0x0C,
 	DA_CCB_PROBE_ZONE	= 0x0D,
 	DA_CCB_PROBE_ATA_LOGDIR	= 0x0E,
 	DA_CCB_PROBE_ATA_IDDIR	= 0x0F,
 	DA_CCB_PROBE_ATA_SUP	= 0x10,
 	DA_CCB_PROBE_ATA_ZONE	= 0x11,
+	DA_CCB_PROBE_WP		= 0x12,
 	DA_CCB_TYPE_MASK	= 0x1F,
 	DA_CCB_RETRY_UA		= 0x20
 } da_ccb_state;
@@ -299,7 +303,7 @@ struct da_softc {
 	int	 error_inject;
 	int	 trim_max_ranges;
 	int	 delete_available;	/* Delete methods possibly available */
-	da_zone_mode 			zone_mode;
+	da_zone_mode			zone_mode;
 	da_zone_interface		zone_interface;
 	da_zone_flags			zone_flags;
 	struct ata_gp_log_dir		ata_logdir;
@@ -309,7 +313,7 @@ struct da_softc {
 	uint64_t			optimal_seq_zones;
 	uint64_t			optimal_nonseq_zones;
 	uint64_t			max_seq_zones;
-	u_int	 		maxio;
+	u_int			maxio;
 	uint32_t		unmap_max_ranges;
 	uint32_t		unmap_max_lba; /* Max LBAs in UNMAP req */
 	uint32_t		unmap_gran;
@@ -498,14 +502,14 @@ static struct da_quirk_entry da_quirk_table[] =
 		{T_DIRECT, SIP_MEDIA_REMOVABLE, "Generic*", "USB Flash Disk*",
 		"*"}, /*quirks*/ DA_Q_NO_SYNC_CACHE
 	},
- 	{
- 		/*
- 		 * Creative Nomad MUVO mp3 player (USB)
- 		 * PR: kern/53094
- 		 */
- 		{T_DIRECT, SIP_MEDIA_REMOVABLE, "CREATIVE", "NOMAD_MUVO", "*"},
- 		/*quirks*/ DA_Q_NO_SYNC_CACHE|DA_Q_NO_PREVENT
- 	},
+	{
+		/*
+		 * Creative Nomad MUVO mp3 player (USB)
+		 * PR: kern/53094
+		 */
+		{T_DIRECT, SIP_MEDIA_REMOVABLE, "CREATIVE", "NOMAD_MUVO", "*"},
+		/*quirks*/ DA_Q_NO_SYNC_CACHE|DA_Q_NO_PREVENT
+	},
 	{
 		/*
 		 * Jungsoft NEXDISK USB flash key
@@ -553,7 +557,7 @@ static struct da_quirk_entry da_quirk_table[] =
 		 */
 		{T_DIRECT, SIP_MEDIA_REMOVABLE, "iRiver", "iFP*", "*"},
 		/*quirks*/ DA_Q_NO_SYNC_CACHE
- 	},
+	},
 	{
 		/*
 		 * Frontier Labs NEX IA+ Digital Audio Player, rev 1.10/0.01
@@ -1523,7 +1527,6 @@ daclose(struct disk *dp)
 	struct	cam_periph *periph;
 	struct	da_softc *softc;
 	union	ccb *ccb;
-	int error;
 
 	periph = (struct cam_periph *)dp->d_drv1;
 	softc = (struct da_softc *)periph->softc;
@@ -1542,7 +1545,7 @@ daclose(struct disk *dp)
 			    /*cbfcnp*/dadone, MSG_SIMPLE_Q_TAG,
 			    /*begin_lba*/0, /*lb_count*/0, SSD_FULL_SIZE,
 			    5 * 60 * 1000);
-			error = cam_periph_runccb(ccb, daerror, /*cam_flags*/0,
+			cam_periph_runccb(ccb, daerror, /*cam_flags*/0,
 			    /*sense_flags*/SF_RETRY_UA | SF_QUIET_IR,
 			    softc->disk->d_devstat);
 			softc->flags &= ~DA_FLAG_DIRTY;
@@ -1646,13 +1649,10 @@ dadump(void *arg, void *virtual, vm_offset_t physical, off_t offset, size_t leng
 	dp = arg;
 	periph = dp->d_drv1;
 	softc = (struct da_softc *)periph->softc;
-	cam_periph_lock(periph);
 	secsize = softc->params.secsize;
 	
-	if ((softc->flags & DA_FLAG_PACK_INVALID) != 0) {
-		cam_periph_unlock(periph);
+	if ((softc->flags & DA_FLAG_PACK_INVALID) != 0)
 		return (ENXIO);
-	}
 
 	memset(&csio, 0, sizeof(csio));
 	if (length > 0) {
@@ -1671,16 +1671,10 @@ dadump(void *arg, void *virtual, vm_offset_t physical, off_t offset, size_t leng
 				/*dxfer_len*/length,
 				/*sense_len*/SSD_FULL_SIZE,
 				da_default_timeout * 1000);
-		xpt_polled_action((union ccb *)&csio);
-
-		error = cam_periph_error((union ccb *)&csio,
+		error = cam_periph_runccb((union ccb *)&csio, cam_periph_error,
 		    0, SF_NO_RECOVERY | SF_NO_RETRY, NULL);
-		if ((csio.ccb_h.status & CAM_DEV_QFRZN) != 0)
-			cam_release_devq(csio.ccb_h.path, /*relsim_flags*/0,
-			    /*reduction*/0, /*timeout*/0, /*getcount_only*/0);
 		if (error != 0)
 			printf("Aborting dump due to I/O error.\n");
-		cam_periph_unlock(periph);
 		return (error);
 	}
 		
@@ -1699,17 +1693,11 @@ dadump(void *arg, void *virtual, vm_offset_t physical, off_t offset, size_t leng
 				       /*lb_count*/0,
 				       SSD_FULL_SIZE,
 				       5 * 1000);
-		xpt_polled_action((union ccb *)&csio);
-
-		error = cam_periph_error((union ccb *)&csio,
-		    0, SF_NO_RECOVERY | SF_NO_RETRY | SF_QUIET_IR, NULL);
-		if ((csio.ccb_h.status & CAM_DEV_QFRZN) != 0)
-			cam_release_devq(csio.ccb_h.path, /*relsim_flags*/0,
-			    /*reduction*/0, /*timeout*/0, /*getcount_only*/0);
+		error = cam_periph_runccb((union ccb *)&csio, cam_periph_error,
+		    0, SF_NO_RECOVERY | SF_NO_RETRY, NULL);
 		if (error != 0)
 			xpt_print(periph->path, "Synchronize cache failed\n");
 	}
-	cam_periph_unlock(periph);
 	return (error);
 }
 
@@ -1917,7 +1905,6 @@ daasync(void *callback_arg, u_int32_t code,
 				dareprobe(periph);
 			}
 		}
-		cam_periph_async(periph, code, path, arg);
 		break;
 	}
 	case AC_SCSI_AEN:
@@ -1960,7 +1947,7 @@ dasysctlinit(void *context, int pending)
 {
 	struct cam_periph *periph;
 	struct da_softc *softc;
-	char tmpstr[80], tmpstr2[80];
+	char tmpstr[32], tmpstr2[16];
 	struct ccb_trans_settings cts;
 
 	periph = (struct cam_periph *)context;
@@ -2320,7 +2307,7 @@ dadeletemethodsysctl(SYSCTL_HANDLER_ARGS)
 	char buf[16];
 	const char *p;
 	struct da_softc *softc;
-	int i, error, methods, value;
+	int i, error, value;
 
 	softc = (struct da_softc *)arg1;
 
@@ -2333,7 +2320,6 @@ dadeletemethodsysctl(SYSCTL_HANDLER_ARGS)
 	error = sysctl_handle_string(oidp, buf, sizeof(buf), req);
 	if (error != 0 || req->newptr == NULL)
 		return (error);
-	methods = softc->delete_available | (1 << DA_DELETE_DISABLE);
 	for (i = 0; i <= DA_DELETE_MAX; i++) {
 		if (strcmp(buf, da_delete_method_names[i]) == 0)
 			break;
@@ -2443,7 +2429,7 @@ daregister(struct cam_periph *periph, void *arg)
 	}
 	
 	LIST_INIT(&softc->pending_ccbs);
-	softc->state = DA_STATE_PROBE_RC;
+	softc->state = DA_STATE_PROBE_WP;
 	bioq_init(&softc->delete_run_queue);
 	if (SID_IS_REMOVABLE(&cgd->inq_data))
 		softc->flags |= DA_FLAG_PACK_REMOVABLE;
@@ -2471,10 +2457,7 @@ daregister(struct cam_periph *periph, void *arg)
 		softc->quirks = DA_Q_NONE;
 
 	/* Check if the SIM does not want 6 byte commands */
-	bzero(&cpi, sizeof(cpi));
-	xpt_setup_ccb(&cpi.ccb_h, periph->path, CAM_PRIORITY_NORMAL);
-	cpi.ccb_h.func_code = XPT_PATH_INQ;
-	xpt_action((union ccb *)&cpi);
+	xpt_path_inq(&cpi, periph->path);
 	if (cpi.ccb_h.status == CAM_REQ_CMP && (cpi.hba_misc & PIM_NO_6_BYTE))
 		softc->quirks |= DA_Q_NO_6_BYTE;
 
@@ -2545,7 +2528,6 @@ daregister(struct cam_periph *periph, void *arg)
 	if (SID_ANSI_REV(&cgd->inq_data) >= SCSI_REV_SPC3 &&
 	    (softc->quirks & DA_Q_NO_RC16) == 0) {
 		softc->flags |= DA_FLAG_CAN_RC16;
-		softc->state = DA_STATE_PROBE_RC16;
 	}
 
 	/*
@@ -2983,7 +2965,7 @@ more:
 
 		if (cam_iosched_has_work_flags(softc->cam_iosched, DA_WORK_TUR)) {
 			cam_iosched_clr_work_flags(softc->cam_iosched, DA_WORK_TUR);
-			cam_periph_release_locked(periph);	/* XXX is this still valid? I think so but unverified */
+			cam_periph_release_locked(periph);
 		}
 
 		if ((bp->bio_flags & BIO_ORDERED) != 0 ||
@@ -3112,6 +3094,36 @@ out:
 
 		/* May have more work to do, so ensure we stay scheduled */
 		daschedule(periph);
+		break;
+	}
+	case DA_STATE_PROBE_WP:
+	{
+		void  *mode_buf;
+		int    mode_buf_len;
+
+		mode_buf_len = 192;
+		mode_buf = malloc(mode_buf_len, M_SCSIDA, M_NOWAIT);
+		if (mode_buf == NULL) {
+			xpt_print(periph->path, "Unable to send mode sense - "
+			    "malloc failure\n");
+			softc->state = DA_STATE_PROBE_RC;
+			goto skipstate;
+		}
+		scsi_mode_sense_len(&start_ccb->csio,
+				    /*retries*/ da_retry_count,
+				    /*cbfcnp*/ dadone,
+				    /*tag_action*/ MSG_SIMPLE_Q_TAG,
+				    /*dbd*/ FALSE,
+				    /*pc*/ SMS_PAGE_CTRL_CURRENT,
+				    /*page*/ SMS_ALL_PAGES_PAGE,
+				    /*param_buf*/ mode_buf,
+				    /*param_len*/ mode_buf_len,
+				    /*minimum_cmd_size*/ softc->minimum_cmd_size,
+				    /*sense_len*/ SSD_FULL_SIZE,
+				    /*timeout*/ da_default_timeout * 1000);
+		start_ccb->ccb_h.ccb_bp = NULL;
+		start_ccb->ccb_h.ccb_state = DA_CCB_PROBE_WP;
+		xpt_action(start_ccb);
 		break;
 	}
 	case DA_STATE_PROBE_RC:
@@ -3935,7 +3947,7 @@ cmd6workaround(union ccb *ccb)
 
 	xpt_print(ccb->ccb_h.path, "READ(6)/WRITE(6) not supported, "
 	    "increasing minimum_cmd_size to 10.\n");
- 	softc->minimum_cmd_size = 10;
+	softc->minimum_cmd_size = 10;
 
 	bcopy(cdb, &cmd6, sizeof(struct scsi_rw_6));
 	cmd10 = (struct scsi_rw_10 *)cdb;
@@ -3949,7 +3961,7 @@ cmd6workaround(union ccb *ccb)
 
 	/* Requeue request, unfreezing queue if necessary */
 	frozen = (ccb->ccb_h.status & CAM_DEV_QFRZN) != 0;
- 	ccb->ccb_h.status = CAM_REQUEUE_REQ;
+	ccb->ccb_h.status = CAM_REQUEUE_REQ;
 	xpt_action(ccb);
 	if (frozen) {
 		cam_release_devq(ccb->ccb_h.path,
@@ -3982,7 +3994,7 @@ dazonedone(struct cam_periph *periph, union ccb *ccb)
 		struct scsi_report_zones_hdr *hdr;
 		struct scsi_report_zones_desc *desc;
 		struct disk_zone_rep_entry *entry;
-		uint32_t num_alloced, hdr_len, num_avail;
+		uint32_t hdr_len, num_avail;
 		uint32_t num_to_fill, i;
 		int ata;
 
@@ -3999,7 +4011,6 @@ dazonedone(struct cam_periph *periph, union ccb *ccb)
 		 * the user.
 		 */
 		bp->bio_resid = ccb->csio.resid;
-		num_alloced = rep->entries_allocated;
 		hdr = (struct scsi_report_zones_hdr *)ccb->csio.data_ptr;
 		if (avail_len < sizeof(*hdr)) {
 			/*
@@ -4273,6 +4284,52 @@ dadone(struct cam_periph *periph, union ccb *done_ccb)
 		}
 		if (bp != NULL)
 			biodone(bp);
+		return;
+	}
+	case DA_CCB_PROBE_WP:
+	{
+		struct scsi_mode_header_6 *mode_hdr6;
+		struct scsi_mode_header_10 *mode_hdr10;
+		uint8_t dev_spec;
+
+		if (softc->minimum_cmd_size > 6) {
+			mode_hdr10 = (struct scsi_mode_header_10 *)csio->data_ptr;
+			dev_spec = mode_hdr10->dev_spec;
+		} else {
+			mode_hdr6 = (struct scsi_mode_header_6 *)csio->data_ptr;
+			dev_spec = mode_hdr6->dev_spec;
+		}
+		if (cam_ccb_status(done_ccb) == CAM_REQ_CMP) {
+			if ((dev_spec & 0x80) != 0)
+				softc->disk->d_flags |= DISKFLAG_WRITE_PROTECT;
+			else
+				softc->disk->d_flags &= ~DISKFLAG_WRITE_PROTECT;
+		} else {
+			int error;
+
+			error = daerror(done_ccb, CAM_RETRY_SELTO,
+					SF_RETRY_UA|SF_NO_PRINT);
+			if (error == ERESTART)
+				return;
+			else if (error != 0) {
+				if ((done_ccb->ccb_h.status & CAM_DEV_QFRZN) != 0) {
+					/* Don't wedge this device's queue */
+					cam_release_devq(done_ccb->ccb_h.path,
+							 /*relsim_flags*/0,
+							 /*reduction*/0,
+							 /*timeout*/0,
+							 /*getcount_only*/0);
+				}
+			}
+		}
+
+		free(csio->data_ptr, M_SCSIDA);
+		xpt_release_ccb(done_ccb);
+		if ((softc->flags & DA_FLAG_CAN_RC16) != 0)
+			softc->state = DA_STATE_PROBE_RC16;
+		else
+			softc->state = DA_STATE_PROBE_RC;
+		xpt_schedule(periph, priority);
 		return;
 	}
 	case DA_CCB_PROBE_RC:
@@ -5360,11 +5417,7 @@ dareprobe(struct cam_periph *periph)
 	KASSERT(status == CAM_REQ_CMP,
 	    ("dareprobe: cam_periph_acquire failed"));
 
-	if (softc->flags & DA_FLAG_CAN_RC16)
-		softc->state = DA_STATE_PROBE_RC16;
-	else
-		softc->state = DA_STATE_PROBE_RC;
-
+	softc->state = DA_STATE_PROBE_WP;
 	xpt_schedule(periph, CAM_PRIORITY_DEV);
 }
 
@@ -5383,17 +5436,17 @@ daerror(union ccb *ccb, u_int32_t cam_flags, u_int32_t sense_flags)
 	periph = xpt_path_periph(ccb->ccb_h.path);
 	softc = (struct da_softc *)periph->softc;
 
- 	/*
+	/*
 	 * Automatically detect devices that do not support
- 	 * READ(6)/WRITE(6) and upgrade to using 10 byte cdbs.
- 	 */
+	 * READ(6)/WRITE(6) and upgrade to using 10 byte cdbs.
+	 */
 	error = 0;
 	if ((ccb->ccb_h.status & CAM_STATUS_MASK) == CAM_REQ_INVALID) {
 		error = cmd6workaround(ccb);
 	} else if (scsi_extract_sense_ccb(ccb,
 	    &error_code, &sense_key, &asc, &ascq)) {
 		if (sense_key == SSD_KEY_ILLEGAL_REQUEST)
- 			error = cmd6workaround(ccb);
+			error = cmd6workaround(ccb);
 		/*
 		 * If the target replied with CAPACITY DATA HAS CHANGED UA,
 		 * query the capacity and notify upper layers.
@@ -5449,8 +5502,7 @@ daerror(union ccb *ccb, u_int32_t cam_flags, u_int32_t sense_flags)
 
 	if (softc->quirks & DA_Q_RETRY_BUSY)
 		sense_flags |= SF_RETRY_BUSY;
-	return(cam_periph_error(ccb, cam_flags, sense_flags,
-				&softc->saved_ccb));
+	return(cam_periph_error(ccb, cam_flags, sense_flags));
 }
 
 static void
