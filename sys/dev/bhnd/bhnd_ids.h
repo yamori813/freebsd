@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: ISC
+ *
  * Copyright (c) 2015-2016 Landon Fuller <landon@landonf.org>
  * Copyright (c) 1999-2015, Broadcom Corporation
  * 
@@ -442,7 +444,7 @@
 #define	BHND_COREID_PCI			0x804		/* pci core */
 #define	BHND_COREID_MIPS		0x805		/* mips core */
 #define	BHND_COREID_ENET		0x806		/* enet mac core */
-#define	BHND_COREID_CODEC		0x807		/* v90 codec core */
+#define	BHND_COREID_V90_CODEC		0x807		/* v90 codec core */
 #define	BHND_COREID_USB			0x808		/* usb 1.1 host/device core */
 #define	BHND_COREID_ADSL		0x809		/* ADSL core */
 #define	BHND_COREID_ILINE100		0x80a		/* iline100 core */

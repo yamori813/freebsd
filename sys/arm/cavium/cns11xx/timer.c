@@ -129,6 +129,7 @@ DELAY(int usec)
 				;
 		return;
 	}
+	TSENTER();
 
 	// timer2 is count up
 	val = read_second_timer_counter();
@@ -143,7 +144,7 @@ DELAY(int usec)
 
 		val = val_temp;
 	}
-
+	TSEXIT();
 }
 
 /*

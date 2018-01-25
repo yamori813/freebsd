@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2013 Ian Lepore <ian@freebsd.org>
  * All rights reserved.
  *
@@ -102,11 +104,4 @@ imx_wdog_init_last_reset(vm_offset_t wdsr_phys)
 		sysctl___hw_imx_last_reset_reason.oid_arg1 = "PowerOnReset";
 	}
 }
-
-u_int
-imx_soc_family(void)
-{
-	return (imx_soc_type() >> IMXSOC_FAMSHIFT);
-}
-
 

@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2009 Yahoo! Inc.
  * Copyright (c) 2011-2015 LSI Corp.
  * Copyright (c) 2013-2015 Avago Technologies
@@ -1162,7 +1164,7 @@ static int
 mps_alloc_queues(struct mps_softc *sc)
 {
 	struct mps_queue *q;
-	int nq, i;
+	u_int nq, i;
 
 	nq = sc->msi_msgs;
 	mps_dprint(sc, MPS_INIT|MPS_XINFO, "Allocating %d I/O queues\n", nq);

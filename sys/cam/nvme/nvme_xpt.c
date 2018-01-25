@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2015 Netflix, Inc.
  * All rights reserved.
  *
@@ -318,8 +320,7 @@ nvme_probe_start(struct cam_periph *periph, union ccb *start_ccb)
 		xpt_done(start_ccb);
 	}
 	cam_periph_invalidate(periph);
-	/* Can't release periph since we hit a (possibly bogus) assertion */
-//	cam_periph_release_locked(periph);
+	cam_periph_release_locked(periph);
 }
 
 static void
@@ -365,9 +366,7 @@ nvme_scan_lun(struct cam_periph *periph, struct cam_path *path,
 
 	CAM_DEBUG(path, CAM_DEBUG_TRACE, ("nvme_scan_lun\n"));
 
-	xpt_setup_ccb(&cpi.ccb_h, path, CAM_PRIORITY_NONE);
-	cpi.ccb_h.func_code = XPT_PATH_INQ;
-	xpt_action((union ccb *)&cpi);
+	xpt_path_inq(&cpi, path);
 
 	if (cpi.ccb_h.status != CAM_REQ_CMP) {
 		if (request_ccb != NULL) {
@@ -458,9 +457,7 @@ nvme_device_transport(struct cam_path *path)
 	/* XXX get data from nvme namespace and other info ??? */
 
 	/* Get transport information from the SIM */
-	xpt_setup_ccb(&cpi.ccb_h, path, CAM_PRIORITY_NONE);
-	cpi.ccb_h.func_code = XPT_PATH_INQ;
-	xpt_action((union ccb *)&cpi);
+	xpt_path_inq(&cpi, path);
 
 	path->device->transport = cpi.transport;
 	path->device->transport_version = cpi.transport_version;
@@ -633,9 +630,7 @@ nvme_announce_periph(struct cam_periph *periph)
 	nvmex = &cts.xport_specific.nvme;
 
 	/* Ask the SIM for its base transfer speed */
-	xpt_setup_ccb(&cpi.ccb_h, path, CAM_PRIORITY_NORMAL);
-	cpi.ccb_h.func_code = XPT_PATH_INQ;
-	xpt_action((union ccb *)&cpi);
+	xpt_path_inq(&cpi, periph->path);
 	printf("%s%d: nvme version %d.%d x%d (max x%d) lanes PCIe Gen%d (max Gen%d) link",
 	    periph->periph_name, periph->unit_number,
 	    NVME_MAJOR(nvmex->spec),

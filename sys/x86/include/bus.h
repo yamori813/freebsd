@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-3-Clause AND BSD-2-Clause-NetBSDE
+ *
  * Copyright (c) KATO Takenori, 1999.
  *
  * All rights reserved.  Unpublished rights reserved under the copyright
@@ -116,6 +118,7 @@
 #define BUS_SPACE_MAXADDR_24BIT	0xFFFFFF
 #define BUS_SPACE_MAXADDR_32BIT 0xFFFFFFFF
 #if defined(__amd64__) || defined(PAE)
+#define BUS_SPACE_MAXADDR_48BIT	0xFFFFFFFFFFFFULL
 #define BUS_SPACE_MAXADDR	0xFFFFFFFFFFFFFFFFULL
 #else
 #define BUS_SPACE_MAXADDR	0xFFFFFFFF

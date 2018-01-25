@@ -33,12 +33,12 @@ __FBSDID("$FreeBSD$");
 #include <sys/exec.h>
 #include <sys/linker.h>
 #include <sys/module.h>
-#include <inttypes.h>
+#include <stdint.h>
 #include <string.h>
 #include <machine/elf.h>
 #include <stand.h>
 #define FREEBSD_ELF
-#include <link.h>
+#include <sys/link_elf.h>
 
 #include "bootstrap.h"
 
@@ -224,6 +224,8 @@ __elfN(obj_loadimage)(struct preloaded_file *fp, elf_file_t ef, u_int64_t off)
 #if defined(__i386__) || defined(__amd64__)
 		case SHT_X86_64_UNWIND:
 #endif
+			if ((shdr[i].sh_flags & SHF_ALLOC) == 0)
+				break;
 			lastaddr = roundup(lastaddr, shdr[i].sh_addralign);
 			shdr[i].sh_addr = (Elf_Addr)lastaddr;
 			lastaddr += shdr[i].sh_size;
