@@ -96,6 +96,8 @@ __FBSDID("$FreeBSD$");
 dtrace_malloc_probe_func_t	dtrace_malloc_probe;
 #endif
 
+extern void	uma_startup2(void);
+
 #if defined(INVARIANTS) || defined(MALLOC_MAKE_FAILURES) ||		\
     defined(DEBUG_MEMGUARD) || defined(DEBUG_REDZONE)
 #define	MALLOC_DEBUG	1
@@ -453,7 +455,7 @@ contigfree(void *addr, unsigned long size, struct malloc_type *type)
 
 #ifdef MALLOC_DEBUG
 static int
-malloc_dbg(caddr_t *vap, unsigned long *sizep, struct malloc_type *mtp,
+malloc_dbg(caddr_t *vap, size_t *sizep, struct malloc_type *mtp,
     int flags)
 {
 #ifdef INVARIANTS
