@@ -510,13 +510,14 @@ cfi_detach(device_t dev)
 	return (0);
 }
 
-static int
-cfi_check_erace(struct cfi_softc *sc, u_int ofs, u_int sz)
+static bool
+cfi_check_erase(struct cfi_softc *sc, u_int ofs, u_int sz)
 {
-	int error, i;
+	bool result;
+	int i;
 	uint32_t val;
 
-	error = 0;
+	result = FALSE;
 	for (i = 0; i < sz; i += sc->sc_width) {
 		val = cfi_read(sc, ofs + i);
 		switch (sc->sc_width) {
@@ -534,10 +535,10 @@ cfi_check_erace(struct cfi_softc *sc, u_int ofs, u_int sz)
 			continue;
 		}
 	}
-	error = 1;
+	result = TRUE;
 
 out:
-	return (error);
+	return (result);
 }
 
 static int
@@ -669,7 +670,7 @@ cfi_write_block(struct cfi_softc *sc)
 			    sc->sc_wrofs >> (ffs(minsz) - 1),
 			    CFI_AMD_BLOCK_ERASE);
 			for (i = 0; i < CFI_AMD_MAXCHK; ++i) {
-				if (cfi_check_erace(sc, sc->sc_wrofs,
+				if (cfi_check_erase(sc, sc->sc_wrofs,
 				    sc->sc_wrbufsz))
 					break;
 				DELAY(10);
