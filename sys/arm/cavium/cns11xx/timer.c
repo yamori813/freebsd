@@ -111,7 +111,7 @@ unsigned int read_4(unsigned int addr)
 }
 
 static inline unsigned int
-read_second_timer_counter(void)
+read_timer1_counter(void)
 {
 
 	return read_4(TIMER_TM1_COUNTER_REG);
@@ -131,12 +131,12 @@ DELAY(int usec)
 	}
 	TSENTER();
 
-	// timer2 is count up
-	val = read_second_timer_counter();
+	// timer1 is count up
+	val = read_timer1_counter();
 	nticks = (ec_timecounter.tc_frequency / 1000000 + 1) * usec;
 
 	while (nticks > 0) {
-		val_temp = read_second_timer_counter();
+		val_temp = read_timer1_counter();
 		if (val < val_temp)
 			nticks -= (val_temp - val);
 		else
@@ -156,7 +156,8 @@ setup_timer(void)
 	unsigned int control_value;
 	unsigned int mask_value;
 
-	control_value = read_4(TIMER_TM_CR_REG);
+//	control_value = read_4(TIMER_TM_CR_REG);
+	control_value = 0;
 
 	// Timer2 is eventtimer (count down)
 	control_value &= ~(TIMER2_CLOCK_SOURCE);
@@ -169,8 +170,9 @@ setup_timer(void)
 
 	write_4(control_value, TIMER_TM_CR_REG);
 
-	// only use timer2 interrupt
-	mask_value = 0x07;   // 000000111
+	// only use timer2 Match Value1 interrupt
+//	mask_value = 0x07;   // 00000111
+	mask_value = 0x37;   // 00110111
 
 	write_4(mask_value, TIMER_TM_INTR_MASK_REG);
 }
@@ -194,7 +196,7 @@ clear_timer_interrupt_status(unsigned int irq)
 	unsigned int interrupt_status;
 
 	interrupt_status =   read_4(TIMER_TM_INTR_STATUS_REG);
-	if (irq == 0) {
+	if (irq == 1) {
 		if (interrupt_status & (TIMER1_MATCH1_INTR))
 			interrupt_status &= ~(TIMER1_MATCH1_INTR);
 		if (interrupt_status & (TIMER1_MATCH2_INTR))
@@ -202,7 +204,7 @@ clear_timer_interrupt_status(unsigned int irq)
 		if (interrupt_status & (TIMER1_OVERFLOW_INTR))
 			interrupt_status &= ~(TIMER1_OVERFLOW_INTR);
 	}
-	if (irq == 1) {
+	if (irq == 2) {
 		if (interrupt_status & (TIMER2_MATCH1_INTR))
 			interrupt_status &= ~(TIMER2_MATCH1_INTR);
 		if (interrupt_status & (TIMER2_MATCH2_INTR))
@@ -217,7 +219,7 @@ clear_timer_interrupt_status(unsigned int irq)
 static unsigned
 ec_timer_get_timecount(struct timecounter *a)
 {
-	return read_second_timer_counter();
+	return read_timer1_counter();
 }
 
 static int
@@ -239,7 +241,7 @@ ec_hardclock(void *arg)
 	struct  ec_timer_softc *sc = (struct ec_timer_softc *)arg;
 	unsigned int control_value;
 
-	clear_timer_interrupt_status(1);
+	clear_timer_interrupt_status(2);
 
 	control_value = read_4(TIMER_TM_CR_REG);
 	control_value &= ~TIMER2_ENABLE;
@@ -249,8 +251,9 @@ ec_hardclock(void *arg)
 	if (!sc->ec_oneshot) {
 		write_4(sc->ec_period, TIMER_TM2_COUNTER_REG);
 		write_4(sc->ec_period, TIMER_TM2_LOAD_REG);
+		write_4(0, TIMER_TM2_MATCH1_REG);
 		control_value = read_4(TIMER_TM_CR_REG);
-		control_value |= TIMER2_OVERFLOW_ENABLE;
+//		control_value |= TIMER2_OVERFLOW_ENABLE;
 		control_value |= TIMER2_ENABLE;
 		write_4(control_value, TIMER_TM_CR_REG);
 	}
@@ -305,7 +308,8 @@ ec_timer_attach(device_t dev)
 	sc->ec_et.et_flags = ET_FLAGS_PERIODIC | ET_FLAGS_ONESHOT;
 	sc->ec_et.et_quality = 1000;
 	sc->ec_et.et_min_period = (0x00000002LLU << 32) / sc->ec_et.et_frequency;
-	sc->ec_et.et_max_period = (0xfffffffeLLU << 32) / sc->ec_et.et_frequency;
+//	sc->ec_et.et_max_period = (0xfffffffeLLU << 32) / sc->ec_et.et_frequency;
+	sc->ec_et.et_max_period = (0x7fffffffLLU << 32) / sc->ec_et.et_frequency;
 	sc->ec_et.et_start = ec_timer_start;
 	sc->ec_et.et_stop = ec_timer_stop;
 	sc->ec_et.et_priv = sc;
@@ -355,13 +359,13 @@ ec_timer_start(struct eventtimer *et, sbintime_t first, sbintime_t period)
 	write_4(ticks, TIMER_TM2_COUNTER_REG);
 	write_4(ticks, TIMER_TM2_LOAD_REG);
 	write_4(0, TIMER_TM2_MATCH1_REG);
-	write_4(0, TIMER_TM2_MATCH2_REG);
+//	write_4(0, TIMER_TM2_MATCH2_REG);
 
 	unsigned int control_value;
 
 	control_value = read_4(TIMER_TM_CR_REG);
 
-	control_value |= TIMER2_OVERFLOW_ENABLE;
+//	control_value |= TIMER2_OVERFLOW_ENABLE;
 	control_value |= TIMER2_ENABLE;
 
 	write_4(control_value, TIMER_TM_CR_REG);
@@ -384,6 +388,7 @@ ec_timer_stop(struct eventtimer *et)
 }
 
 #else
+#if 0
 void
 cpu_startprofclock(void)
 {}
@@ -395,6 +400,7 @@ cpu_initclocks(void)
 void
 cpu_stopprofclock(void)
 {}
+#endif
 #endif
 
 static device_method_t ec_timer_methods[] = {
