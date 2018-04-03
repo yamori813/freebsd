@@ -48,10 +48,10 @@ __FBSDID("$FreeBSD$");
 
 #define	FLASHMAP_CLASS_NAME "Flashmap"
 
-#ifdef GEOM_FLASHMAP_ADJUST_BORDER
-#define	FLASHMAP_MARKER_STR	".!/bin/sh"
-#define	FLASHMAP_MAX_MARKER_LEN	64
-#define	FLASHMAP_SEARCH_STEP	(64 * 1024)
+#ifdef GEOM_FLASHMAP_MKROOTFS
+#define	FLASHMAP_UBOOTHDRSIZE	64
+#define	FLASHMAP_SECTORSIZE	(64 * 1024)
+#define	FLASHMAP_MARKER_STR	"#!/bin/sh"
 #endif
 
 struct g_flashmap_slice {
@@ -82,6 +82,8 @@ static int g_flashmap_load(device_t dev, struct g_provider *pp,
 static int g_flashmap_modify(struct g_geom *gp, const char *devname,
     int secsize, struct g_flashmap_head *slices);
 static void g_flashmap_print(struct g_flashmap_slice *slice);
+
+off_t chkuboothdr(struct g_consumer *cp, off_t offset);
 
 MALLOC_DECLARE(M_FLASHMAP);
 MALLOC_DEFINE(M_FLASHMAP, "geom_flashmap", "GEOM flash memory slicer class");
@@ -210,59 +212,35 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	return (gp);
 }
 
-#ifdef GEOM_FLASHMAP_ADJUST_BORDER
-static int
-find_marker(struct g_consumer *cp, off_t *offset)
+#ifdef GEOM_FLASHMAP_MKROOTFS
+off_t
+chkuboothdr(struct g_consumer *cp, off_t offset)
 {
-	off_t search_start, search_offset, search_step;
+	off_t val;
 	uint8_t *buf;
 	size_t sectorsize;
-	char key[FLASHMAP_MAX_MARKER_LEN], search_key[FLASHMAP_MAX_MARKER_LEN];
-	int c;
 
-	search_start = *offset;
+	sectorsize = FLASHMAP_SECTORSIZE;
 	sectorsize = cp->provider->sectorsize;
-	search_step = FLASHMAP_SEARCH_STEP;
-	strcpy(search_key, FLASHMAP_MARKER_STR);
-
-	for (search_offset = search_start;
-	     search_offset < cp->provider->mediasize;
-	     search_offset += search_step) {
-
-		g_topology_unlock();
-		buf = g_read_data(cp, search_offset, sectorsize, NULL);
-		g_topology_lock();
-
-		strncpy(key, search_key, FLASHMAP_MAX_MARKER_LEN);
-
-		for (c = 0; c < FLASHMAP_MAX_MARKER_LEN && key[c]; c++) {
-			if (key[c] == '.') {
-				key[c] = buf[c];
-			}
-		}
-
-		/* Assume buf != NULL here */
-		if (memcmp(buf, key, strlen(search_key)) == 0) {
-			g_free(buf);
-			/* Marker found, so return their offset */
-			if (*offset == search_offset)
-				return (0);
-			*offset = search_offset;
-			return (1);
-		}
+	buf = g_read_data(cp, offset, sectorsize, NULL);
+	if (buf[0] != 0x27 || buf[1] != 0x05 || buf[2] != 0x19 ||
+	    buf[3] != 0x56) {
 		g_free(buf);
+		return 0;
 	}
-
-	printf("geom_flash map not found marker\n");
-	return (0);
-}
-
-static void
-adjust_print(char *str, off_t from, off_t to)
-{
-
-	printf("adjust %s %08jx to %08jx\n", str, (uintmax_t)from,
-	    (uintmax_t)to);
+	val = buf[0xc] << 24 | buf[0xd] << 16 | buf[0xe] << 8 | buf[0xf];
+	val += FLASHMAP_UBOOTHDRSIZE;
+	val = (val - 1) / FLASHMAP_SECTORSIZE;
+	val = (val + 1) * FLASHMAP_SECTORSIZE;
+	g_free(buf);
+	buf = g_read_data(cp, offset + val, sectorsize, NULL);
+	if (strncmp(buf, FLASHMAP_MARKER_STR, strlen(FLASHMAP_MARKER_STR)) !=
+	    0) {
+		g_free(buf);
+		return 0;
+	}
+	g_free(buf);
+	return offset + val;
 }
 #endif
 
@@ -273,6 +251,9 @@ g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
 	struct flash_slice *slices;
 	struct g_flashmap_slice *slice;
 	int i, nslices = 0;
+	struct g_flashmap_slice *rootfs;
+	off_t rootfsbase;
+	char *rootfsname;
 
 	slices = malloc(sizeof(struct flash_slice) * FLASH_SLICES_MAX_NUM,
 	    M_FLASHMAP, M_WAITOK | M_ZERO);
@@ -284,28 +265,36 @@ g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
 			slice->sl_name = slices[i].label;
 			slice->sl_start = slices[i].base;
 			slice->sl_end = slices[i].base + slices[i].size - 1;
-#ifdef GEOM_FLASHMAP_ADJUST_BORDER
-			if(strcmp("kernel", slice->sl_name) == 0) {
-				++slice->sl_end;
-				if (find_marker(cp, &slice->sl_end) ) {
-					adjust_print("kernel end",
-					    slices[i].base + slices[i].size - 1,
-					    slice->sl_end - 1);
-				}
-				--slice->sl_end;
-			}
-			if(strcmp("rootfs", slice->sl_name) == 0) {
-				if( find_marker(cp, &slice->sl_start) ) {
-					adjust_print("rootfs start",
-					    slices[i].base,
-					    slice->sl_start);
-					slice->sl_end -= slice->sl_start - 
-					    slices[i].base;
-				}
-			}
-#endif
+#ifdef GEOM_FLASHMAP_MKROOTFS
+			if(strcmp("firmware", slice->sl_name) == 0) {
+				rootfsbase = chkuboothdr(cp, slice->sl_start);
+				if (rootfsbase != 0) {
+					rootfs = malloc(sizeof(
+					    struct g_flashmap_slice),
+					    M_FLASHMAP, M_WAITOK);
 
+					slice->sl_end = rootfsbase - 1;
+					rootfsname = g_malloc(32,
+					    M_WAITOK | M_ZERO);
+					strcpy(rootfsname, "rootfs");
+					rootfs->sl_name = rootfsname;
+					rootfs->sl_start = rootfsbase;
+					rootfs->sl_end = slices[i].base +
+					    slices[i].size - 1;
+					STAILQ_INSERT_TAIL(head, slice,
+					    sl_link);
+					STAILQ_INSERT_TAIL(head, rootfs,
+					    sl_link);
+				} else {
+					STAILQ_INSERT_TAIL(head, slice,
+					    sl_link);
+				}
+			} else {
+				STAILQ_INSERT_TAIL(head, slice, sl_link);
+			}
+#else
 			STAILQ_INSERT_TAIL(head, slice, sl_link);
+#endif
 		}
 	}
 

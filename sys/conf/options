@@ -141,7 +141,7 @@ GEOM_VINUM	opt_geom.h
 GEOM_VIRSTOR	opt_geom.h
 GEOM_VOL	opt_geom.h
 GEOM_ZERO	opt_geom.h
-GEOM_FLASHMAP_ADJUST_BORDER	opt_geom.h
+GEOM_FLASHMAP_MKROOTFS	opt_geom.h
 IFLIB		opt_iflib.h
 KDTRACE_HOOKS	opt_global.h
 KDTRACE_FRAME	opt_kdtrace.h
