@@ -224,19 +224,17 @@ do { \
 static void
 cleanup(void)
 {
-	int fd = -1;
-	char buffer[80] = {0};
+	FILE *f;
 	pid_t pid;
 
-	fd = open(pidfile, O_RDONLY);
-	if (fd < 0)
+	f = fopen(pidfile, "r");
+	if (f == NULL)
 		return;
-	if (read(fd, buffer, sizeof(buffer)) > 0) {
-		sscanf(buffer, "%d", &pid);
+	if (fscanf(f, "%d", &pid) == 1) {
 		kill(pid, SIGTERM);
 		waitpid(pid, NULL, 0);
 	}
-	close(fd);
+	fclose(f);
 	unlink(pidfile);
 }
 
@@ -248,10 +246,10 @@ require_bufeq(const char *expected, ssize_t expected_len, const char *actual,
 	ssize_t i;
 
 	ATF_REQUIRE_EQ_MSG(expected_len, len,
-	    "Expected %ld bytes but got %ld", expected_len, len);
+	    "Expected %zd bytes but got %zd", expected_len, len);
 	for (i = 0; i < len; i++) {
 		ATF_REQUIRE_EQ_MSG(actual[i], expected[i],
-		    "Expected %#hhx at position %ld; got %hhx instead",
+		    "Expected %#hhx at position %zd; got %hhx instead",
 		    expected[i], i, actual[i]);
 	}
 }
@@ -350,6 +348,10 @@ setup(struct sockaddr_storage *to, uint16_t idx)
 		ATF_REQUIRE((client_s = socket(protocol, SOCK_DGRAM, 0)) > 0);
 		break;
 	}
+
+	/* Clear the client's umask.  Test cases will specify exact modes */
+	umask(0000);
+
 	return (client_s);
 }
 
@@ -673,7 +675,6 @@ TFTPD_TC_DEFINE(unknown_opcode,)
 {
 	/* Looks like an RRQ or WRQ request, but with a bad opcode */
 	SEND_STR("\0\007foo.txt\0octet\0");
-	atf_tc_expect_timeout("PR 226005 tftpd ignores bad opcodes but doesn't reject them");
 	RECV_ERROR(4, "Illegal TFTP operation");
 }
 
@@ -695,6 +696,7 @@ TFTPD_TC_DEFINE(w_flag,, w_flag = 1;)
 	recv_ack(1);
 
 	fd = open("small.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq(contents, contents_len, buffer, r);
@@ -714,7 +716,7 @@ TFTPD_TC_DEFINE(wrq_dropped_ack,)
 	for (i = 0; i < nitems(contents); i++)
 		contents[i] = i;
 
-	fd = open("medium.txt", O_RDWR | O_CREAT, 0644);
+	fd = open("medium.txt", O_RDWR | O_CREAT, 0666);
 	ATF_REQUIRE(fd >= 0);
 	close(fd);
 
@@ -731,6 +733,7 @@ TFTPD_TC_DEFINE(wrq_dropped_ack,)
 	recv_ack(2);
 
 	fd = open("medium.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq((const char*)contents, 768, buffer, r);
@@ -747,7 +750,7 @@ TFTPD_TC_DEFINE(wrq_dropped_data,)
 	size_t contents_len;
 	char buffer[1024];
 
-	fd = open("small.txt", O_RDWR | O_CREAT, 0644);
+	fd = open("small.txt", O_RDWR | O_CREAT, 0666);
 	ATF_REQUIRE(fd >= 0);
 	close(fd);
 	contents_len = strlen(contents) + 1;
@@ -763,6 +766,7 @@ TFTPD_TC_DEFINE(wrq_dropped_data,)
 	recv_ack(1);
 
 	fd = open("small.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq(contents, contents_len, buffer, r);
@@ -782,7 +786,7 @@ TFTPD_TC_DEFINE(wrq_duped_data,)
 	for (i = 0; i < nitems(contents); i++)
 		contents[i] = i;
 
-	fd = open("medium.txt", O_RDWR | O_CREAT, 0644);
+	fd = open("medium.txt", O_RDWR | O_CREAT, 0666);
 	ATF_REQUIRE(fd >= 0);
 	close(fd);
 
@@ -796,6 +800,7 @@ TFTPD_TC_DEFINE(wrq_duped_data,)
 	recv_ack(2);
 
 	fd = open("medium.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq((const char*)contents, 768, buffer, r);
@@ -813,8 +818,6 @@ TFTPD_TC_DEFINE(wrq_eaccess,)
 	close(fd);
 
 	SEND_WRQ("empty.txt", "octet");
-	atf_tc_expect_fail("PR 225996 tftpd doesn't abort on a WRQ access "
-	    "violation");
 	RECV_ERROR(2, "Access violation");
 }
 
@@ -831,7 +834,6 @@ TFTPD_TC_DEFINE(wrq_eaccess_world_readable,)
 	close(fd);
 
 	SEND_WRQ("empty.txt", "octet");
-	atf_tc_expect_fail("PR 226004 with relative pathnames, tftpd doesn't validate world writability");
 	RECV_ERROR(2, "Access violation");
 }
 
@@ -862,6 +864,7 @@ TFTPD_TC_DEFINE(wrq_medium,)
 	recv_ack(2);
 
 	fd = open("medium.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq((const char*)contents, 768, buffer, r);
@@ -894,6 +897,7 @@ TFTPD_TC_DEFINE(wrq_netascii,)
 	recv_ack(1);
 
 	fd = open("unix.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq(expected, sizeof(expected), buffer, r);
@@ -906,8 +910,6 @@ TFTPD_TC_DEFINE(wrq_netascii,)
 TFTPD_TC_DEFINE(wrq_nonexistent,)
 {
 	SEND_WRQ("nonexistent.txt", "octet");
-	atf_tc_expect_fail("PR 225996 tftpd doesn't abort on a WRQ access "
-	    "violation");
 	RECV_ERROR(1, "File not found");
 }
 
@@ -933,6 +935,7 @@ TFTPD_TC_DEFINE(wrq_small,)
 	recv_ack(1);
 
 	fd = open("small.txt", O_RDONLY);
+	ATF_REQUIRE(fd >= 0);
 	r = read(fd, buffer, sizeof(buffer));
 	close(fd);
 	require_bufeq(contents, contents_len, buffer, r);
