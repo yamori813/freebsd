@@ -36,26 +36,10 @@
 			reg = <0x00040000 0x00010000>;
 			read-only;
 		};
-/*
-		kernel: partition@50000 {
-			label = "kernel";
-			reg = <0x00050000 0x00100000>;
-			read-only;
-		};
-		rootfs: partition@160000 {
-			label = "rootfs";
-			reg = <0x00150000 0x002c0000>;
-			read-only;
-		};
-*/
 		firmware: partition@50000 {
 			label = "firmware";
 			reg = <0x00050000 0x003b0000>;
 			read-only;
-		};
-		cfitest: partition@3d0000 {
-			label = "cfitest";
-			reg = <0x003d0000 0x00020000>;
 		};
 		upgrade: partition@400000 {
 			label = "upgrade";
