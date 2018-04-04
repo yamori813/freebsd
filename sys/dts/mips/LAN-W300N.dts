@@ -3,17 +3,17 @@
 #include "rt3050.dtsi"
 
 / {
-	compatible = "MZK-WNH", "ralink,rt3050-soc";
-	model = "Planex MZK-WNH";
+	compatible = "LAN-W300N", "ralink,rt3050-soc";
+	model = "Logitec LAN-W300N";
 
 	memory@0 {
 		device_type = "memory";
-		reg = <0x0 0x1000000>;
+		reg = <0x0 0x4000000>;
 	};
 
 	cfi@1f000000 {
 		compatible = "cfi-flash";
-		reg = <0x1f000000 0x800000>;
+		reg = <0x1f000000 0x400000>;
 		bank-width = <2>;
 		device-width = <2>;
 		#address-cells = <1>;
