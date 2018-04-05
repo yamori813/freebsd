@@ -30,8 +30,6 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include "opt_geom.h"
-
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -81,7 +79,7 @@ static int g_flashmap_modify(struct g_geom *gp, const char *devname,
     int secsize, struct g_flashmap_head *slices);
 static void g_flashmap_print(struct g_flashmap_slice *slice);
 
-off_t chkuboothdr(struct g_consumer *cp, off_t offset);
+static off_t chkuboothdr(struct g_consumer *cp, off_t offset);
 
 MALLOC_DECLARE(M_FLASHMAP);
 MALLOC_DEFINE(M_FLASHMAP, "geom_flashmap", "GEOM flash memory slicer class");
@@ -210,32 +208,40 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	return (gp);
 }
 
-off_t
+static off_t
 chkuboothdr(struct g_consumer *cp, off_t offset)
 {
 	off_t val;
 	uint8_t *buf;
 	size_t sectorsize;
+	int i;
 
 	sectorsize = FLASHMAP_SECTORSIZE;
 	sectorsize = cp->provider->sectorsize;
 	buf = g_read_data(cp, offset, sectorsize, NULL);
+	/* check u-boot header magic number */
 	if (buf[0] != 0x27 || buf[1] != 0x05 || buf[2] != 0x19 ||
 	    buf[3] != 0x56) {
 		g_free(buf);
 		return 0;
 	}
+	/* get image data size */
 	val = buf[0xc] << 24 | buf[0xd] << 16 | buf[0xe] << 8 | buf[0xf];
 	val += FLASHMAP_UBOOTHDRSIZE;
 	val = (val - 1) / FLASHMAP_SECTORSIZE;
 	val = (val + 1) * FLASHMAP_SECTORSIZE;
 	g_free(buf);
-	buf = g_read_data(cp, offset + val, sectorsize, NULL);
-	if (strncmp(buf, FLASHMAP_MARKER_STR, strlen(FLASHMAP_MARKER_STR)) !=
-	    0) {
+	/* check 64K and 128K boundly */
+	for (i = 0; i < 2; ++i) {
+		buf = g_read_data(cp, offset + val, sectorsize, NULL);
+		if (strncmp(buf, FLASHMAP_MARKER_STR,
+		    strlen(FLASHMAP_MARKER_STR)) == 0)
+			break;
 		g_free(buf);
-		return 0;
+		val += FLASHMAP_SECTORSIZE;
 	}
+	if (i == 2)
+		return 0;
 	g_free(buf);
 	return offset + val;
 }
