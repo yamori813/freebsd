@@ -48,11 +48,9 @@ __FBSDID("$FreeBSD$");
 
 #define	FLASHMAP_CLASS_NAME "Flashmap"
 
-#ifdef GEOM_FLASHMAP_MKROOTFS
 #define	FLASHMAP_UBOOTHDRSIZE	64
 #define	FLASHMAP_SECTORSIZE	(64 * 1024)
 #define	FLASHMAP_MARKER_STR	"#!/bin/sh"
-#endif
 
 struct g_flashmap_slice {
 	off_t		sl_start;
@@ -212,7 +210,6 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	return (gp);
 }
 
-#ifdef GEOM_FLASHMAP_MKROOTFS
 off_t
 chkuboothdr(struct g_consumer *cp, off_t offset)
 {
@@ -242,7 +239,6 @@ chkuboothdr(struct g_consumer *cp, off_t offset)
 	g_free(buf);
 	return offset + val;
 }
-#endif
 
 static int
 g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
@@ -265,7 +261,6 @@ g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
 			slice->sl_name = slices[i].label;
 			slice->sl_start = slices[i].base;
 			slice->sl_end = slices[i].base + slices[i].size - 1;
-#ifdef GEOM_FLASHMAP_MKROOTFS
 			if(strcmp("firmware", slice->sl_name) == 0) {
 				rootfsbase = chkuboothdr(cp, slice->sl_start);
 				if (rootfsbase != 0) {
@@ -292,9 +287,6 @@ g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
 			} else {
 				STAILQ_INSERT_TAIL(head, slice, sl_link);
 			}
-#else
-			STAILQ_INSERT_TAIL(head, slice, sl_link);
-#endif
 		}
 	}
 
