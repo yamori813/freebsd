@@ -1,5 +1,7 @@
 /*-
- * Copyright (c) 2001 Chris D. Faulhaber
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
+ * Copyright (c) 2015-2017 Vladimir Kondratyev <wulf@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -14,7 +16,7 @@
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -26,37 +28,17 @@
  * $FreeBSD$
  */
 
-#ifndef _SETFACL_H
-#define _SETFACL_H
+#ifndef _UINPUT_H_
+#define _UINPUT_H_
 
-#include <stdbool.h>
+int32_t uinput_open_mouse(hid_device_p const d, bdaddr_p local);
+int32_t uinput_open_keyboard(hid_device_p const d, bdaddr_p local);
+int32_t uinput_rep_mouse(int32_t fd, int32_t x, int32_t y, int32_t z,
+    int32_t t, int32_t buttons, int32_t obuttons);
+int32_t uinput_rep_key(int32_t fd, int32_t key, int32_t make);
+int32_t uinput_rep_cons(int32_t fd, int32_t key, int32_t make);
+int32_t uinput_rep_leds(int32_t fd, int state, int mask);
+int32_t uinput_kbd_status_changed(bthid_session_p s, uint8_t *data,
+    int32_t len);
 
-#include <sys/types.h>
-#include <sys/acl.h>
-#include <sys/queue.h>
-
-/* files.c */
-acl_t	 get_acl_from_file(const char *filename);
-/* merge.c */
-int	 merge_acl(acl_t acl, acl_t *prev_acl, const char *filename);
-int	 add_acl(acl_t acl, uint entry_number, acl_t *prev_acl,
-	    const char *filename);
-/* remove.c */
-int	 remove_acl(acl_t acl, acl_t *prev_acl, const char *filename);
-int	 remove_by_number(uint entry_number, acl_t *prev_acl,
-	    const char *filename);
-int	 remove_default(acl_t *prev_acl, const char *filename);
-void	 remove_ext(acl_t *prev_acl, const char *filename);
-/* mask.c */
-int	 set_acl_mask(acl_t *prev_acl, const char *filename);
-/* util.c */
-void	*zmalloc(size_t size);
-void	*zrealloc(void *ptr, size_t size);
-const char *brand_name(int brand);
-int	 branding_mismatch(int brand1, int brand2);
-
-extern bool have_mask;
-extern bool have_stdin;
-extern bool n_flag;
-
-#endif /* _SETFACL_H */
+#endif /* ndef _UINPUT_H_ */
