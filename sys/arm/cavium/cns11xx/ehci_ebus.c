@@ -59,9 +59,6 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/rman.h>
 
-#include <dev/ofw/ofw_bus.h>
-#include <dev/ofw/ofw_bus_subr.h>                                              
-
 #include <dev/usb/usb.h>
 #include <dev/usb/usbdi.h>
 
@@ -87,11 +84,6 @@ static void *ih_err;
 static int
 ehci_ebus_probe(device_t self)
 {
-	if (!ofw_bus_status_okay(self))
-		return (ENXIO);
-
-	if (!ofw_bus_is_compatible(self, "econa,usb-ehci"))
-		return (ENXIO);
 
 	device_set_desc(self, EHCI_HC_DEVSTR);
 
@@ -252,5 +244,5 @@ static driver_t ehci_driver = {
 
 static devclass_t ehci_devclass;
 
-DRIVER_MODULE(ehci, simplebus, ehci_driver, ehci_devclass, 0, 0);
-MODULE_DEPEND(ehci, usb, 1, 1, 1);
+DRIVER_MODULE(ebus_ehci, econaarm, ehci_driver, ehci_devclass, 0, 0);
+MODULE_DEPEND(ebus_ehci, usb, 1, 1, 1);
