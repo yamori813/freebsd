@@ -91,7 +91,7 @@
 };
 
 &ethernet {
-	mtd-mac-address = <&factory 0x28>;
+//	mtd-mac-address = <&factory 0x28>;
 };
 
 &esw {
@@ -99,10 +99,6 @@
 };
 
 &wmac {
-	ralink,mtd-eeprom = <&factory 0>;
-};
-
-&otg {
-	status = "okay";
+//	ralink,mtd-eeprom = <&factory 0>;
 };
 
