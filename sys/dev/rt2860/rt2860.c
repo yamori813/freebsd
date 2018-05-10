@@ -83,9 +83,7 @@ static void rt2860_stop_locked(void *priv);
 
 static void rt2860_stop(void *priv);
 
-static void rt2860_start(struct ifnet *ifp);
-
-static int rt2860_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data);
+static void rt2860_start(struct rt2860_softc *sc);
 
 static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 	const char name[IFNAMSIZ], int unit, enum ieee80211_opmode, int flags,
@@ -105,7 +103,7 @@ static void rt2860_vap_key_update_begin(struct ieee80211vap *vap);
 static void rt2860_vap_key_update_end(struct ieee80211vap *vap);
 
 static int rt2860_vap_key_set(struct ieee80211vap *vap,
-	const struct ieee80211_key *k, const uint8_t mac[IEEE80211_ADDR_LEN]);
+	const struct ieee80211_key *k);
 
 static int rt2860_vap_key_delete(struct ieee80211vap *vap,
 	const struct ieee80211_key *k);
@@ -113,15 +111,10 @@ static int rt2860_vap_key_delete(struct ieee80211vap *vap,
 
 static void rt2860_vap_update_beacon(struct ieee80211vap *vap, int what);
 
-static int rt2860_media_change(struct ifnet *ifp);
-
 static struct ieee80211_node *rt2860_node_alloc(struct ieee80211vap *vap,
 	const uint8_t mac[IEEE80211_ADDR_LEN]);
 
 static void rt2860_node_cleanup(struct ieee80211_node *ni);
-
-static void rt2860_node_getmimoinfo(const struct ieee80211_node *ni,
-	struct ieee80211_mimo_info *mi);
 
 static int rt2860_setregdomain(struct ieee80211com *ic,
 	struct ieee80211_regdomain *reg,
@@ -138,11 +131,9 @@ static void rt2860_set_channel(struct ieee80211com *ic);
 
 static void rt2860_newassoc(struct ieee80211_node *ni, int isnew);
 
-static void rt2860_updateslot(struct ifnet *ifp);
+static void rt2860_updateslot(struct ieee80211com *ic);
 
-static void rt2860_update_promisc(struct ifnet *ifp);
-
-static void rt2860_update_mcast(struct ifnet *ifp);
+static void rt2860_update_promisc(struct ieee80211com *ic);
 
 static int rt2860_wme_update(struct ieee80211com *ic);
 
@@ -188,6 +179,9 @@ static void rt2860_asic_set_bssid(struct rt2860_softc *sc,
 
 static void rt2860_asic_set_macaddr(struct rt2860_softc *sc,
 	const uint8_t *addr);
+
+static void     rt2860_parent(struct ieee80211com *);
+static int      rt2860_transmit(struct ieee80211com *, struct mbuf *);
 
 static void rt2860_asic_enable_tsf_sync(struct rt2860_softc *sc);
 
@@ -482,11 +476,11 @@ TUNABLE_INT("hw.rt2860.debug", &rt2860_debug);
 int rt2860_attach(device_t dev)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	int error, ntries, i;
 
 	sc = device_get_softc(dev);
+	ic = &sc->sc_ic;
 
 	sc->dev = dev;
 
@@ -552,6 +546,7 @@ int rt2860_attach(device_t dev)
 	}
 
 	rt2860_read_eeprom(sc);
+	memcpy(ic->ic_macaddr, sc->mac_addr, 6);
 
 	printf("%s: MAC/BBP RT2860 (rev 0x%08x), RF %s\n",
 	    device_get_nameunit(sc->dev), sc->mac_rev,
@@ -587,36 +582,12 @@ int rt2860_attach(device_t dev)
 
 	callout_init(&sc->periodic_ch, 0);
 	callout_init_mtx(&sc->tx_watchdog_ch, &sc->lock, 0);
+	mbufq_init(&sc->sc_snd, ifqmaxlen);
 
-	ifp = sc->ifp = if_alloc(IFT_IEEE80211);
-	if (ifp == NULL)
-	{
-		printf("%s: could not if_alloc()\n",
-			device_get_nameunit(sc->dev));
-		error = ENOMEM;
-		goto fail;
-	}
-
-	ifp->if_softc = sc;
-
-	if_initname(ifp, "rt2860", device_get_unit(sc->dev));
-
-	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
-
-	ifp->if_init = rt2860_init;
-	ifp->if_ioctl = rt2860_ioctl;
-	ifp->if_start = rt2860_start;
-
-	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
-	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
-	IFQ_SET_READY(&ifp->if_snd);
-
-	ic = ifp->if_l2com;
-
-	ic->ic_ifp = ifp;
-
-	ic->ic_phytype = IEEE80211_T_HT;
+	ic->ic_softc = sc;
+	ic->ic_name = device_get_nameunit(dev);
 	ic->ic_opmode = IEEE80211_M_STA;
+	ic->ic_phytype = IEEE80211_T_HT;
 
 	ic->ic_caps = IEEE80211_C_MONITOR |
 		IEEE80211_C_IBSS |
@@ -665,7 +636,8 @@ int rt2860_attach(device_t dev)
 
 	/* delayed BA */
 
-	if (sc->mac_rev != 0x28600100)
+//	if (sc->mac_rev != 0x28600100)
+	if (sc->mac_rev != 0x28600102)
 		ic->ic_htcaps |= IEEE80211_HTCAP_DELBA;
 
 	/* init channels */
@@ -676,17 +648,18 @@ int rt2860_attach(device_t dev)
 
 	rt2860_init_channels_ht40(sc);
 
-	ieee80211_ifattach(ic, sc->mac_addr);
+	ieee80211_ifattach(ic);
 
 	ic->ic_vap_create = rt2860_vap_create;
 	ic->ic_vap_delete = rt2860_vap_delete;
+	ic->ic_parent = rt2860_parent;
+	ic->ic_transmit = rt2860_transmit;
 
 	ic->ic_node_alloc = rt2860_node_alloc;
 
 	sc->node_cleanup = ic->ic_node_cleanup;
 	ic->ic_node_cleanup = rt2860_node_cleanup;
 
-	ic->ic_node_getmimoinfo = rt2860_node_getmimoinfo;
 	ic->ic_setregdomain = rt2860_setregdomain;
 	ic->ic_getradiocaps = rt2860_getradiocaps;
 	ic->ic_scan_start = rt2860_scan_start;
@@ -695,7 +668,6 @@ int rt2860_attach(device_t dev)
 	ic->ic_newassoc = rt2860_newassoc;
 	ic->ic_updateslot = rt2860_updateslot;
 	ic->ic_update_promisc = rt2860_update_promisc;
-	ic->ic_update_mcast = rt2860_update_mcast;
 	ic->ic_wme.wme_update = rt2860_wme_update;
 	ic->ic_raw_xmit = rt2860_raw_xmit;
 
@@ -788,13 +760,11 @@ fail:
 int rt2860_detach(device_t dev)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	int i;
 
 	sc = device_get_softc(dev);
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
 		"%s: detaching\n",
@@ -802,7 +772,7 @@ int rt2860_detach(device_t dev)
 
 	RT2860_SOFTC_LOCK(sc);
 
-	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
+	sc->sc_flags &= ~RT2860_RUNNING;
 
 	callout_stop(&sc->periodic_ch);
 	callout_stop(&sc->tx_watchdog_ch);
@@ -822,8 +792,7 @@ int rt2860_detach(device_t dev)
 	RT2860_SOFTC_UNLOCK(sc);
 
 	ieee80211_ifdetach(ic);
-
-	if_free(ifp);
+	mbufq_drain(&sc->sc_snd);
 
 	taskqueue_free(sc->taskqueue);
 
@@ -886,16 +855,14 @@ int rt2860_suspend(device_t dev)
 int rt2860_resume(device_t dev)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
 	sc = device_get_softc(dev);
-	ifp = sc->ifp;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
 		"%s: resuming\n",
 		device_get_nameunit(sc->dev));
 
-	if (ifp->if_flags & IFF_UP)
+	if (sc->sc_ic.ic_nrunning > 0)
 		rt2860_init(sc);
 
 	return 0;
@@ -906,13 +873,11 @@ int rt2860_resume(device_t dev)
  */
 static void rt2860_init_channels(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211_channel *c;
 	int i, flags;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	/* set supported channels for 2GHz band */
 
@@ -1011,13 +976,11 @@ static void rt2860_init_channels(struct rt2860_softc *sc)
  */
 static void rt2860_init_channels_ht40(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211_channel *c, *cent, *ext;
 	int i, flags;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	/* set supported channels for 2GHz band */
 
@@ -1199,14 +1162,14 @@ static void rt2860_init_channels_ht40(struct rt2860_softc *sc)
 static void rt2860_init_locked(void *priv)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
+	struct ieee80211vap *vap;
 	int error, i, ntries;
 	uint32_t tmp, stacnt[6];
 
 	sc = priv;
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
+	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
 		"%s: initializing\n",
@@ -1400,7 +1363,7 @@ static void rt2860_init_locked(void *priv)
 
 	/* set mac address */
 
-	rt2860_asic_set_macaddr(sc, IF_LLADDR(ifp));
+	rt2860_asic_set_macaddr(sc, vap ? vap->iv_myaddr : ic->ic_macaddr);
 
 	/* clear statistic registers */
 
@@ -1615,8 +1578,7 @@ static void rt2860_init_locked(void *priv)
 
 	tmp = rt2860_io_mac_read(sc, 0x1300);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	sc->sc_flags |= RT2860_RUNNING;
 
 	sc->periodic_round = 0;
 
@@ -1674,7 +1636,8 @@ static int rt2860_init_bbp(struct rt2860_softc *sc)
 	if ((sc->mac_rev & 0xffff) != 0x0101)
 		rt2860_io_bbp_write(sc, 84, 0x19);
 
-	if (sc->mac_rev == 0x28600100)
+//	if (sc->mac_rev == 0x28600100)
+	if (sc->mac_rev == 0x28600102)
 	{
 		rt2860_io_bbp_write(sc, 69, 0x16);
 		rt2860_io_bbp_write(sc, 73, 0x12);
@@ -1689,13 +1652,11 @@ static int rt2860_init_bbp(struct rt2860_softc *sc)
 static void rt2860_stop_locked(void *priv)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	uint32_t tmp;
 
 	sc = priv;
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
 		"%s: stopping\n",
@@ -1705,10 +1666,10 @@ static void rt2860_stop_locked(void *priv)
 
 	sc->tx_timer = 0;
 
-	if (ifp->if_drv_flags & IFF_DRV_RUNNING)
+	if (sc->sc_flags & RT2860_RUNNING)
 		rt2860_led_cmd(sc, RT2860_LED_CMD_RADIO_OFF);
 
-	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
+	sc->sc_flags &= ~RT2860_RUNNING;
 
 	callout_stop(&sc->periodic_ch);
 	callout_stop(&sc->tx_watchdog_ch);
@@ -1766,25 +1727,22 @@ static void rt2860_stop(void *priv)
 /*
  * rt2860_start
  */
-static void rt2860_start(struct ifnet *ifp)
+static void rt2860_start(struct rt2860_softc *sc)
 {
-	struct rt2860_softc *sc;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
 	struct ieee80211_key *k;
 	struct mbuf *m;
 	int qid;
 
-	sc = ifp->if_softc;
-
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	RT2860_SOFTC_LOCK(sc);
 
 	for (;;)
 	{
-		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
+		m = mbufq_dequeue(&sc->sc_snd);
 		if (m == NULL)
 			break;
 
@@ -1792,12 +1750,12 @@ static void rt2860_start(struct ifnet *ifp)
 
 		KASSERT(ni != NULL, ("%s:%d: fail", __func__, __LINE__));
 		wh = mtod(m, struct ieee80211_frame *);
-		if (wh->i_fc[1] & IEEE80211_FC1_WEP) {
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
 			k = ieee80211_crypto_encap(ni, m);
 			if (k == NULL) {
 				ieee80211_free_node(ni);
 				m_freem(m);
-				ifp->if_oerrors++;
+				counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 				continue;
 			}
 		}
@@ -1820,8 +1778,7 @@ static void rt2860_start(struct ifnet *ifp)
 			m_freem(m);
 			ieee80211_free_node(ni);
 
-			ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-			ifp->if_oerrors++;
+			counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 
 			sc->tx_data_queue_full[qid]++;
 
@@ -1834,7 +1791,7 @@ static void rt2860_start(struct ifnet *ifp)
 
 			ieee80211_free_node(ni);
 
-			ifp->if_oerrors++;
+			counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 
 			break;
 		}
@@ -1852,73 +1809,6 @@ static void rt2860_start(struct ifnet *ifp)
 }
 
 /*
- * rt2860_ioctl
- */
-static int rt2860_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
-{
-	struct rt2860_softc *sc;
-	struct ieee80211com *ic;
-	struct ifreq *ifr;
-	int error, startall;
-
-	sc = ifp->if_softc;
-	ic = ifp->if_l2com;
-	ifr = (struct ifreq *) data;
-
-	error = 0;
-
-	switch (cmd)
-	{
-		case SIOCSIFFLAGS:
-			startall = 0;
-
-			RT2860_SOFTC_LOCK(sc);
-
-			if (ifp->if_flags & IFF_UP)
-			{
-				if (ifp->if_drv_flags & IFF_DRV_RUNNING)
-				{
-					if ((ifp->if_flags ^ sc->if_flags) & IFF_PROMISC)
-						rt2860_asic_update_promisc(sc);
-				}
-				else
-				{
-					rt2860_init_locked(sc);
-					startall = 1;
-				}
-			}
-			else
-			{
-				if (ifp->if_drv_flags & IFF_DRV_RUNNING)
-					rt2860_stop_locked(sc);
-			}
-
-			sc->if_flags = ifp->if_flags;
-
-			RT2860_SOFTC_UNLOCK(sc);
-
-			if (startall)
-				ieee80211_start_all(ic);
-		break;
-
-		case SIOCGIFMEDIA:
-		case SIOCSIFMEDIA:
-			error = ifmedia_ioctl(ifp, ifr, &ic->ic_media, cmd);
-		break;
-
-		case SIOCGIFADDR:
-			error = ether_ioctl(ifp, cmd, data);
-		break;
-
-		default:
-			error = EINVAL;
-		break;
-	}
-
-	return error;
-}
-
-/*
  * rt2860_vap_create
  */
 static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
@@ -1927,12 +1817,10 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 	const uint8_t mac[IEEE80211_ADDR_LEN])
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct rt2860_softc_vap *rvap;
 	struct ieee80211vap *vap;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
 		"%s: VAP create: opmode=%s\n",
@@ -1948,7 +1836,7 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 		case IEEE80211_M_MBSS:
 			if ((sc->napvaps + sc->nadhocvaps + sc->nstavaps) != 0)
 			{
-				if_printf(ifp, "only 1 VAP supported\n");
+				device_printf(sc->dev, "only 1 VAP supported\n");
 				return NULL;
 			}
 		
@@ -1959,7 +1847,7 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 		case IEEE80211_M_WDS:
 			if (sc->napvaps == 0)
 			{
-				if_printf(ifp, "WDS only supported in AP mode\n");
+				device_printf(sc->dev, "WDS only supported in AP mode\n");
 				return NULL;
 			}
 		break;
@@ -1968,7 +1856,7 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 		break;
 
 		default:
-			if_printf(ifp, "unknown opmode %d\n", opmode);
+			device_printf(sc->dev, "unknown opmode %d\n", opmode);
 			return NULL;
 	}
 
@@ -1979,7 +1867,7 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 
 	vap = &rvap->vap;
 
-	ieee80211_vap_setup(ic, vap, name, unit, opmode, flags, bssid, mac);
+	ieee80211_vap_setup(ic, vap, name, unit, opmode, flags, bssid);
 
 	rvap->newstate = vap->iv_newstate;
 	vap->iv_newstate = rt2860_vap_newstate;
@@ -2007,7 +1895,8 @@ static struct ieee80211vap *rt2860_vap_create(struct ieee80211com *ic,
 	vap->iv_ampdu_density = IEEE80211_HTCAP_MPDUDENSITY_NA;
 	vap->iv_ampdu_limit = vap->iv_ampdu_rxmax;
 
-	ieee80211_vap_attach(vap, rt2860_media_change, ieee80211_media_status);
+	ieee80211_vap_attach(vap, ieee80211_media_change, ieee80211_media_status,
+	    mac);
 
 	switch (vap->iv_opmode)
 	{
@@ -2054,13 +1943,11 @@ static void rt2860_vap_delete(struct ieee80211vap *vap)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_vap *rvap;
 	enum ieee80211_opmode opmode;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 	opmode = vap->iv_opmode;
 
@@ -2121,13 +2008,11 @@ static int rt2860_vap_reset(struct ieee80211vap *vap, u_long cmd)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_vap *rvap;
 	int error;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
@@ -2181,15 +2066,13 @@ static int rt2860_vap_newstate(struct ieee80211vap *vap,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_vap *rvap;
 	struct ieee80211_node *ni;
 	enum ieee80211_state ostate;
 	int error;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 
 	ostate = vap->iv_state;
@@ -2278,11 +2161,9 @@ static void rt2860_vap_key_update_begin(struct ieee80211vap *vap)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_KEY,
 		"%s: VAP key update begin\n",
@@ -2290,7 +2171,7 @@ static void rt2860_vap_key_update_begin(struct ieee80211vap *vap)
 
 	taskqueue_block(sc->taskqueue);
 
-	IF_LOCK(&ifp->if_snd);
+//	IF_LOCK(&ifp->if_snd);
 }
 
 /*
@@ -2300,17 +2181,15 @@ static void rt2860_vap_key_update_end(struct ieee80211vap *vap)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_KEY,
 		"%s: VAP key update end\n",
 		device_get_nameunit(sc->dev));
 
-	IF_UNLOCK(&ifp->if_snd);
+//	IF_UNLOCK(&ifp->if_snd);
 
 	taskqueue_unblock(sc->taskqueue);
 }
@@ -2319,11 +2198,10 @@ static void rt2860_vap_key_update_end(struct ieee80211vap *vap)
  * rt2860_vap_key_set
  */
 static int rt2860_vap_key_set(struct ieee80211vap *vap,
-	const struct ieee80211_key *k, const uint8_t mac[IEEE80211_ADDR_LEN])
+	const struct ieee80211_key *k)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct ieee80211_node *ni;
 	struct rt2860_softc_node *rni;
 	uint16_t key_base, keymode_base;
@@ -2353,8 +2231,7 @@ static int rt2860_vap_key_set(struct ieee80211vap *vap,
 	}
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_KEY,
 		"%s: VAP key set: keyix=%d, keylen=%d, macaddr=%s, mode=%d, group=%d\n",
@@ -2366,7 +2243,7 @@ static int rt2860_vap_key_set(struct ieee80211vap *vap,
 		/* install pairwise key */
 
 		if (vap->iv_opmode == IEEE80211_M_HOSTAP)
-			ni = ieee80211_find_vap_node(&ic->ic_sta, vap, mac);
+			ni = ieee80211_find_vap_node(&ic->ic_sta, vap, ic->ic_macaddr);
 		else
 			ni = vap->iv_bss;
 
@@ -2534,13 +2411,11 @@ static int rt2860_vap_key_delete(struct ieee80211vap *vap,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	uint8_t vapid, wcid;
 	uint32_t tmp;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_KEY,
 		"%s: VAP key delete: keyix=%d, keylen=%d, macaddr=%s, group=%d\n",
@@ -2581,15 +2456,13 @@ static void rt2860_vap_update_beacon(struct ieee80211vap *vap, int what)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_vap *rvap;
 	struct mbuf *m;
 	struct ieee80211_beacon_offsets *bo;
 	int error;
 
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 	m = rvap->beacon_mbuf;
 	bo = &rvap->beacon_offsets;
@@ -2609,21 +2482,9 @@ static void rt2860_vap_update_beacon(struct ieee80211vap *vap, int what)
 		m = rvap->beacon_mbuf;
 	}
 
-	ieee80211_beacon_update(vap->iv_bss, bo, m, 0);
+	ieee80211_beacon_update(vap->iv_bss, m, 0);
 
 	rt2860_asic_update_beacon(sc, vap);
-}
-
-/*
- * rt2860_media_change
- */
-static int rt2860_media_change(struct ifnet *ifp)
-{
-	int error;
-
-	error = ieee80211_media_change(ifp);
-
-	return (error == ENETRESET ? 0 : error);
 }
 
 /*
@@ -2643,14 +2504,12 @@ static void rt2860_node_cleanup(struct ieee80211_node *ni)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	uint8_t vapid, wcid;
 	uint32_t tmp;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_NODE,
@@ -2680,24 +2539,6 @@ static void rt2860_node_cleanup(struct ieee80211_node *ni)
 }
 
 /*
- * rt2860_node_getmimoinfo
- */
-static void rt2860_node_getmimoinfo(const struct ieee80211_node *ni,
-	struct ieee80211_mimo_info *mi)
-{
-	const struct rt2860_softc_node *rni;
-	int i;
-
-	rni = (const struct rt2860_softc_node *) ni;
-
-	for (i = 0; i < RT2860_SOFTC_RSSI_COUNT; i++)
-	{
-		mi->rssi[i] = rni->last_rssi_dbm[i];
-		mi->noise[i] = RT2860_NOISE_FLOOR;
-	}
-}
-
-/*
  * rt2860_setregdomain
  */
 static int rt2860_setregdomain(struct ieee80211com *ic,
@@ -2705,10 +2546,8 @@ static int rt2860_setregdomain(struct ieee80211com *ic,
 	int nchans, struct ieee80211_channel chans[])
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
 		"%s: set regulatory domain: country=%d, country code string=%c%c, location=%c\n",
@@ -2735,10 +2574,8 @@ static void rt2860_getradiocaps(struct ieee80211com *ic,
 static void rt2860_scan_start(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_SOFTC_LOCK(sc);
 
@@ -2753,10 +2590,8 @@ static void rt2860_scan_start(struct ieee80211com *ic)
 static void rt2860_scan_end(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_SOFTC_LOCK(sc);
 
@@ -2771,10 +2606,8 @@ static void rt2860_scan_end(struct ieee80211com *ic)
 static void rt2860_set_channel(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_CHAN,
 		"%s: set channel: channel=%u, HT%s%s\n",
@@ -2799,7 +2632,6 @@ static void rt2860_newassoc(struct ieee80211_node *ni, int isnew)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct ieee80211vap *vap;
 	struct rt2860_softc_vap *rvap;
 	struct rt2860_softc_node *rni;
@@ -2809,8 +2641,7 @@ static void rt2860_newassoc(struct ieee80211_node *ni, int isnew)
 
 	vap = ni->ni_vap;
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 	rni = (struct rt2860_softc_node *) ni;
 
@@ -2860,11 +2691,11 @@ static void rt2860_newassoc(struct ieee80211_node *ni, int isnew)
 /*
  * rt2860_updateslot
  */
-static void rt2860_updateslot(struct ifnet *ifp)
+static void rt2860_updateslot(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
 
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	rt2860_asic_updateslot(sc);
 }
@@ -2872,25 +2703,15 @@ static void rt2860_updateslot(struct ifnet *ifp)
 /*
  * rt2860_update_promisc
  */
-static void rt2860_update_promisc(struct ifnet *ifp)
+static void rt2860_update_promisc(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
 
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	RT2860_SOFTC_LOCK(sc);
 	rt2860_asic_update_promisc(sc);
 	RT2860_SOFTC_UNLOCK(sc);
-}
-
-/*
- * rt2860_update_mcast
- */
-static void rt2860_update_mcast(struct ifnet *ifp)
-{
-	struct rt2860_softc *sc;
-
-	sc = ifp->if_softc;
 }
 
 /*
@@ -2899,10 +2720,8 @@ static void rt2860_update_mcast(struct ifnet *ifp)
 static int rt2860_wme_update(struct ieee80211com *ic)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
 	rt2860_asic_wme_update(sc);
 
@@ -2917,13 +2736,11 @@ static int rt2860_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 	{
 		m_freem(m);
 		ieee80211_free_node(ni);
@@ -2941,8 +2758,6 @@ static int rt2860_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 			"%s: raw xmit: Tx ring with qid=%d is full\n",
 			device_get_nameunit(sc->dev), sc->tx_ring_mgtqid);
 
-		ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-
 		m_freem(m);
 		ieee80211_free_node(ni);
 
@@ -2955,7 +2770,7 @@ static int rt2860_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 	{
 		RT2860_SOFTC_TX_RING_UNLOCK(&sc->tx_ring[sc->tx_ring_mgtqid]);
 
-		ifp->if_oerrors++;
+		counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 
 		ieee80211_free_node(ni);
 
@@ -2972,13 +2787,18 @@ static int rt2860_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 /*
  * rt2860_recv_action
  */
+
+#define LE_READ_2(p)                                    \
+        ((uint16_t)                                     \
+         ((((const uint8_t *)(p))[0]      ) |           \
+          (((const uint8_t *)(p))[1] <<  8)))
+
 static int rt2860_recv_action(struct ieee80211_node *ni,
 	const struct ieee80211_frame *wh,
 	const uint8_t *frm, const uint8_t *efrm)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	const struct ieee80211_action *ia;
 	uint16_t baparamset;
@@ -2986,8 +2806,7 @@ static int rt2860_recv_action(struct ieee80211_node *ni,
 	int tid;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	ia = (const struct ieee80211_action *) frm;
@@ -3028,15 +2847,13 @@ static int rt2860_send_action(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	uint16_t *args, status, baparamset;
 	uint8_t wcid;
 	int tid, bufsize;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	wcid = rni->staid;
@@ -3098,14 +2915,12 @@ static int rt2860_addba_response(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	ieee80211_seq seqno;
 	int ret, tid, old_bufsize, new_bufsize;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	tid = RT2860_MS(baparamset, IEEE80211_BAPS_TID);
@@ -3176,13 +2991,11 @@ static void rt2860_addba_stop(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	int tid;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 //	tid = WME_AC_TO_TID(tap->txa_ac);
@@ -3225,13 +3038,11 @@ static int rt2860_ampdu_rx_start(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 	int tid;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	tid = RT2860_MS(baparamset, IEEE80211_BAPS_TID);
@@ -3254,12 +3065,10 @@ static void rt2860_ampdu_rx_stop(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct rt2860_softc_node *rni;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_BA,
@@ -3286,7 +3095,6 @@ static int rt2860_send_bar(struct ieee80211_node *ni,
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct ieee80211vap *vap;
 	struct ieee80211_frame_bar *bar;
 	struct rt2860_softc_node *rni;
@@ -3296,8 +3104,7 @@ static int rt2860_send_bar(struct ieee80211_node *ni,
 	int ret, tid;
 
 	ic = ni->ni_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	vap = ni->ni_vap;
 	rni = (struct rt2860_softc_node *) ni;
 
@@ -3351,7 +3158,6 @@ static void rt2860_amrr_update_iter_func(void *arg, struct ieee80211_node *ni)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	struct ieee80211vap *vap;
 	struct rt2860_softc_vap *rvap;
 	struct rt2860_softc_node *rni;
@@ -3359,8 +3165,7 @@ static void rt2860_amrr_update_iter_func(void *arg, struct ieee80211_node *ni)
 
 	vap = arg;
 	ic = vap->iv_ic;
-	ifp = ic->ic_ifp;
-	sc = ifp->if_softc;
+	sc = ic->ic_softc;
 	rvap = (struct rt2860_softc_vap *) vap;
 	rni = (struct rt2860_softc_node *) ni;
 
@@ -3410,10 +3215,8 @@ static void rt2860_periodic(void *arg)
 static void rt2860_tx_watchdog(void *arg)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
 	sc = arg;
-	ifp = sc->ifp;
 
 	if (sc->tx_timer == 0)
 		return;
@@ -3426,7 +3229,7 @@ static void rt2860_tx_watchdog(void *arg)
 		rt2860_stop_locked(sc);
 		rt2860_init_locked(sc);
 
-		ifp->if_oerrors++;
+		counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 
 		sc->tx_watchdog_timeouts++;
 	}
@@ -3511,13 +3314,11 @@ static void rt2860_asic_set_macaddr(struct rt2860_softc *sc,
  */
 static void rt2860_asic_enable_tsf_sync(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	uint32_t tmp;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_BEACON,
@@ -3626,12 +3427,10 @@ static void rt2860_asic_enable_mrr(struct rt2860_softc *sc)
  */
 static void rt2860_asic_set_txpreamble(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	uint32_t tmp;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
 		"%s: %s short Tx preamble\n",
@@ -3653,11 +3452,9 @@ static void rt2860_asic_set_txpreamble(struct rt2860_softc *sc)
  */
 static void rt2860_asic_set_basicrates(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	if (ic->ic_curmode == IEEE80211_MODE_11B)
 		rt2860_io_mac_write(sc, RT2860_REG_LEGACY_BASIC_RATE, 0xf);
@@ -3672,14 +3469,12 @@ static void rt2860_asic_set_basicrates(struct rt2860_softc *sc)
  */
 static void rt2860_asic_update_rtsthreshold(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	uint32_t tmp;
 	uint16_t threshold;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	if (vap == NULL)
@@ -3708,7 +3503,6 @@ static void rt2860_asic_update_rtsthreshold(struct rt2860_softc *sc)
  */
 static void rt2860_asic_update_txpower(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	uint32_t *txpow_rate;
 	int8_t delta;
@@ -3716,8 +3510,7 @@ static void rt2860_asic_update_txpower(struct rt2860_softc *sc)
 	uint32_t tmp;
 	int i;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
 		"%s: updating Tx power: %d\n",
@@ -3784,20 +3577,20 @@ static void rt2860_asic_update_txpower(struct rt2860_softc *sc)
  */
 static void rt2860_asic_update_promisc(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
+	struct ieee80211com *ic;
 	uint32_t tmp;
 
-	ifp = sc->ifp;
+	ic = &sc->sc_ic;
 
 	printf("%s: %s promiscuous mode\n",
 		device_get_nameunit(sc->dev),
-		(ifp->if_flags & IFF_PROMISC) ? "entering" : "leaving");
+		(ic->ic_promisc == 1) ? "entering" : "leaving");
 
 	tmp = rt2860_io_mac_read(sc, RT2860_REG_RX_FILTER_CFG);
 
 	tmp &= ~RT2860_REG_RX_FILTER_DROP_UC_NOME;
 
-	if (!(ifp->if_flags & IFF_PROMISC))
+	if (ic->ic_promisc == 0)
 		tmp |= RT2860_REG_RX_FILTER_DROP_UC_NOME;
 
 	rt2860_io_mac_write(sc, RT2860_REG_RX_FILTER_CFG, tmp);
@@ -3808,15 +3601,13 @@ static void rt2860_asic_update_promisc(struct rt2860_softc *sc)
  */
 static void rt2860_asic_updateprot(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	uint32_t cck_prot, ofdm_prot, mm20_prot, mm40_prot, gf20_prot, gf40_prot;
 	uint8_t htopmode;
 	enum ieee80211_protmode htprotmode;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	/* CCK frame protection */
@@ -3996,13 +3787,11 @@ static void rt2860_asic_updateprot(struct rt2860_softc *sc)
  */
 static void rt2860_asic_updateslot(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	uint32_t tmp;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATE,
@@ -4029,14 +3818,12 @@ static void rt2860_asic_updateslot(struct rt2860_softc *sc)
  */
 static void rt2860_asic_wme_update(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211_wme_state *wme;
 	const struct wmeParams *wmep;
 	int i;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	wme = &ic->ic_wme;
 	wmep = wme->wme_chanParams.cap_wmeParams;
 
@@ -4215,7 +4002,7 @@ static int rt2860_beacon_alloc(struct rt2860_softc *sc,
 	ic = vap->iv_ic;
 	rvap = (struct rt2860_softc_vap *) vap;
 
-	m = ieee80211_beacon_alloc(vap->iv_bss, &rvap->beacon_offsets);
+	m = ieee80211_beacon_alloc(vap->iv_bss);
 	if (m == NULL)
 		return ENOMEM;
 
@@ -4340,7 +4127,6 @@ static uint8_t rt2860_maxrssi_rxpath(struct rt2860_softc *sc,
 static int8_t rt2860_rssi2dbm(struct rt2860_softc *sc,
 	uint8_t rssi, uint8_t rxpath)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211_channel *c;
 	int chan;
@@ -4349,8 +4135,7 @@ static int8_t rt2860_rssi2dbm(struct rt2860_softc *sc,
 	if (rssi == 0)
 		return -99;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	c = ic->ic_curchan;
 	chan = ieee80211_chan2ieee(ic, c);
 
@@ -4407,7 +4192,6 @@ static uint8_t rt2860_rate2mcs(uint8_t rate)
 static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 	struct mbuf *m, struct ieee80211_node *ni, int qid)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	const struct ieee80211_txparam *tp;
@@ -4431,8 +4215,7 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 
 	RT2860_SOFTC_TX_RING_ASSERT_LOCKED(&sc->tx_ring[qid]);
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = ni->ni_vap;
 	rni = (struct rt2860_softc_node *) ni;
 	tp = ni->ni_txparms;
@@ -4576,16 +4359,16 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 		if (mcs & RT2860_TXWI_MCS_SHOTPRE)
 			tap->flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
-		if (wh->i_fc[1] & IEEE80211_FC1_WEP)
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 			tap->flags |= IEEE80211_RADIOTAP_F_WEP;
 
-		if (wh->i_fc[1] & IEEE80211_FC1_WEP)
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 		{
-			wh->i_fc[1] &= ~IEEE80211_FC1_WEP;
+			wh->i_fc[1] &= ~IEEE80211_FC1_PROTECTED;
 
 			ieee80211_radiotap_tx(vap, m);
 
-			wh->i_fc[1] |= IEEE80211_FC1_WEP;
+			wh->i_fc[1] |= IEEE80211_FC1_PROTECTED;
 		}
 		else
 		{
@@ -4608,7 +4391,7 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 			"%s: could not load mbuf DMA map, trying to linearize mbuf: ndmasegs=%d, len=%d, error=%d\n",
 			device_get_nameunit(sc->dev), ndmasegs, m->m_pkthdr.len, error);
 
-		m_d = m_collapse(m, M_DONTWAIT, 16);
+		m_d = m_collapse(m, M_NOWAIT, 16);
 		if (m_d == NULL) {
 			m_freem(m);
 			m = NULL;
@@ -4737,7 +4520,6 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 static int rt2860_tx_data(struct rt2860_softc *sc,
 	struct mbuf *m, struct ieee80211_node *ni, int qid)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	const struct ieee80211_txparam *tp;
@@ -4762,8 +4544,7 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 
 	RT2860_SOFTC_TX_RING_ASSERT_LOCKED(&sc->tx_ring[qid]);
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = ni->ni_vap;
 	rni = (struct rt2860_softc_node *) ni;
 	tp = ni->ni_txparms;
@@ -4984,7 +4765,7 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 		if (shortgi)
 			tap->flags |= IEEE80211_RADIOTAP_F_SHORTGI;
 
-		if (wh->i_fc[1] & IEEE80211_FC1_WEP)
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 			tap->flags |= IEEE80211_RADIOTAP_F_WEP;
 
 		/* XXX use temporarily radiotap CFP flag as A-MPDU flag */
@@ -4992,13 +4773,13 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 		if (ampdu)
 			tap->flags |= IEEE80211_RADIOTAP_F_CFP;
 
-		if (wh->i_fc[1] & IEEE80211_FC1_WEP)
+		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 		{
-			wh->i_fc[1] &= ~IEEE80211_FC1_WEP;
+			wh->i_fc[1] &= ~IEEE80211_FC1_PROTECTED;
 
 			ieee80211_radiotap_tx(vap, m);
 
-			wh->i_fc[1] |= IEEE80211_FC1_WEP;
+			wh->i_fc[1] |= IEEE80211_FC1_PROTECTED;
 		}
 		else
 		{
@@ -5021,7 +4802,7 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 			"%s: could not load mbuf DMA map, trying to linearize mbuf: ndmasegs=%d, len=%d, error=%d\n",
 			device_get_nameunit(sc->dev), ndmasegs, m->m_pkthdr.len, error);
 
-		m = m_defrag(m, M_DONTWAIT);
+		m = m_defrag(m, M_NOWAIT);
 		if (m == NULL)
 			return ENOMEM;
 
@@ -5161,11 +4942,9 @@ static int rt2860_tx_raw(struct rt2860_softc *sc,
 static void rt2860_intr(void *arg)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	uint32_t status;
 
 	sc = arg;
-	ifp = sc->ifp;
 
 	/* acknowledge interrupts */
 
@@ -5182,7 +4961,7 @@ static void rt2860_intr(void *arg)
 
 	sc->interrupts++;
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	if (status & RT2860_REG_INT_TX_COHERENT)
@@ -5566,17 +5345,15 @@ static void rt2860_gp_timer_intr(struct rt2860_softc *sc)
 static void rt2860_rx_done_task(void *context, int pending)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	int again;
 
 	sc = context;
-	ifp = sc->ifp;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_RX,
 		"%s: Rx done task\n",
 		device_get_nameunit(sc->dev));
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	sc->intr_pending_mask &= ~RT2860_REG_INT_RX_DONE;
@@ -5607,18 +5384,16 @@ static void rt2860_rx_done_task(void *context, int pending)
 static void rt2860_tx_done_task(void *context, int pending)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	uint32_t intr_mask;
 	int i;
 
 	sc = context;
-	ifp = sc->ifp;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_TX,
 		"%s: Tx done task\n",
 		device_get_nameunit(sc->dev));
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	for (i = RT2860_SOFTC_TX_RING_COUNT - 1; i >= 0; i--)
@@ -5632,8 +5407,6 @@ static void rt2860_tx_done_task(void *context, int pending)
 	}
 
 	sc->tx_timer = 0;
-
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	intr_mask = (RT2860_REG_INT_TX_MGMT_DONE |
 		RT2860_REG_INT_TX_HCCA_DONE |
@@ -5658,8 +5431,8 @@ static void rt2860_tx_done_task(void *context, int pending)
 
 	RT2860_SOFTC_UNLOCK(sc);
 
-	if (!IFQ_IS_EMPTY(&ifp->if_snd))
-		rt2860_start(ifp);
+//	if (!IFQ_IS_EMPTY(&ifp->if_snd))
+		rt2860_start(sc);
 }
 
 /*
@@ -5668,16 +5441,14 @@ static void rt2860_tx_done_task(void *context, int pending)
 static void rt2860_fifo_sta_full_task(void *context, int pending)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 
 	sc = context;
-	ifp = sc->ifp;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATS,
 		"%s: FIFO statistic full task\n",
 		device_get_nameunit(sc->dev));
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	sc->intr_pending_mask &= ~RT2860_REG_INT_FIFO_STA_FULL;
@@ -5701,8 +5472,8 @@ static void rt2860_fifo_sta_full_task(void *context, int pending)
 
 	RT2860_SOFTC_UNLOCK(sc);
 
-	if (!IFQ_IS_EMPTY(&ifp->if_snd))
-		rt2860_start(ifp);
+//	if (!IFQ_IS_EMPTY(&ifp->if_snd))
+		rt2860_start(sc);
 }
 
 /*
@@ -5711,20 +5482,18 @@ static void rt2860_fifo_sta_full_task(void *context, int pending)
 static void rt2860_periodic_task(void *context, int pending)
 {
 	struct rt2860_softc *sc;
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 
 	sc = context;
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_PERIODIC,
 		"%s: periodic task: round=%lu\n",
 		device_get_nameunit(sc->dev), sc->periodic_round);
 
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING))
+	if (!(sc->sc_flags & RT2860_RUNNING))
 		return;
 
 	RT2860_SOFTC_LOCK(sc);
@@ -5760,7 +5529,6 @@ static void rt2860_periodic_task(void *context, int pending)
  */
 static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211_frame *wh;
 	struct ieee80211_node *ni;
@@ -5782,8 +5550,7 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 	int8_t rssi_dbm;
 	int error, nsegs, len, ampdu, amsdu, rssi_dbm_rel, nframes, i;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	ring = &sc->rx_ring;
 
 	nframes = 0;
@@ -5806,11 +5573,11 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 
 		nframes++;
 
-		mnew = m_getjcl(M_DONTWAIT, MT_DATA, M_PKTHDR, MJUMPAGESIZE);
+		mnew = m_getjcl(M_NOWAIT, MT_DATA, M_PKTHDR, MJUMPAGESIZE);
 		if (mnew == NULL)
 		{
 			sc->rx_mbuf_alloc_errors++;
-			ifp->if_ierrors++;
+			counter_u64_add(ic->ic_ierrors, 1);
 			goto skip;
 		}
 
@@ -5827,7 +5594,7 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 			m_freem(mnew);
 
 			sc->rx_mbuf_dmamap_errors++;
-			ifp->if_ierrors++;
+			counter_u64_add(ic->ic_ierrors, 1);
 
 			goto skip;
 		}
@@ -5874,7 +5641,7 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 			len += 2;
 		}
 
-		m->m_pkthdr.rcvif = ifp;
+//		m->m_pkthdr.rcvif = ifp;
 		m->m_data = (caddr_t) (rxwi + 1);
 		m->m_pkthdr.len = m->m_len = len;
 
@@ -5886,9 +5653,9 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 				"%s: rxdesc: crc error\n",
 				device_get_nameunit(sc->dev));
 
-			ifp->if_ierrors++;
+			counter_u64_add(ic->ic_ierrors, 1);
 
-			if (!(ifp->if_flags & IFF_PROMISC))
+			if (ic->ic_promisc == 0)
 			{
 				m_freem(m);
 				goto skip;
@@ -5905,8 +5672,8 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 				RT2860_RXDESC_FLAGS_CIPHER_ERR_MASK);
 			if (cipher_err == RT2860_RXDESC_FLAGS_CIPHER_ERR_NONE)
 			{
-				if (wh->i_fc[1] & IEEE80211_FC1_WEP)
-					wh->i_fc[1] &= ~IEEE80211_FC1_WEP;
+				if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
+					wh->i_fc[1] &= ~IEEE80211_FC1_PROTECTED;
 
 				m->m_flags |= M_WEP;
 
@@ -5942,9 +5709,9 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 					}
 				}
 
-				ifp->if_ierrors++;
+				counter_u64_add(ic->ic_ierrors, 1);
 
-				if (!(ifp->if_flags & IFF_PROMISC))
+				if (ic->ic_promisc == 0)
 				{
 					m_free(m);
 					goto skip;
@@ -5953,15 +5720,15 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 		}
 		else
 		{
-			if (wh->i_fc[1] & IEEE80211_FC1_WEP)
+			if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 			{
 				RT2860_DPRINTF(sc, RT2860_DEBUG_RX,
 					"%s: rxdesc: not decrypted but protected flag set\n",
 					device_get_nameunit(sc->dev));
 
-				ifp->if_ierrors++;
+				counter_u64_add(ic->ic_ierrors, 1);
 
-				if (!(ifp->if_flags & IFF_PROMISC))
+				if (ic->ic_promisc == 0)
 				{
 					m_free(m);
 					goto skip;
@@ -6044,7 +5811,7 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 				tap->flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
 			if ((desc_flags & RT2860_RXDESC_FLAGS_DECRYPTED) ||
-				(wh->i_fc[1] & IEEE80211_FC1_WEP))
+				(wh->i_fc[1] & IEEE80211_FC1_PROTECTED))
 				tap->flags |= IEEE80211_RADIOTAP_F_WEP;
 
 			if (shortgi)
@@ -6129,13 +5896,10 @@ skip:
 static void rt2860_tx_eof(struct rt2860_softc *sc,
 	struct rt2860_softc_tx_ring *ring)
 {
-	struct ifnet *ifp;
 	struct rt2860_txdesc *desc;
 	struct rt2860_softc_tx_data *data;
 	uint32_t index;
 	int ndescs, nframes;
-
-	ifp = sc->ifp;
 
 	ndescs = 0;
 	nframes = 0;
@@ -6169,14 +5933,15 @@ static void rt2860_tx_eof(struct rt2860_softc *sc,
 				BUS_DMASYNC_POSTWRITE);
 			bus_dmamap_unload(ring->data_dma_tag, data->dma_map);
 
-			m_freem(data->m);
+//			m_freem(data->m);
 
-			ieee80211_free_node(data->ni);
+//			ieee80211_free_node(data->ni);
+			ieee80211_tx_complete(data->ni, data->m, 0);
 
 			data->m = NULL;
 			data->ni = NULL;
 
-			ifp->if_opackets++;
+//			ifp->if_opackets++;
 
 			RT2860_SOFTC_TX_RING_LOCK(ring);
 
@@ -6209,13 +5974,11 @@ static void rt2860_tx_eof(struct rt2860_softc *sc,
  */
 static void rt2860_update_stats(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	uint32_t stacnt[3];
 	int beacons, noretryok, retryok, failed, underflows, zerolen;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_STATS,
 		"%s: update statistic\n",
@@ -6244,7 +6007,7 @@ static void rt2860_update_stats(struct rt2860_softc *sc)
 		device_get_nameunit(sc->dev),
 		beacons, noretryok, retryok, failed, underflows, zerolen);
 
-	ifp->if_oerrors += failed;
+	counter_u64_add(sc->sc_ic.ic_oerrors, failed);
 
 	sc->tx_beacons += beacons;
 	sc->tx_noretryok += noretryok;
@@ -6259,7 +6022,6 @@ static void rt2860_update_stats(struct rt2860_softc *sc)
  */
 static void rt2860_bbp_tuning(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	struct ieee80211vap *vap;
 	struct ieee80211_node *ni;
@@ -6268,11 +6030,11 @@ static void rt2860_bbp_tuning(struct rt2860_softc *sc)
 
 	/* RT2860C does not support BBP tuning */
 
-	if (sc->mac_rev == 0x28600100)
+//	if (sc->mac_rev == 0x28600100)
+	if (sc->mac_rev == 0x28600102)
 		return;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	vap = TAILQ_FIRST(&ic->ic_vaps);
 
 	if ((ic->ic_flags & IEEE80211_F_SCAN) || vap == NULL ||
@@ -6373,12 +6135,9 @@ static void rt2860_watchdog(struct rt2860_softc *sc)
  */
 static void rt2860_drain_fifo_stats(struct rt2860_softc *sc)
 {
-	struct ifnet *ifp;
 	uint32_t stats;
 	uint8_t wcid, mcs, pid;
 	int ok, agg, retrycnt;
-
-	ifp = sc->ifp;
 
 	/* drain Tx status FIFO (maxsize = 16) */
 
@@ -6411,7 +6170,7 @@ static void rt2860_drain_fifo_stats(struct rt2860_softc *sc)
 		rt2860_amrr_tx_complete(&sc->amrr_node[wcid], ok, retrycnt);
 
 		if (!ok)
-			ifp->if_oerrors++;
+			counter_u64_add(sc->sc_ic.ic_oerrors, 1);
 	}
 }
 
@@ -6514,12 +6273,10 @@ static void rt2860_intr_disable(struct rt2860_softc *sc, uint32_t intr_mask)
 static int rt2860_txrx_enable(struct rt2860_softc *sc)
 {
 	struct ieee80211com *ic;
-	struct ifnet *ifp;
 	uint32_t tmp;
 	int ntries;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	/* enable Tx/Rx DMA engine */
 
@@ -6570,7 +6327,7 @@ static int rt2860_txrx_enable(struct rt2860_softc *sc)
 			tmp |= RT2860_REG_RX_FILTER_DROP_RTS |
 				RT2860_REG_RX_FILTER_DROP_PSPOLL;
 
-		if (!(ifp->if_flags & IFF_PROMISC))
+		if (ic->ic_promisc == 0)
 			tmp |= RT2860_REG_RX_FILTER_DROP_UC_NOME;
 	}
 
@@ -6649,7 +6406,7 @@ static int rt2860_alloc_rx_ring(struct rt2860_softc *sc,
 			goto fail;
 		}
 
-		data->m = m_getjcl(M_DONTWAIT, MT_DATA, M_PKTHDR, MJUMPAGESIZE);
+		data->m = m_getjcl(M_NOWAIT, MT_DATA, M_PKTHDR, MJUMPAGESIZE);
 		if (data->m == NULL)
 		{
 			printf("%s: could not allocate Rx mbuf\n",
@@ -7287,4 +7044,46 @@ static void rt2860_sysctl_attach(struct rt2860_softc *sc)
 		"Rx cipher invalid key errors");
 }
 
+
+static void
+rt2860_parent(struct ieee80211com *ic)
+{
+        struct rt2860_softc *sc = ic->ic_softc;
+        int startall = 0;
+
+        RT2860_SOFTC_LOCK(sc);
+        if (ic->ic_nrunning> 0) {
+                if (!(sc->sc_flags & RT2860_RUNNING)) {
+                        rt2860_init_locked(sc);
+                        startall = 1;
+                } else
+                        rt2860_update_promisc(ic);
+        } else if (sc->sc_flags & RT2860_RUNNING)
+                rt2860_stop_locked(sc);
+        RT2860_SOFTC_UNLOCK(sc);
+        if (startall)
+                ieee80211_start_all(ic);
+}
+
+static int
+rt2860_transmit(struct ieee80211com *ic, struct mbuf *m)   
+{
+        struct rt2860_softc *sc = ic->ic_softc;
+        int error;
+
+        RT2860_SOFTC_LOCK(sc);
+        if ((sc->sc_flags & RT2860_RUNNING) == 0) {
+                RT2860_SOFTC_UNLOCK(sc);
+                return (ENXIO);
+        }
+        error = mbufq_enqueue(&sc->sc_snd, m);
+        if (error) {
+                RT2860_SOFTC_UNLOCK(sc);
+                return (error);
+        }
+        rt2860_start(sc);
+        RT2860_SOFTC_UNLOCK(sc);
+
+        return (0);
+}
 

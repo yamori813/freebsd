@@ -413,13 +413,11 @@ const char *rt2860_rf_name(int rf_rev)
 void rt2860_rf_select_chan_group(struct rt2860_softc *sc,
 	struct ieee80211_channel *c)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	int chan, group;
 	uint32_t tmp;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 
 	chan = ieee80211_chan2ieee(ic, c);
 	if (chan == 0 || chan == IEEE80211_CHAN_ANY)
@@ -540,7 +538,8 @@ void rt2860_rf_select_chan_group(struct rt2860_softc *sc,
 
 	rt2860_io_bbp_write(sc, 3, tmp);
 
-	if (sc->mac_rev == 0x28600100)
+//	if (sc->mac_rev == 0x28600100)
+	if (sc->mac_rev == 0x28600102)
 	{
 		if (!IEEE80211_IS_CHAN_HT40(c))
 		{
@@ -916,7 +915,6 @@ rt3090_rf_setup(struct rt2860_softc *sc)
 void rt2860_rf_set_chan(struct rt2860_softc *sc,
 	struct ieee80211_channel *c)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	const struct rt2860_rf_prog *prog;
 	uint32_t r1, r2, r3, r4;
@@ -928,8 +926,7 @@ void rt2860_rf_set_chan(struct rt2860_softc *sc,
 		return;
 	} 
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	prog = rt2860_rf_2850;
 
 	/* get central channel position */
@@ -1054,7 +1051,6 @@ static void
 rt2872_rf_set_chan(struct rt2860_softc *sc,
 	struct ieee80211_channel *c)
 {
-	struct ifnet *ifp;
 	struct ieee80211com *ic;
 	const struct rt2860_rf_prog *prog;
 	uint32_t r1, r2, r3, r4;
@@ -1062,8 +1058,7 @@ rt2872_rf_set_chan(struct rt2860_softc *sc,
 	int8_t txpow1, txpow2;
 	int i, chan;
 
-	ifp = sc->ifp;
-	ic = ifp->if_l2com;
+	ic = &sc->sc_ic;
 	prog = rt2860_rf_2850;
 
 	/* get central channel position */

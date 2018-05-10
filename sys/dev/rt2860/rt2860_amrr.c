@@ -19,11 +19,20 @@
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/module.h>
+#include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <sys/sysctl.h>
+#include <sys/malloc.h>
 
+#include <net/bpf.h>
 #include <net/if.h>
+#include <net/if_var.h>
+#include <net/if_arp.h>
+#include <net/ethernet.h>
+#include <net/if_dl.h>
 #include <net/if_media.h>
+#include <net/if_types.h>
+
 
 #include <net80211/ieee80211_var.h>
 

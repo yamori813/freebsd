@@ -31,6 +31,7 @@
 #include <sys/module.h>
 #include <sys/bus.h>
 #include <sys/endian.h>
+#include <sys/malloc.h>
 
 #include <machine/bus.h>
 #include <machine/resource.h>
@@ -38,6 +39,7 @@
 
 #include <net/bpf.h>
 #include <net/if.h>
+#include <net/if_var.h>
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 #include <net/if_dl.h>
@@ -50,6 +52,8 @@
 #include <net80211/ieee80211_regdomain.h>
 
 //#include "opt_rt2860.h"
+#define RT2860_DEBUG
+//#define RT2860_HW_CRYPTO
 
 #include <dev/rt2860/rt2860_rxdesc.h>
 #include <dev/rt2860/rt2860_txdesc.h>
@@ -213,9 +217,18 @@ struct rt2860_softc_tx_radiotap_header
 
 struct rt2860_softc
 {
+	struct ieee80211com sc_ic;
+
 	struct mtx lock;
 
+	struct mbufq sc_snd;
+
 	uint32_t flags;
+	uint32_t sc_flags;
+#define RT2860_ENABLED          (1 << 0)
+#define RT2860_ADVANCED_PS      (1 << 1)
+#define RT2860_PCIE             (1 << 2)
+#define RT2860_RUNNING          (1 << 3)
 
 	device_t dev;
 
@@ -228,9 +241,6 @@ struct rt2860_softc
 
 	bus_space_tag_t bst;
 	bus_space_handle_t bsh;
-
-	struct ifnet *ifp;
-	int if_flags;
 
 	int nvaps;
 	int napvaps;
@@ -348,62 +358,62 @@ struct rt2860_softc
 
 	/* statistic counters */
 
-	unsigned long interrupts;
-	unsigned long tx_coherent_interrupts;
-	unsigned long rx_coherent_interrupts;
-	unsigned long txrx_coherent_interrupts;
-	unsigned long fifo_sta_full_interrupts;
-	unsigned long rx_interrupts;
-	unsigned long rx_delay_interrupts;
-	unsigned long tx_interrupts[RT2860_SOFTC_TX_RING_COUNT];
-	unsigned long tx_delay_interrupts;
-	unsigned long pre_tbtt_interrupts;
-	unsigned long tbtt_interrupts;
-	unsigned long mcu_cmd_interrupts;
-	unsigned long auto_wakeup_interrupts;
-	unsigned long gp_timer_interrupts;
+	int interrupts;
+	int tx_coherent_interrupts;
+	int rx_coherent_interrupts;
+	int txrx_coherent_interrupts;
+	int fifo_sta_full_interrupts;
+	int rx_interrupts;
+	int rx_delay_interrupts;
+	int tx_interrupts[RT2860_SOFTC_TX_RING_COUNT];
+	int tx_delay_interrupts;
+	int pre_tbtt_interrupts;
+	int tbtt_interrupts;
+	int mcu_cmd_interrupts;
+	int auto_wakeup_interrupts;
+	int gp_timer_interrupts;
 
-	unsigned long tx_data_queue_full[RT2860_SOFTC_TX_RING_COUNT];
+	int tx_data_queue_full[RT2860_SOFTC_TX_RING_COUNT];
 
-	unsigned long tx_watchdog_timeouts;
+	int tx_watchdog_timeouts;
 
-	unsigned long tx_defrag_packets;
+	int tx_defrag_packets;
 
-	unsigned long no_tx_desc_avail;
+	int no_tx_desc_avail;
 
-	unsigned long rx_mbuf_alloc_errors;
-	unsigned long rx_mbuf_dmamap_errors;
+	int rx_mbuf_alloc_errors;
+	int rx_mbuf_dmamap_errors;
 
-	unsigned long tx_queue_not_empty[2];
+	int tx_queue_not_empty[2];
 
-	unsigned long tx_beacons;
-	unsigned long tx_noretryok;
-	unsigned long tx_retryok;
-	unsigned long tx_failed;
-	unsigned long tx_underflows;
-	unsigned long tx_zerolen;
-	unsigned long tx_nonagg;
-	unsigned long tx_agg;
-	unsigned long tx_ampdu;
-	unsigned long tx_mpdu_zero_density;
-	unsigned long tx_ampdu_sessions;
+	int tx_beacons;
+	int tx_noretryok;
+	int tx_retryok;
+	int tx_failed;
+	int tx_underflows;
+	int tx_zerolen;
+	int tx_nonagg;
+	int tx_agg;
+	int tx_ampdu;
+	int tx_mpdu_zero_density;
+	int tx_ampdu_sessions;
 
-	unsigned long rx_packets;
-	unsigned long rx_ampdu;
-	unsigned long rx_ampdu_retries;
-	unsigned long rx_mpdu_zero_density;
-	unsigned long rx_ampdu_sessions;
-	unsigned long rx_amsdu;
-	unsigned long rx_crc_errors;
-	unsigned long rx_phy_errors;
-	unsigned long rx_false_ccas;
-	unsigned long rx_plcp_errors;
-	unsigned long rx_dup_packets;
-	unsigned long rx_fifo_overflows;
-	unsigned long rx_cipher_no_errors;
-	unsigned long rx_cipher_icv_errors;
-	unsigned long rx_cipher_mic_errors;
-	unsigned long rx_cipher_invalid_key_errors;
+	int rx_packets;
+	int rx_ampdu;
+	int rx_ampdu_retries;
+	int rx_mpdu_zero_density;
+	int rx_ampdu_sessions;
+	int rx_amsdu;
+	int rx_crc_errors;
+	int rx_phy_errors;
+	int rx_false_ccas;
+	int rx_plcp_errors;
+	int rx_dup_packets;
+	int rx_fifo_overflows;
+	int rx_cipher_no_errors;
+	int rx_cipher_icv_errors;
+	int rx_cipher_mic_errors;
+	int rx_cipher_invalid_key_errors;
 
 	int tx_stbc;
 
