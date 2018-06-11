@@ -413,7 +413,7 @@ int invpcid_works = 0;
 SYSCTL_INT(_vm_pmap, OID_AUTO, invpcid_works, CTLFLAG_RD, &invpcid_works, 0,
     "Is the invpcid instruction available ?");
 
-int pti = 0;
+int __read_frequently pti = 0;
 SYSCTL_INT(_vm_pmap, OID_AUTO, pti, CTLFLAG_RDTUN | CTLFLAG_NOFETCH,
     &pti, 0,
     "Page Table Isolation enabled");
@@ -513,7 +513,7 @@ pmap_delayed_invl_finished(void)
 		pmap_invl_gen = invl_gen->gen;
 		if (ts != NULL) {
 			turnstile_broadcast(ts, TS_SHARED_QUEUE);
-			turnstile_unpend(ts, TS_SHARED_LOCK);
+			turnstile_unpend(ts);
 		}
 		turnstile_chain_unlock(&invl_gen_ts);
 	} else {
@@ -1011,8 +1011,7 @@ create_pagetables(vm_paddr_t *firstaddr)
 	/* And connect up the PD to the PDP (leaving room for L4 pages) */
 	pdp_p = (pdp_entry_t *)(KPDPphys + ptoa(KPML4I - KPML4BASE));
 	for (i = 0; i < nkpdpe; i++)
-		pdp_p[i + KPDPI] = (KPDphys + ptoa(i)) | X86_PG_RW | X86_PG_V |
-		    PG_U;
+		pdp_p[i + KPDPI] = (KPDphys + ptoa(i)) | X86_PG_RW | X86_PG_V;
 
 	/*
 	 * Now, set up the direct map region using 2MB and/or 1GB pages.  If
@@ -1038,7 +1037,7 @@ create_pagetables(vm_paddr_t *firstaddr)
 	}
 	for (j = 0; i < ndmpdp; i++, j++) {
 		pdp_p[i] = DMPDphys + ptoa(j);
-		pdp_p[i] |= X86_PG_RW | X86_PG_V | PG_U;
+		pdp_p[i] |= X86_PG_RW | X86_PG_V;
 	}
 
 	/*
@@ -1054,24 +1053,24 @@ create_pagetables(vm_paddr_t *firstaddr)
 			    bootaddr_rwx(i << PDRSHIFT);
 		for (i = 0; i < nkdmpde; i++)
 			pdp_p[i] = (DMPDkernphys + ptoa(i)) | X86_PG_RW |
-			    X86_PG_V | PG_U;
+			    X86_PG_V;
 	}
 
 	/* And recursively map PML4 to itself in order to get PTmap */
 	p4_p = (pml4_entry_t *)KPML4phys;
 	p4_p[PML4PML4I] = KPML4phys;
-	p4_p[PML4PML4I] |= X86_PG_RW | X86_PG_V | PG_U | pg_nx;
+	p4_p[PML4PML4I] |= X86_PG_RW | X86_PG_V | pg_nx;
 
 	/* Connect the Direct Map slot(s) up to the PML4. */
 	for (i = 0; i < ndmpdpphys; i++) {
 		p4_p[DMPML4I + i] = DMPDPphys + ptoa(i);
-		p4_p[DMPML4I + i] |= X86_PG_RW | X86_PG_V | PG_U;
+		p4_p[DMPML4I + i] |= X86_PG_RW | X86_PG_V;
 	}
 
 	/* Connect the KVA slots up to the PML4 */
 	for (i = 0; i < NKPML4E; i++) {
 		p4_p[KPML4BASE + i] = KPDPphys + ptoa(i);
-		p4_p[KPML4BASE + i] |= X86_PG_RW | X86_PG_V | PG_U;
+		p4_p[KPML4BASE + i] |= X86_PG_RW | X86_PG_V;
 	}
 }
 
@@ -1722,6 +1721,18 @@ pmap_invalidate_page(pmap_t pmap, vm_offset_t va)
 				if (cpuid != i)
 					pmap->pm_pcids[i].pm_gen = 0;
 			}
+
+			/*
+			 * The fence is between stores to pm_gen and the read of
+			 * the pm_active mask.  We need to ensure that it is
+			 * impossible for us to miss the bit update in pm_active
+			 * and simultaneously observe a non-zero pm_gen in
+			 * pmap_activate_sw(), otherwise TLB update is missed.
+			 * Without the fence, IA32 allows such an outcome.
+			 * Note that pm_active is updated by a locked operation,
+			 * which provides the reciprocal fence.
+			 */
+			atomic_thread_fence_seq_cst();
 		}
 		mask = &pmap->pm_active;
 	}
@@ -1793,6 +1804,8 @@ pmap_invalidate_range(pmap_t pmap, vm_offset_t sva, vm_offset_t eva)
 				if (cpuid != i)
 					pmap->pm_pcids[i].pm_gen = 0;
 			}
+			/* See the comment in pmap_invalidate_page(). */
+			atomic_thread_fence_seq_cst();
 		}
 		mask = &pmap->pm_active;
 	}
@@ -1864,6 +1877,8 @@ pmap_invalidate_all(pmap_t pmap)
 				if (cpuid != i)
 					pmap->pm_pcids[i].pm_gen = 0;
 			}
+			/* See the comment in pmap_invalidate_page(). */
+			atomic_thread_fence_seq_cst();
 		}
 		mask = &pmap->pm_active;
 	}
@@ -2628,11 +2643,11 @@ pmap_pinit_pml4(vm_page_t pml4pg)
 	/* Wire in kernel global address entries. */
 	for (i = 0; i < NKPML4E; i++) {
 		pm_pml4[KPML4BASE + i] = (KPDPphys + ptoa(i)) | X86_PG_RW |
-		    X86_PG_V | PG_U;
+		    X86_PG_V;
 	}
 	for (i = 0; i < ndmpdpphys; i++) {
 		pm_pml4[DMPML4I + i] = (DMPDPphys + ptoa(i)) | X86_PG_RW |
-		    X86_PG_V | PG_U;
+		    X86_PG_V;
 	}
 
 	/* install self-referential address mapping entry(s) */
@@ -7367,6 +7382,7 @@ pmap_activate_sw(struct thread *td)
 	u_int cpuid;
 	struct amd64tss *tssp;
 
+	rflags = 0;
 	oldpmap = PCPU_GET(curpmap);
 	pmap = vmspace_pmap(td->td_proc->p_vmspace);
 	if (oldpmap == pmap)
@@ -7681,7 +7697,7 @@ pmap_map_io_transient(vm_page_t page[], vm_offset_t vaddr[], int count,
 	vm_paddr_t paddr;
 	boolean_t needs_mapping;
 	pt_entry_t *pte;
-	int cache_bits, error, i;
+	int cache_bits, error __unused, i;
 
 	/*
 	 * Allocate any KVA space that we need, this is done in a separate
@@ -7842,6 +7858,9 @@ pmap_pti_init(void)
 		pmap_pti_add_kva_locked(va - PAGE_SIZE, va, false);
 		/* MC# stack IST 3 */
 		va = common_tss[i].tss_ist3 + sizeof(struct nmi_pcpu);
+		pmap_pti_add_kva_locked(va - PAGE_SIZE, va, false);
+		/* DB# stack IST 4 */
+		va = common_tss[i].tss_ist4 + sizeof(struct nmi_pcpu);
 		pmap_pti_add_kva_locked(va - PAGE_SIZE, va, false);
 	}
 	pmap_pti_add_kva_locked((vm_offset_t)kernphys + KERNBASE,

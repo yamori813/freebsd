@@ -38,6 +38,50 @@
 #   xargs -n1 | sort | uniq -d;
 # done
 
+# 20180609: obsolete libc++ files missed from the 5.0.0 import
+OLD_FILES+=usr/include/c++/v1/__refstring
+OLD_FILES+=usr/include/c++/v1/__undef_min_max
+OLD_FILES+=usr/include/c++/v1/tr1/__refstring
+OLD_FILES+=usr/include/c++/v1/tr1/__undef_min_max
+# 20180607: remove nls support from grep
+OLD_FILES+=usr/share/nls/pt_BR.ISO8859-1/grep.cat
+OLD_FILES+=usr/share/nls/hu_HU.ISO8859-2/grep.cat
+OLD_FILES+=usr/share/nls/ja_JP.SJIS/grep.cat
+OLD_FILES+=usr/share/nls/ja_JP.eucJP/grep.cat
+OLD_FILES+=usr/share/nls/gl_ES.ISO8859-1/grep.cat
+OLD_FILES+=usr/share/nls/zh_CN.UTF-8/grep.cat
+OLD_FILES+=usr/share/nls/es_ES.ISO8859-1/grep.cat
+OLD_FILES+=usr/share/nls/ru_RU.KOI8-R/grep.cat
+OLD_FILES+=usr/share/nls/uk_UA.UTF-8/grep.cat
+OLD_FILES+=usr/share/nls/ja_JP.UTF-8/grep.cat
+# 20180517: retire vxge
+OLD_FILES+=usr/share/man/man4/if_vxge.4.gz
+OLD_FILES+=usr/share/man/man4/vxge.4.gz
+# 20180512: Rename Unbound tools
+OLD_FILES+=usr/sbin/unbound
+OLD_FILES+=usr/sbin/unbound-anchor
+OLD_FILES+=usr/sbin/unbound-checkconf
+OLD_FILES+=usr/sbin/unbound-control
+OLD_FILES+=usr/share/man/man5/unbound.conf.5.gz
+OLD_FILES+=usr/share/man/man8/unbound-anchor.8.gz
+OLD_FILES+=usr/share/man/man8/unbound-checkconf.8.gz
+OLD_FILES+=usr/share/man/man8/unbound-control.8.gz
+OLD_FILES+=usr/share/man/man8/unbound.8.gz
+# 20180508: retire nxge
+OLD_FILES+=usr/share/man/man4/if_nxge.4.gz
+OLD_FILES+=usr/share/man/man4/nxge.4.gz
+# 20180505: rhosts
+OLD_FILES+=usr/share/skel/dot.rhosts
+# 20180502: retire ixgb
+OLD_FILES+=usr/share/man/man4/if_ixgb.4.gz
+OLD_FILES+=usr/share/man/man4/ixgb.4.gz
+# 20180501: retire lmc
+OLD_FILES+=usr/include/dev/lmc/if_lmc.h
+OLD_DIRS+=usr/include/dev/lmc
+OLD_FILES+=usr/sbin/lmcconfig
+OLD_FILES+=usr/share/man/man4/lmc.4.gz
+OLD_FILES+=usr/share/man/man4/if_lmc.4.gz
+OLD_FILES+=usr/share/man/man8/lmcconfig.8.gz
 # 20180417: remove fuswintr and suswintr
 OLD_FILES+=usr/share/man/man9/fuswintr.9.gz
 OLD_FILES+=usr/share/man/man9/suswintr.9.gz

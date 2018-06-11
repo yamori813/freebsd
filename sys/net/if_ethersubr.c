@@ -102,9 +102,6 @@ void	(*ng_ether_detach_p)(struct ifnet *ifp);
 void	(*vlan_input_p)(struct ifnet *, struct mbuf *);
 
 /* if_bridge(4) support */
-struct mbuf *(*bridge_input_p)(struct ifnet *, struct mbuf *); 
-int	(*bridge_output_p)(struct ifnet *, struct mbuf *, 
-		struct sockaddr *, struct rtentry *);
 void	(*bridge_dn_p)(struct mbuf *, struct ifnet *);
 
 /* if_lagg(4) support */
@@ -516,7 +513,7 @@ ether_input_internal(struct ifnet *ifp, struct mbuf *m)
 	}
 	eh = mtod(m, struct ether_header *);
 	etype = ntohs(eh->ether_type);
-	random_harvest_queue(m, sizeof(*m), 2, RANDOM_NET_ETHER);
+	random_harvest_queue_ether(m, sizeof(*m), 2);
 
 	CURVNET_SET_QUIET(ifp->if_vnet);
 

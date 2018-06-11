@@ -31,6 +31,7 @@ _PRIVATELIBS=	\
 _INTERNALLIBS=	\
 		amu \
 		bsnmptools \
+		c_nossp_pic \
 		cron \
 		elftc \
 		fifolog \
@@ -240,6 +241,9 @@ _DP_cap_pwd=	nv
 _DP_cap_random=	nv
 _DP_cap_sysctl=	nv
 _DP_cap_syslog=	nv
+.if ${MK_OFED} != "no"
+_DP_pcap=	ibverbs mlx5
+.endif
 _DP_pjdlog=	util
 _DP_opie=	md
 _DP_usb=	pthread
@@ -470,6 +474,9 @@ LIBAMU?=	${LIBAMUDIR}/libamu.a
 
 LIBPMCSTATDIR=	${OBJTOP}/lib/libpmcstat
 LIBPMCSTAT?=	${LIBPMCSTATDIR}/libpmcstat.a
+
+LIBC_NOSSP_PICDIR=	${OBJTOP}/lib/libc
+LIBC_NOSSP_PIC?=	${LIBC_NOSSP_PICDIR}/libc_nossp_pic.a
 
 # Define a directory for each library.  This is useful for adding -L in when
 # not using a --sysroot or for meta mode bootstrapping when there is no

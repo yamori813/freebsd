@@ -65,14 +65,10 @@ struct obreak_args {
 	char *nsize;
 };
 #endif
-
-/*
- * MPSAFE
- */
-/* ARGSUSED */
 int
 sys_obreak(struct thread *td, struct obreak_args *uap)
 {
+#if !defined(__aarch64__) && !defined(__riscv__)
 	struct vmspace *vm = td->td_proc->p_vmspace;
 	vm_map_t map = &vm->vm_map;
 	vm_offset_t new, old, base;
@@ -106,13 +102,16 @@ sys_obreak(struct thread *td, struct obreak_args *uap)
 		}
 	} else if (new < base) {
 		/*
-		 * This is simply an invalid value.  If someone wants to
-		 * do fancy address space manipulations, mmap and munmap
-		 * can do most of what the user would want.
+		 * Simply return the current break address without
+		 * modifying any state.  This is an ad-hoc interface
+		 * used by libc to determine the initial break address,
+		 * avoiding a dependency on magic features in the system
+		 * linker.
 		 */
-		error = EINVAL;
+		new = old;
 		goto done;
 	}
+
 	if (new > old) {
 		if (!old_mlock && map->flags & MAP_WIREFUTURE) {
 			if (ptoa(pmap_wired_count(map->pmap)) +
@@ -229,23 +228,20 @@ done:
 		(void) vm_map_wire(map, old, new,
 		    VM_MAP_WIRE_USER|VM_MAP_WIRE_NOHOLES);
 
+	if (error == 0)
+		td->td_retval[0] = new;
+
 	return (error);
+#else /* defined(__aarch64__) || defined(__riscv__) */
+	return (ENOSYS);
+#endif /* defined(__aarch64__) || defined(__riscv__) */
 }
 
-#ifndef _SYS_SYSPROTO_H_
-struct ovadvise_args {
-	int anom;
-};
-#endif
-
-/*
- * MPSAFE
- */
-/* ARGSUSED */
+#ifdef COMPAT_FREEBSD11
 int
-sys_ovadvise(struct thread *td, struct ovadvise_args *uap)
+freebsd11_vadvise(struct thread *td, struct freebsd11_vadvise_args *uap)
 {
-	/* START_GIANT_OPTIONAL */
-	/* END_GIANT_OPTIONAL */
+
 	return (EINVAL);
 }
+#endif

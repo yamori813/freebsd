@@ -67,7 +67,7 @@ SUBDIR=	${SUBDIR_BOOTSTRAP} \
 	libopie \
 	libpam \
 	libpathconv \
-	libpcap \
+	${_libpcap} \
 	libpjdlog \
 	${_libproc} \
 	libprocstat \
@@ -184,6 +184,14 @@ SUBDIR.${MK_PMC}+=	libipt
 SUBDIR.${MK_BHYVE}+=	libvmmapi
 .endif
 
+.if ${MK_OFED} == "no"
+#
+# When OFED is enabled libpcap is built as part of
+# OFED due to library dependencies
+#
+_libpcap=	libpcap
+.endif
+
 .if ${MACHINE_CPUARCH} != "sparc64"
 _libproc=	libproc
 _librtld_db=	librtld_db
@@ -194,7 +202,9 @@ _libdl=		libdl
 .endif
 
 SUBDIR.${MK_OPENSSL}+=	libmp
+.if (${COMPILER_TYPE} == "clang" || (${COMPILER_TYPE} == "gcc" && ${COMPILER_VERSION} >= 60100 && ${MACHINE_CPUARCH} != "riscv"))
 SUBDIR.${MK_PMC}+=	libpmc libpmcstat
+.endif
 SUBDIR.${MK_RADIUS_SUPPORT}+=	libradius
 SUBDIR.${MK_SENDMAIL}+=	libmilter libsm libsmdb libsmutil
 SUBDIR.${MK_TELNET}+=	libtelnet

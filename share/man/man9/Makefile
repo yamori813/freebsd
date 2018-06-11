@@ -123,6 +123,7 @@ MAN=	accept_filter.9 \
 	drbr.9 \
 	driver.9 \
 	DRIVER_MODULE.9 \
+	epoch.9 \
 	EVENTHANDLER.9 \
 	eventtimers.9 \
 	extattr.9 \
@@ -163,6 +164,7 @@ MAN=	accept_filter.9 \
 	ieee80211_regdomain.9 \
 	ieee80211_scan.9 \
 	ieee80211_vap.9 \
+	iflib.9 \
 	iflibdd.9 \
 	iflibdi.9 \
 	iflibtxrx.9 \
@@ -1893,6 +1895,7 @@ MLINKS+=socket.9 soabort.9 \
 	socket.9 soconnect.9 \
 	socket.9 socreate.9 \
 	socket.9 sodisconnect.9 \
+	socket.9 sodtor_set.9 \
 	socket.9 sodupsockaddr.9 \
 	socket.9 sofree.9 \
 	socket.9 sogetopt.9 \

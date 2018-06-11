@@ -46,6 +46,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/memrange.h>
 #include <sys/smp.h>
 #include <sys/systm.h>
+#include <sys/cons.h>
 
 #include <vm/vm.h>
 #include <vm/pmap.h>
@@ -79,7 +80,7 @@ CTASSERT(sizeof(wakecode) < PAGE_SIZE - 1024);
 
 extern int		acpi_resume_beep;
 extern int		acpi_reset_video;
-extern int		acpi_susp_deep_bounce;
+extern int		acpi_susp_bounce;
 
 #ifdef SMP
 extern struct susppcb	**susppcbs;
@@ -244,6 +245,7 @@ acpi_sleep_machdep(struct acpi_softc *sc, int state)
 #endif
 #ifdef __amd64__
 		hw_ibrs_active = 0;
+		hw_ssb_active = 0;
 		cpu_stdext_feature3 = 0;
 		CPU_FOREACH(i) {
 			pc = pcpu_find(i);
@@ -277,9 +279,6 @@ acpi_sleep_machdep(struct acpi_softc *sc, int state)
 		PTD[KPTDI] = PTD[LOWPTDI];
 #endif
 
-		if (acpi_susp_deep_bounce)
-			resumectx(pcb);
-
 		/* Call ACPICA to enter the desired sleep state */
 		if (state == ACPI_STATE_S4 && sc->acpi_s4bios)
 			status = AcpiEnterSleepStateS4bios();
@@ -292,9 +291,18 @@ acpi_sleep_machdep(struct acpi_softc *sc, int state)
 			return (0);	/* couldn't sleep */
 		}
 
+		if (acpi_susp_bounce)
+			resumectx(pcb);
+
 		for (;;)
 			ia32_pause();
 	} else {
+		/*
+		 * Re-initialize console hardware as soon as possibe.
+		 * No console output (e.g. printf) is allowed before
+		 * this point.
+		 */
+		cnresume();
 #ifdef __amd64__
 		fpuresume(susppcbs[0]->sp_fpususpend);
 #else

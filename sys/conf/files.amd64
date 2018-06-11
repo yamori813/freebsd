@@ -290,6 +290,8 @@ dev/ixl/i40e_nvm.c		optional	ixl pci | ixlv pci \
 	compile-with "${NORMAL_C} -I$S/dev/ixl"
 dev/ixl/i40e_adminq.c		optional	ixl pci | ixlv pci \
 	compile-with "${NORMAL_C} -I$S/dev/ixl"
+dev/ixl/i40e_dcb.c		optional	ixl pci \
+	compile-with "${NORMAL_C} -I$S/dev/ixl"
 dev/fdc/fdc.c			optional	fdc
 dev/fdc/fdc_acpi.c		optional	fdc
 dev/fdc/fdc_isa.c		optional	fdc isa
@@ -314,7 +316,6 @@ dev/hwpmc/hwpmc_amd.c		optional	hwpmc
 dev/hwpmc/hwpmc_intel.c		optional	hwpmc
 dev/hwpmc/hwpmc_core.c		optional	hwpmc
 dev/hwpmc/hwpmc_uncore.c	optional	hwpmc
-dev/hwpmc/hwpmc_piv.c		optional	hwpmc
 dev/hwpmc/hwpmc_tsc.c		optional	hwpmc
 dev/hwpmc/hwpmc_x86.c		optional	hwpmc
 dev/hyperv/input/hv_kbd.c				optional	hyperv
@@ -616,10 +617,10 @@ dev/isci/scil/scif_sas_timer.c					optional isci
 isa/syscons_isa.c		optional	sc
 isa/vga_isa.c			optional	vga
 kern/kern_clocksource.c		standard
+kern/imgact_aout.c		optional compat_aout
+kern/imgact_gzip.c		optional gzip
 kern/link_elf_obj.c		standard
 libkern/x86/crc32_sse42.c	standard
-libkern/memmove.c		standard
-libkern/memset.c		standard
 #
 # IA32 binary support
 #

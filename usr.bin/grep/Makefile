@@ -17,15 +17,6 @@ bsdgrep.1: grep.1
 .endif
 SRCS=	file.c grep.c queue.c util.c
 
-.if ${MK_BSD_GREP_FASTMATCH} == "yes"
-# Extra files ported backported for some regex improvements
-.PATH: ${.CURDIR}/regex
-SRCS+=	fastmatch.c hashtable.c tre-compile.c tre-fastmatch.c
-CFLAGS+=-I${.CURDIR}/regex
-.else
-CFLAGS+= -DWITHOUT_FASTMATCH
-.endif
-
 SCRIPTS=	zgrep.sh
 LINKS=		${BINDIR}/zgrep ${BINDIR}/zfgrep \
 		${BINDIR}/zgrep ${BINDIR}/zegrep \
@@ -72,12 +63,6 @@ MLINKS+= grep.1 egrep.1 \
 .if ${MK_GNU_GREP_COMPAT} != "no"
 CFLAGS+= -I${SYSROOT:U${DESTDIR}}/usr/include/gnu -DWITH_GNU
 LIBADD+=	gnuregex
-.endif
-
-.if ${MK_NLS} != "no"
-.include "${.CURDIR}/nls/Makefile.inc"
-.else
-CFLAGS+= -DWITHOUT_NLS
 .endif
 
 HAS_TESTS=
