@@ -47,19 +47,19 @@
 		};
 		partition@1 {
 			reg = <0x0000e000 0x00002000>;
-			label = "uboot_env";
+			label = "uboot_environ";
 		};
 		partition@2 {
-			reg = <0x00010000 0x00110000>;
-			label = "kernel";
+			reg = <0x00010000 0x003c0000>;
+			label = "firmware";
 		};
 		partition@3 {
-			reg = <0x00120000 0x002b0000>;
-			label = "rootfs";
+			reg = <0x003e0000 0x00010000>;
+			label = "factory_default";
 		};
 		partition@4 {
-			reg = <0x003d0000 0x00010000>;
-			label = "config";
+			reg = <0x003f0000 0x00010000>;
+			label = "nvram";
 		};
 		partition@5 {
 			reg = <0x00010000 0x003c0000>;

@@ -106,12 +106,31 @@
 
 	};
 
+	pci@19ce0000 {
+		compatible = "fv,rt1310-pci";
+		reg = <0x19ce0000 0x4000000
+			0x1dce0000 0x800000
+			0x1e4e0000 0x200000>;
+		interrupt-parent = <&PIC>;	
+		#address-cells = <3>;
+		#interrupt-cells = <1>;
+//		interrupts = <18 19 20 21>;
+		interrupt-map-mask = <0x800 0x0 0x0 0x7>;
+		interrupt-map = <
+			0x800 0 0 1 &PIC 18
+			0x800 0 0 2 &PIC 19
+			0x800 0 0 3 &PIC 20
+			0x800 0 0 4 &PIC 21
+                        >;
+
+	};
+
 	apb@1E800000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
 		ranges = <0x0 0x1E800000 0x800000>;
-		bus-frequency = <75000000>;
+		bus-frequency = <74346686>;
 
 		timer@000000 {
 			compatible = "rt,timer";
