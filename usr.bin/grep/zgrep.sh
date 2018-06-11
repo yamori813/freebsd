@@ -106,6 +106,10 @@ do
 	    silent=1
 	    shift
 	    ;;
+	-r|-R)
+	    echo "${prg}: the ${1} flag is not currently supported" >&2
+	    exit 1
+	    ;;
 	-V|--version)
 	    exec ${grep} -V
 	    ;;
@@ -134,19 +138,21 @@ then
     fi
 fi
 
+ret=0
 # call grep ...
 if [ $# -lt 1 ]
 then
     # ... on stdin
-    ${cattool} ${catargs} - | ${grep} ${grep_args} -- "${pattern}" -
+    ${cattool} ${catargs} - | ${grep} ${grep_args} -- "${pattern}" - || ret=$?
 else
     # ... on all files given on the command line
     if [ ${silent} -lt 1 -a $# -gt 1 ]; then
 	grep_args="-H ${grep_args}"
     fi
     for file; do
-	${cattool} ${catargs} -- "${file}" | ${grep} --label="${file}" ${grep_args} -- "${pattern}" -
+	${cattool} ${catargs} -- "${file}" |
+	    ${grep} --label="${file}" ${grep_args} -- "${pattern}" - || ret=$?
     done
 fi
 
-exit 0
+exit ${ret}

@@ -51,20 +51,8 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 
-#ifndef WITHOUT_FASTMATCH
-#include "fastmatch.h"
-#endif
 #include "grep.h"
 
-#ifndef WITHOUT_NLS
-#include <nl_types.h>
-nl_catd	 catalog;
-#endif
-
-/*
- * Default messags to use when NLS is disabled or no catalogue
- * is found.
- */
 const char	*errstr[] = {
 	"",
 /* 1*/	"(standard input)",
@@ -96,9 +84,6 @@ unsigned int	 patterns;
 static unsigned int pattern_sz;
 struct pat	*pattern;
 regex_t		*r_pattern;
-#ifndef WITHOUT_FASTMATCH
-fastmatch_t	*fg_pattern;
-#endif
 
 /* Filename exclusion/inclusion patterns */
 unsigned int	fpatterns, dpatterns;
@@ -168,10 +153,10 @@ bool	 file_err;	/* file reading error */
 static void
 usage(void)
 {
-	fprintf(stderr, getstr(3), getprogname());
-	fprintf(stderr, "%s", getstr(4));
-	fprintf(stderr, "%s", getstr(5));
-	fprintf(stderr, "%s", getstr(6));
+	fprintf(stderr, errstr[3], getprogname());
+	fprintf(stderr, "%s", errstr[4]);
+	fprintf(stderr, "%s", errstr[5]);
+	fprintf(stderr, "%s", errstr[6]);
 	exit(2);
 }
 
@@ -313,7 +298,9 @@ read_patterns(const char *fn)
 	size_t len;
 	ssize_t rlen;
 
-	if ((f = fopen(fn, "r")) == NULL)
+	if (strcmp(fn, "-") == 0)
+		f = stdin;
+	else if ((f = fopen(fn, "r")) == NULL)
 		err(2, "%s", fn);
 	if ((fstat(fileno(f), &st) == -1) || (S_ISDIR(st.st_mode))) {
 		fclose(f);
@@ -330,7 +317,8 @@ read_patterns(const char *fn)
 	free(line);
 	if (ferror(f))
 		err(2, "%s", fn);
-	fclose(f);
+	if (strcmp(fn, "-") != 0)
+		fclose(f);
 }
 
 static inline const char *
@@ -351,12 +339,9 @@ main(int argc, char *argv[])
 	long long l;
 	unsigned int aargc, eargc, i;
 	int c, lastc, needpattern, newarg, prevoptind;
+	bool matched;
 
 	setlocale(LC_ALL, "");
-
-#ifndef WITHOUT_NLS
-	catalog = catopen("grep", NL_CAT_LOCALE);
-#endif
 
 	/* Check what is the program name of the binary.  In this
 	   way we can have all the funcionalities in one binary
@@ -473,7 +458,7 @@ main(int argc, char *argv[])
 			else if (strcasecmp(optarg, "read") == 0)
 				devbehave = DEV_READ;
 			else
-				errx(2, getstr(2), "--devices");
+				errx(2, errstr[2], "--devices");
 			break;
 		case 'd':
 			if (strcasecmp("recurse", optarg) == 0) {
@@ -484,7 +469,7 @@ main(int argc, char *argv[])
 			else if (strcasecmp("read", optarg) == 0)
 				dirbehave = DIR_READ;
 			else
-				errx(2, getstr(2), "--directories");
+				errx(2, errstr[2], "--directories");
 			break;
 		case 'E':
 			grepbehave = GREP_EXTENDED;
@@ -580,9 +565,9 @@ main(int argc, char *argv[])
 			break;
 		case 'V':
 #ifdef WITH_GNU
-			printf(getstr(9), getprogname(), VERSION);
+			printf(errstr[9], getprogname(), VERSION);
 #else
-			printf(getstr(8), getprogname(), VERSION);
+			printf(errstr[8], getprogname(), VERSION);
 #endif
 			exit(0);
 		case 'v':
@@ -607,7 +592,7 @@ main(int argc, char *argv[])
 			else if (strcasecmp("text", optarg) == 0)
 				binbehave = BINFILE_TEXT;
 			else
-				errx(2, getstr(2), "--binary-files");
+				errx(2, errstr[2], "--binary-files");
 			break;
 		case COLOR_OPT:
 			color = NULL;
@@ -627,7 +612,7 @@ main(int argc, char *argv[])
 			} else if (strcasecmp("never", optarg) != 0 &&
 			    strcasecmp("none", optarg) != 0 &&
 			    strcasecmp("no", optarg) != 0)
-				errx(2, getstr(2), "--color");
+				errx(2, errstr[2], "--color");
 			cflags &= ~REG_NOSUB;
 			break;
 		case LABEL_OPT:
@@ -712,9 +697,6 @@ main(int argc, char *argv[])
 		usage();
 	}
 
-#ifndef WITHOUT_FASTMATCH
-	fg_pattern = grep_calloc(patterns, sizeof(*fg_pattern));
-#endif
 	r_pattern = grep_calloc(patterns, sizeof(*r_pattern));
 
 	/* Don't process any patterns if we have a blank one */
@@ -725,15 +707,6 @@ main(int argc, char *argv[])
 #endif
 		/* Check if cheating is allowed (always is for fgrep). */
 		for (i = 0; i < patterns; ++i) {
-#ifndef WITHOUT_FASTMATCH
-			/*
-			 * Attempt compilation with fastmatch regex and
-			 * fallback to regex(3) if it fails.
-			 */
-			if (fastncomp(&fg_pattern[i], pattern[i].pat,
-			    pattern[i].len, cflags) == 0)
-				continue;
-#endif
 			c = regcomp(&r_pattern[i], pattern[i].pat, cflags);
 			if (c != 0) {
 				regerror(c, &r_pattern[i], re_error,
@@ -753,19 +726,16 @@ main(int argc, char *argv[])
 		exit(!procfile("-"));
 
 	if (dirbehave == DIR_RECURSE)
-		c = grep_tree(aargv);
+		matched = grep_tree(aargv);
 	else
-		for (c = 0; aargc--; ++aargv) {
+		for (matched = false; aargc--; ++aargv) {
 			if ((finclude || fexclude) && !file_matching(*aargv))
 				continue;
-			c+= procfile(*aargv);
+			if (procfile(*aargv))
+				matched = true;
 		}
-
-#ifndef WITHOUT_NLS
-	catclose(catalog);
-#endif
 
 	/* Find out the correct return value according to the
 	   results and the command line option. */
-	exit(c ? (file_err ? (qflag ? 0 : 2) : 0) : (file_err ? 2 : 1));
+	exit(matched ? (file_err ? (qflag ? 0 : 2) : 0) : (file_err ? 2 : 1));
 }

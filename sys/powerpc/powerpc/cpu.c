@@ -91,6 +91,7 @@ static void	cpu_idle_60x(sbintime_t);
 static void	cpu_idle_booke(sbintime_t);
 #if defined(__powerpc64__) && defined(AIM)
 static void	cpu_idle_powerx(sbintime_t);
+static void	cpu_idle_power9(sbintime_t);
 #endif
 
 struct cputab {
@@ -181,7 +182,7 @@ static const struct cputab models[] = {
 	   PPC_FEATURE2_ARCH_2_07 | PPC_FEATURE2_HTM | PPC_FEATURE2_DSCR |
 	   PPC_FEATURE2_ISEL | PPC_FEATURE2_TAR | PPC_FEATURE2_HAS_VEC_CRYPTO |
 	   PPC_FEATURE2_ARCH_3_00 | PPC_FEATURE2_HAS_IEEE128 |
-	   PPC_FEATURE2_DARN, NULL },
+	   PPC_FEATURE2_DARN, cpu_powerx_setup },
         { "Motorola PowerPC 7400",	MPC7400,	REVFMT_MAJMIN,
 	   PPC_FEATURE_HAS_ALTIVEC | PPC_FEATURE_HAS_FPU, 0, cpu_6xx_setup },
         { "Motorola PowerPC 7410",	MPC7410,	REVFMT_MAJMIN,
@@ -231,12 +232,18 @@ static int	cpu_feature_bit(SYSCTL_HANDLER_ARGS);
 static char model[64];
 SYSCTL_STRING(_hw, HW_MODEL, model, CTLFLAG_RD, model, 0, "");
 
+static const struct cputab	*cput;
+
 u_long cpu_features = PPC_FEATURE_32 | PPC_FEATURE_HAS_MMU;
 u_long cpu_features2 = 0;
 SYSCTL_OPAQUE(_hw, OID_AUTO, cpu_features, CTLFLAG_RD,
     &cpu_features, sizeof(cpu_features), "LX", "PowerPC CPU features");
 SYSCTL_OPAQUE(_hw, OID_AUTO, cpu_features2, CTLFLAG_RD,
     &cpu_features2, sizeof(cpu_features2), "LX", "PowerPC CPU features 2");
+
+#ifdef __powerpc64__
+register_t	lpcr = LPCR_LPES;
+#endif
 
 /* Provide some user-friendly aliases for bits in cpu_features */
 SYSCTL_PROC(_hw, OID_AUTO, floatingpoint, CTLTYPE_INT | CTLFLAG_RD,
@@ -245,14 +252,37 @@ SYSCTL_PROC(_hw, OID_AUTO, floatingpoint, CTLTYPE_INT | CTLFLAG_RD,
 SYSCTL_PROC(_hw, OID_AUTO, altivec, CTLTYPE_INT | CTLFLAG_RD,
     0, PPC_FEATURE_HAS_ALTIVEC, cpu_feature_bit, "I", "CPU supports Altivec");
 
+/*
+ * Phase 1 (early) CPU setup.  Setup the cpu_features/cpu_features2 variables,
+ * so they can be used during platform and MMU bringup.
+ */
+void
+cpu_feature_setup()
+{
+	u_int		pvr;
+	uint16_t	vers;
+	const struct	cputab *cp;
+
+	pvr = mfpvr();
+	vers = pvr >> 16;
+	for (cp = models; cp->version != 0; cp++) {
+		if (cp->version == vers)
+			break;
+	}
+
+	cput = cp;
+	cpu_features |= cp->features;
+	cpu_features2 |= cp->features2;
+}
+
+
 void
 cpu_setup(u_int cpuid)
 {
-	u_int		pvr, maj, min;
-	uint16_t	vers, rev, revfmt;
 	uint64_t	cps;
-	const struct	cputab *cp;
 	const char	*name;
+	u_int		maj, min, pvr;
+	uint16_t	rev, revfmt, vers;
 
 	pvr = mfpvr();
 	vers = pvr >> 16;
@@ -274,13 +304,8 @@ cpu_setup(u_int cpuid)
 			min = (pvr >>  0) & 0xf;
 	}
 
-	for (cp = models; cp->version != 0; cp++) {
-		if (cp->version == vers)
-			break;
-	}
-
-	revfmt = cp->revfmt;
-	name = cp->name;
+	revfmt = cput->revfmt;
+	name = cput->name;
 	if (rev == MPC750 && pvr == 15) {
 		name = "Motorola MPC755";
 		revfmt = REVFMT_HEX;
@@ -305,8 +330,6 @@ cpu_setup(u_int cpuid)
 		printf(", %jd.%02jd MHz", cps / 1000000, (cps / 10000) % 100);
 	printf("\n");
 
-	cpu_features |= cp->features;
-	cpu_features2 |= cp->features2;
 	printf("cpu%d: Features %b\n", cpuid, (int)cpu_features,
 	    PPC_FEATURE_BITMASK);
 	if (cpu_features2 != 0)
@@ -316,8 +339,8 @@ cpu_setup(u_int cpuid)
 	/*
 	 * Configure CPU
 	 */
-	if (cp->cpu_setup != NULL)
-		cp->cpu_setup(cpuid, vers);
+	if (cput->cpu_setup != NULL)
+		cput->cpu_setup(cpuid, vers);
 }
 
 /* Get current clock frequency for the given cpu id. */
@@ -638,6 +661,12 @@ cpu_powerx_setup(int cpuid, uint16_t vers)
 	switch (vers) {
 	case IBMPOWER8:
 	case IBMPOWER8E:
+		cpu_idle_hook = cpu_idle_powerx;
+		mtspr(SPR_LPCR, mfspr(SPR_LPCR) | LPCR_PECE_WAKESET);
+		isync();
+		break;
+	case IBMPOWER9:
+		cpu_idle_hook = cpu_idle_power9;
 		mtspr(SPR_LPCR, mfspr(SPR_LPCR) | LPCR_PECE_WAKESET);
 		isync();
 		break;
@@ -645,7 +674,6 @@ cpu_powerx_setup(int cpuid, uint16_t vers)
 		return;
 	}
 
-	cpu_idle_hook = cpu_idle_powerx;
 #endif
 }
 
@@ -774,6 +802,27 @@ cpu_idle_powerx(sbintime_t sbt)
 
 	enter_idle_powerx();
 	spinlock_exit();
+}
+
+static void
+cpu_idle_power9(sbintime_t sbt)
+{
+	register_t msr;
+
+	msr = mfmsr();
+
+	/* Suspend external interrupts until stop instruction completes. */
+	mtmsr(msr &  ~PSL_EE);
+	/* Set the stop state to lowest latency, wake up to next instruction */
+	mtspr(SPR_PSSCR, 0);
+	/* "stop" instruction (PowerISA 3.0) */
+	__asm __volatile (".long 0x4c0002e4");
+	/*
+	 * Re-enable external interrupts to capture the interrupt that caused
+	 * the wake up.
+	 */
+	mtmsr(msr);
+	
 }
 #endif
 
