@@ -53,6 +53,11 @@
 			reg = <0x00050000 0x00390000>;
 			read-only;
 		};
+		upgrade: partition@390000 {
+			label = "upgrade";
+			reg = <0x00050000 0x00390000>;
+			read-only;
+		};
 		cimage: partition@3e0000 {
 			label = "Cimage";
 			reg = <0x003e0000 0x00020000>;
@@ -97,12 +102,12 @@
 };
 
 &ethernet {
-	mtd-mac-address = <&factory 0x28>;
+//	mtd-mac-address = <&factory 0x28>;
 	port-mode = "gigasw";
 };
 
 &wmac {
-	ralink,mtd-eeprom = <&factory 0>;
+//	ralink,mtd-eeprom = <&factory 0>;
 };
 
 &i2c {

@@ -49,6 +49,7 @@ __FBSDID("$FreeBSD$");
 #define	FLASHMAP_UBOOTHDRSIZE	64
 #define	FLASHMAP_SECTORSIZE	(64 * 1024)
 #define	FLASHMAP_MARKER_STR	"#!/bin/sh"
+#define	FLASHMAP_MAX_HDRCHK	8
 
 struct g_flashmap_slice {
 	off_t		sl_start;
@@ -215,19 +216,32 @@ chkuboothdr(struct g_consumer *cp, off_t offset)
 	uint8_t *buf;
 	size_t sectorsize;
 	int i;
+	int uboothdr;
 
 	sectorsize = FLASHMAP_SECTORSIZE;
 	sectorsize = cp->provider->sectorsize;
 	buf = g_read_data(cp, offset, sectorsize, NULL);
-	/* check u-boot header magic number */
-	if (buf[0] != 0x27 || buf[1] != 0x05 || buf[2] != 0x19 ||
-	    buf[3] != 0x56) {
+	/*
+	 * check u-boot header magic number.
+	 * A few u-boot have space before header.
+	 */
+	uboothdr = -1;
+	for (i = 0; i < FLASHMAP_MAX_HDRCHK; ++i) {
+		if (buf[i*4] == 0x27 && buf[i*4+1] == 0x05 &&
+		    buf[i*4+2] == 0x19 && buf[i*4+3] == 0x56) {
+			uboothdr = i;
+			break;
+		}
+	}
+	if (uboothdr == -1) {
 		g_free(buf);
 		return 0;
 	}
 	/* get image data size */
-	val = buf[0xc] << 24 | buf[0xd] << 16 | buf[0xe] << 8 | buf[0xf];
-	val += FLASHMAP_UBOOTHDRSIZE;
+	uboothdr *= 4;
+	val = buf[uboothdr+0xc] << 24 | buf[uboothdr+0xd] << 16 |
+	    buf[uboothdr+0xe] << 8 | buf[uboothdr+0xf];
+	val += FLASHMAP_UBOOTHDRSIZE + uboothdr;
 	val = (val - 1) / FLASHMAP_SECTORSIZE;
 	val = (val + 1) * FLASHMAP_SECTORSIZE;
 	g_free(buf);
