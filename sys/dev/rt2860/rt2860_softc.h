@@ -32,6 +32,7 @@
 #include <sys/bus.h>
 #include <sys/endian.h>
 #include <sys/malloc.h>
+#include <sys/firmware.h>
 
 #include <machine/bus.h>
 #include <machine/resource.h>
@@ -59,6 +60,9 @@
 #include <dev/rt2860/rt2860_txdesc.h>
 #include <dev/rt2860/rt2860_txwi.h>
 #include <dev/rt2860/rt2860_amrr.h>
+
+#define	RT_CHIPID_RT3050				0x3050
+#define	RT_CHIPID_RT3052				0x3052
 
 #define RT2860_SOFTC_LOCK(sc)				mtx_lock(&(sc)->lock)
 #define RT2860_SOFTC_UNLOCK(sc)				\
@@ -231,6 +235,8 @@ struct rt2860_softc
 #define RT2860_RUNNING          (1 << 3)
 
 	device_t dev;
+
+	int pid;
 
 	int	mem_rid;
 	struct resource	*mem;

@@ -19,7 +19,6 @@
 #include <dev/rt2860/rt2860_softc.h>
 #include <dev/rt2860/rt2860_reg.h>
 #include <dev/rt2860/rt2860_eeprom.h>
-#include <dev/rt2860/rt2860_ucode.h>
 #include <dev/rt2860/rt2860_txwi.h>
 #include <dev/rt2860/rt2860_rxwi.h>
 #include <dev/rt2860/rt2860_io.h>
@@ -65,7 +64,7 @@ static int rt2860_pci_attach(device_t dev);
  * Bus independed methods
  */
 
-int rt2860_attach(device_t dev);
+int rt2860_attach(device_t dev, int id);
 
 int rt2860_detach(device_t dev);
 
@@ -132,7 +131,7 @@ static int rt2860_pci_attach(device_t dev)
 	pci_enable_busmaster(dev);
 	sc->mem_rid = PCIR_BAR(0);
 
-	return (rt2860_attach(dev));
+	return (rt2860_attach(dev, pci_get_device(dev)));
 }
 
 static device_method_t rt2860_pci_dev_methods[] =

@@ -23,7 +23,6 @@
 #include <dev/rt2860/rt2860_softc.h>
 #include <dev/rt2860/rt2860_reg.h>
 #include <dev/rt2860/rt2860_eeprom.h>
-#include <dev/rt2860/rt2860_ucode.h>
 #include <dev/rt2860/rt2860_txwi.h>
 #include <dev/rt2860/rt2860_rxwi.h>
 #include <dev/rt2860/rt2860_io.h>
@@ -33,10 +32,9 @@
 #include <dev/rt2860/rt2860_debug.h>
 
 
-#define RT_CHIPID_RT3050 0x3050
-
 static const struct ofw_compat_data rt_compat_data[] = {
 	{ "ralink,rt3050-wmac",		RT_CHIPID_RT3050 },
+	{ "ralink,rt3052-wmac",		RT_CHIPID_RT3052 },
 	{ NULL,				0 }
 };
 
@@ -48,7 +46,7 @@ static int rt2860_fdt_probe(device_t dev);
 
 static int rt2860_fdt_attach(device_t dev);
 
-int rt2860_attach(device_t dev);
+int rt2860_attach(device_t dev, int id);
 
 int rt2860_detach(device_t dev);
 
@@ -80,11 +78,14 @@ static int rt2860_fdt_probe(device_t dev)
 static int rt2860_fdt_attach(device_t dev)
 {
 	struct rt2860_softc *sc;
+	const struct ofw_compat_data * cd;
 
 	sc = device_get_softc(dev);
 	sc->mem_rid = 0;
 
-	return (rt2860_attach(dev));
+	cd = ofw_bus_search_compatible(dev, rt_compat_data);
+
+	return (rt2860_attach(dev, cd->ocd_data));
 }
 
 static device_method_t rt2860_fdt_dev_methods[] =

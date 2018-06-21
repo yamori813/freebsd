@@ -19,7 +19,6 @@
 #include <dev/rt2860/rt2860_softc.h>
 #include <dev/rt2860/rt2860_reg.h>
 #include <dev/rt2860/rt2860_eeprom.h>
-#include <dev/rt2860/rt2860_ucode.h>
 #include <dev/rt2860/rt2860_txwi.h>
 #include <dev/rt2860/rt2860_rxwi.h>
 #include <dev/rt2860/rt2860_io.h>
@@ -55,7 +54,7 @@
  * Global function prototypes, used in bus depended interfaces
  */
 
-int rt2860_attach(device_t dev);
+int rt2860_attach(device_t dev, int id);
 
 int rt2860_detach(device_t dev);
 
@@ -473,7 +472,7 @@ TUNABLE_INT("hw.rt2860.debug", &rt2860_debug);
 /*
  * rt2860_attach
  */
-int rt2860_attach(device_t dev)
+int rt2860_attach(device_t dev, int id)
 {
 	struct rt2860_softc *sc;
 	struct ieee80211com *ic;
@@ -483,6 +482,7 @@ int rt2860_attach(device_t dev)
 	ic = &sc->sc_ic;
 
 	sc->dev = dev;
+	sc->pid = id;
 
 	mtx_init(&sc->lock, device_get_nameunit(dev),
 		MTX_NETWORK_LOCK, MTX_DEF | MTX_RECURSE);
@@ -1166,6 +1166,7 @@ static void rt2860_init_locked(void *priv)
 	struct ieee80211vap *vap;
 	int error, i, ntries;
 	uint32_t tmp, stacnt[6];
+	const struct firmware *fp;
 
 	sc = priv;
 	ic = &sc->sc_ic;
@@ -1185,7 +1186,14 @@ static void rt2860_init_locked(void *priv)
 			"%s: loading 8051 microcode\n",
 			device_get_nameunit(sc->dev));
 
-		error = rt2860_io_mcu_load_ucode(sc, rt2860_ucode, sizeof(rt2860_ucode));
+		fp = firmware_get("rt2860fw");
+		if (fp == NULL) {
+			device_printf(sc->dev,
+			    "unable to receive rt2860fw firmware image\n");
+			goto fail;
+		}
+
+		error = rt2860_io_mcu_load_ucode(sc, fp->data, fp->datasize);
 		if (error != 0)
 		{
 			printf("%s: could not load 8051 microcode\n",

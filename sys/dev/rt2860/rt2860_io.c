@@ -63,9 +63,6 @@ static uint16_t rt2860_io_eeprom_shiftin_bits(struct rt2860_softc *sc);
 
 static uint8_t rt2860_io_byte_rev(uint8_t byte);
 
-#define RT3052
-
-#ifdef RT3050
 /* Default EEPROM value for RT3050 */
 static const uint8_t rt3050_eeprom[] = {
 	0x50, 0x30, 0x01, 0x01, 0x00, 0x0c, 0x43, 0x30, 0x52, 0x88, 0xff, 0xff, 0xff, 0xff, 
@@ -106,9 +103,7 @@ static const uint8_t rt3050_eeprom[] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 	};
-#endif // RT3050 //
 
-#ifdef RT3052
 /* Default EEPROM value for RT3052 */
 static const uint8_t rt3052_eeprom[] = {
 	0x50, 0x30, 0x01, 0x01, 0x00, 0x0c, 0x43, 0x30, 0x52, 0x88, 0xff, 0xff, 0xff, 0xff, 
@@ -149,7 +144,6 @@ static const uint8_t rt3052_eeprom[] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 	};
-#endif // RT3052 //
 
 #if 0
 /* #ifdef RT305X_SOC */
@@ -377,14 +371,12 @@ uint16_t rt2860_io_eeprom_read(struct rt2860_softc *sc, uint16_t addr)
 	addr = (addr >> 1);
 
 	if (sc->mac_rev == 0x28720200) {
-//		return (rt3052_eeprom[addr]);
-#ifdef RT3050
-		return (rt3050_eeprom[addr*2] + 
-			rt3050_eeprom[addr*2+1] * 0x100);
-#else
-		return (rt3052_eeprom[addr*2] + 
-			rt3052_eeprom[addr*2+1] * 0x100);
-#endif
+		if (sc->pid == RT_CHIPID_RT3050)
+			return (rt3050_eeprom[addr*2] + 
+			    rt3050_eeprom[addr*2+1] * 0x100);
+		else   /* RT_CHIPID_RT3052 */
+			return (rt3052_eeprom[addr*2] + 
+			    rt3052_eeprom[addr*2+1] * 0x100);
 	} else if ((sc->mac_rev & 0xffff0000) >= 0x30710000) {
 		tmp = rt2860_io_mac_read(sc, RT3070_EFUSE_CTRL);
 		if (tmp & RT3070_SEL_EFUSE)
