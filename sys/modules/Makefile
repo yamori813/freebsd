@@ -121,7 +121,6 @@ SUBDIR=	\
 	${_ena} \
 	${_ep} \
 	${_epic} \
-	epoch_test \
 	esp \
 	${_et} \
 	evdev \
@@ -206,7 +205,6 @@ SUBDIR=	\
 	${_ix} \
 	${_ixv} \
 	${_ixl} \
-	${_ixlv} \
 	jme \
 	joy \
 	kbdmux \
@@ -220,8 +218,6 @@ SUBDIR=	\
 	libalias \
 	libiconv \
 	libmchain \
-	${_linprocfs} \
-	${_linsysfs} \
 	${_linux} \
 	${_linux_common} \
 	${_linux64} \
@@ -234,6 +230,7 @@ SUBDIR=	\
 	mac_lomac \
 	mac_mls \
 	mac_none \
+	mac_ntpd \
 	mac_partition \
 	mac_portacl \
 	mac_seeotheruids \
@@ -488,6 +485,12 @@ SUBDIR+=	iscsi
 SUBDIR+=	iscsi_initiator
 .endif
 
+.if ${MACHINE_CPUARCH} == "aarch64" || ${MACHINE_CPUARCH} == "amd64" || \
+    ${MACHINE_CPUARCH} == "i386"
+SUBDIR+=	linprocfs
+SUBDIR+=	linsysfs
+.endif
+
 .if ${MK_NAND} != "no" || defined(ALL_MODULES)
 _nandfs=	nandfs
 _nandsim=	nandsim
@@ -602,8 +605,6 @@ _iser=		iser
 .endif
 _ix=		ix
 _ixv=		ixv
-_linprocfs=	linprocfs
-_linsysfs=	linsysfs
 _linux=		linux
 .if ${MK_SOURCELESS_UCODE} != "no"
 _lio=		lio
@@ -793,6 +794,7 @@ _wi=		wi
 
 .if ${MACHINE_ARCH} == "powerpc64"
 _drm2=		drm2
+_ipmi=		ipmi
 .endif
 .if ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc"
 # Don't build powermac_nvram for powerpcspe, it's never supported.

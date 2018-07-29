@@ -945,7 +945,7 @@ link_elf_load_file(linker_class_t cls, const char* filename,
 		goto out;
 	}
 #else
-	ef->address = malloc(mapsize, M_LINKER, M_WAITOK);
+	ef->address = malloc(mapsize, M_LINKER, M_EXEC | M_WAITOK);
 #endif
 	mapbase = ef->address;
 
@@ -1168,8 +1168,8 @@ link_elf_unload_file(linker_file_t file)
 static void
 link_elf_unload_preload(linker_file_t file)
 {
-	if (file->filename != NULL)
-		preload_delete_name(file->filename);
+	if (file->pathname != NULL)
+		preload_delete_name(file->pathname);
 }
 
 static const char *

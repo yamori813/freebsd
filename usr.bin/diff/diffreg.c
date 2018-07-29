@@ -334,7 +334,7 @@ diffreg(char *file1, char *file2, int flags, int capsicum)
 
 		caph_cache_catpages();
 		caph_cache_tzdata();
-		if (cap_enter() < 0 && errno != ENOSYS)
+		if (caph_enter() < 0)
 			err(2, "unable to enter capability mode");
 	}
 
@@ -720,19 +720,22 @@ check(FILE *f1, FILE *f2, int flags)
 				}
 				ctold++;
 				ctnew++;
-				if (flags & D_STRIPCR) {
+				if (flags & D_STRIPCR && (c == '\r' || d == '\r')) {
 					if (c == '\r') {
 						if ((c = getc(f1)) == '\n') {
-							ctnew++;
-							break;
+							ctold++;
+						} else {
+							ungetc(c, f1);
 						}
 					}
 					if (d == '\r') {
 						if ((d = getc(f2)) == '\n') {
-							ctold++;
-							break;
+							ctnew++;
+						} else {
+							ungetc(d, f2);
 						}
 					}
+					break;
 				}
 				if ((flags & D_FOLDBLANKS) && isspace(c) &&
 				    isspace(d)) {
