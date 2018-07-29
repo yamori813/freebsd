@@ -114,7 +114,7 @@
 		interrupt-parent = <&PIC>;	
 		#address-cells = <3>;
 		#interrupt-cells = <1>;
-//		interrupts = <18 19 20 21>;
+		interrupts = <18 19 20 21>;
 		interrupt-map-mask = <0x800 0x0 0x0 0x7>;
 		interrupt-map = <
 			0x800 0 0 1 &PIC 18

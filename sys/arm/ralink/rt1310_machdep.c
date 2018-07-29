@@ -124,6 +124,23 @@ bus_dma_get_range_nb(void)
 	return (0);
 }
 
+int get_cpuid(void);
+int
+get_cpuid(void)
+{
+	bus_space_tag_t bst;
+	bus_space_handle_t bsh;
+	int res;
+
+	bst = fdtbus_bs_tag;
+
+	bus_space_map(bst, 0x1e8e0000, 0x20000, 0, &bsh);
+	res = bus_space_read_4(bst, bsh, 0x14);
+	bus_space_unmap(bst, bsh, 0x20000);
+
+	return res;
+}
+
 void
 cpu_reset(void)
 {
