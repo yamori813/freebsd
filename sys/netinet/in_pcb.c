@@ -138,7 +138,7 @@ VNET_DEFINE(int, ipport_randomcps) = 10;	/* user controlled via sysctl */
 VNET_DEFINE(int, ipport_randomtime) = 45;	/* user controlled via sysctl */
 VNET_DEFINE(int, ipport_stoprandom);		/* toggled by ipport_tick */
 VNET_DEFINE(int, ipport_tcpallocs);
-static VNET_DEFINE(int, ipport_tcplastcount);
+VNET_DEFINE_STATIC(int, ipport_tcplastcount);
 
 #define	V_ipport_tcplastcount		VNET(ipport_tcplastcount)
 
@@ -1084,7 +1084,6 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 
 		ifp = ia->ia_ifp;
 		ia = NULL;
-		IF_ADDR_RLOCK(ifp);
 		CK_STAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
 
 			sa = ifa->ifa_addr;
@@ -1098,10 +1097,8 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 		}
 		if (ia != NULL) {
 			laddr->s_addr = ia->ia_addr.sin_addr.s_addr;
-			IF_ADDR_RUNLOCK(ifp);
 			goto done;
 		}
-		IF_ADDR_RUNLOCK(ifp);
 
 		/* 3. As a last resort return the 'default' jail address. */
 		error = prison_get_ip4(cred, laddr);
@@ -1143,7 +1140,6 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 		 */
 		ia = NULL;
 		ifp = sro.ro_rt->rt_ifp;
-		IF_ADDR_RLOCK(ifp);
 		CK_STAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
 			sa = ifa->ifa_addr;
 			if (sa->sa_family != AF_INET)
@@ -1156,10 +1152,8 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 		}
 		if (ia != NULL) {
 			laddr->s_addr = ia->ia_addr.sin_addr.s_addr;
-			IF_ADDR_RUNLOCK(ifp);
 			goto done;
 		}
-		IF_ADDR_RUNLOCK(ifp);
 
 		/* 3. As a last resort return the 'default' jail address. */
 		error = prison_get_ip4(cred, laddr);
@@ -1207,9 +1201,7 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 
 			ifp = ia->ia_ifp;
 			ia = NULL;
-			IF_ADDR_RLOCK(ifp);
 			CK_STAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
-
 				sa = ifa->ifa_addr;
 				if (sa->sa_family != AF_INET)
 					continue;
@@ -1222,10 +1214,8 @@ in_pcbladdr(struct inpcb *inp, struct in_addr *faddr, struct in_addr *laddr,
 			}
 			if (ia != NULL) {
 				laddr->s_addr = ia->ia_addr.sin_addr.s_addr;
-				IF_ADDR_RUNLOCK(ifp);
 				goto done;
 			}
-			IF_ADDR_RUNLOCK(ifp);
 		}
 
 		/* 3. As a last resort return the 'default' jail address. */
@@ -1582,11 +1572,9 @@ static void
 in_pcbfree_deferred(epoch_context_t ctx)
 {
 	struct inpcb *inp;
-	struct inpcbinfo *pcbinfo;
 	int released __unused;
 
 	inp = __containerof(ctx, struct inpcb, inp_epoch_ctx);
-	pcbinfo = inp->inp_pcbinfo;
 
 	INP_WLOCK(inp);
 #ifdef INET
@@ -1675,6 +1663,10 @@ in_pcbdrop(struct inpcb *inp)
 {
 
 	INP_WLOCK_ASSERT(inp);
+#ifdef INVARIANTS
+	if (inp->inp_socket != NULL && inp->inp_ppcb != NULL)
+		MPASS(inp->inp_refcount > 1);
+#endif
 
 	/*
 	 * XXXRW: Possibly we should protect the setting of INP_DROPPED with
@@ -2214,7 +2206,6 @@ found:
 			INP_WUNLOCK(inp);
 		else
 			INP_RUNLOCK(inp);
-		INP_HASH_RUNLOCK(pcbinfo);
 		return (NULL);
 	} else if (!locked)
 		in_pcbref(inp);
@@ -2254,11 +2245,12 @@ in_pcblookup_hash_locked(struct inpcbinfo *pcbinfo, struct in_addr faddr,
 	struct inpcb *inp, *tmpinp;
 	u_short fport = fport_arg, lport = lport_arg;
 
+#ifdef INVARIANTS
 	KASSERT((lookupflags & ~(INPLOOKUP_WILDCARD)) == 0,
 	    ("%s: invalid lookup flags %d", __func__, lookupflags));
-
-	INP_HASH_LOCK_ASSERT(pcbinfo);
-
+	if (!mtx_owned(&pcbinfo->ipi_hash_lock))
+		MPASS(in_epoch_verbose(net_epoch_preempt, 1));
+#endif
 	/*
 	 * First look for an exact match.
 	 */
@@ -2386,40 +2378,35 @@ in_pcblookup_hash(struct inpcbinfo *pcbinfo, struct in_addr faddr,
     struct ifnet *ifp)
 {
 	struct inpcb *inp;
-	bool locked;
 
 	INP_HASH_RLOCK(pcbinfo);
 	inp = in_pcblookup_hash_locked(pcbinfo, faddr, fport, laddr, lport,
 	    (lookupflags & ~(INPLOOKUP_RLOCKPCB | INPLOOKUP_WLOCKPCB)), ifp);
 	if (inp != NULL) {
-		if (lookupflags & INPLOOKUP_WLOCKPCB)
-			locked = INP_TRY_WLOCK(inp);
-		else if (lookupflags & INPLOOKUP_RLOCKPCB)
-			locked = INP_TRY_RLOCK(inp);
-		else
-			panic("%s: locking bug", __func__);
-		if (!locked)
-			in_pcbref(inp);
-		INP_HASH_RUNLOCK(pcbinfo);
-		if (!locked) {
-			if (lookupflags & INPLOOKUP_WLOCKPCB) {
-				INP_WLOCK(inp);
-				if (in_pcbrele_wlocked(inp))
-					return (NULL);
-			} else {
-				INP_RLOCK(inp);
-				if (in_pcbrele_rlocked(inp))
-					return (NULL);
+		if (lookupflags & INPLOOKUP_WLOCKPCB) {
+			INP_WLOCK(inp);
+			if (__predict_false(inp->inp_flags2 & INP_FREED)) {
+				INP_WUNLOCK(inp);
+				inp = NULL;
 			}
-		}
+		} else if (lookupflags & INPLOOKUP_RLOCKPCB) {
+			INP_RLOCK(inp);
+			if (__predict_false(inp->inp_flags2 & INP_FREED)) {
+				INP_RUNLOCK(inp);
+				inp = NULL;
+			}
+		} else
+			panic("%s: locking bug", __func__);
 #ifdef INVARIANTS
-		if (lookupflags & INPLOOKUP_WLOCKPCB)
-			INP_WLOCK_ASSERT(inp);
-		else
-			INP_RLOCK_ASSERT(inp);
+		if (inp != NULL) {
+			if (lookupflags & INPLOOKUP_WLOCKPCB)
+				INP_WLOCK_ASSERT(inp);
+			else
+				INP_RLOCK_ASSERT(inp);
+		}
 #endif
-	} else
-		INP_HASH_RUNLOCK(pcbinfo);
+	}
+	INP_HASH_RUNLOCK(pcbinfo);
 	return (inp);
 }
 
@@ -2919,7 +2906,7 @@ in_pcbtoxinpcb(const struct inpcb *inp, struct xinpcb *xi)
 		bzero(&xi->xi_socket, sizeof(struct xsocket));
 	bcopy(&inp->inp_inc, &xi->inp_inc, sizeof(struct in_conninfo));
 	xi->inp_gencnt = inp->inp_gencnt;
-	xi->inp_ppcb = inp->inp_ppcb;
+	xi->inp_ppcb = (uintptr_t)inp->inp_ppcb;
 	xi->inp_flow = inp->inp_flow;
 	xi->inp_flowid = inp->inp_flowid;
 	xi->inp_flowtype = inp->inp_flowtype;

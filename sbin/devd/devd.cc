@@ -262,12 +262,12 @@ my_system(const char *command)
 		 */
 		cfg.close_pidfile();
 		::closefrom(3);
-		::execl(_PATH_BSHELL, "sh", "-c", command, (char *)NULL);
+		::execl(_PATH_BSHELL, "sh", "-c", command, nullptr);
 		::_exit(127);
 	default:			/* parent */
 		savedpid = pid;
 		do {
-			pid = ::wait4(savedpid, &pstat, 0, (struct rusage *)0);
+			pid = ::wait4(savedpid, &pstat, 0, nullptr);
 		} while (pid == -1 && errno == EINTR);
 		break;
 	}
@@ -374,7 +374,7 @@ media::do_match(config &c)
 		memset(&ifmr, 0, sizeof(ifmr));
 		strlcpy(ifmr.ifm_name, value.c_str(), sizeof(ifmr.ifm_name));
 
-		if (ioctl(s, SIOCGIFMEDIA, (caddr_t)&ifmr) >= 0 &&
+		if (ioctl(s, SIOCGIFMEDIA, &ifmr) >= 0 &&
 		    ifmr.ifm_status & IFM_AVALID) {
 			devdlog(LOG_DEBUG, "%s has media type 0x%x\n",
 				    value.c_str(), IFM_TYPE(ifmr.ifm_active));
@@ -527,7 +527,7 @@ config::open_pidfile()
 	pfh = pidfile_open(_pidfile.c_str(), 0600, &otherpid);
 	if (pfh == NULL) {
 		if (errno == EEXIST)
-			errx(1, "devd already running, pid: %d", (int)otherpid);
+			errx(1, "devd already running, pid: %d", static_cast<int>(otherpid));
 		warn("cannot open pid file");
 	}
 }
@@ -636,6 +636,35 @@ config::is_id_char(char ch) const
 	    ch == '-'));
 }
 
+string
+config::shell_quote(const string &s)
+{
+	string buffer;
+	const char *cs, *ce;
+	char c;
+
+	/*
+	 * Enclose the string in $' ' with escapes for ' and / characters making
+	 * it one argument and ensuring the shell won't be affected by its
+	 * usual list of candidates.
+	 */
+	buffer.reserve(s.length() * 3 / 2);
+	buffer += '$';
+	buffer += '\'';
+	cs = s.c_str();
+	ce = cs + strlen(cs);
+	for (; cs < ce; cs++) {
+		c = *cs;
+		if (c == '\'' || c == '\\') {
+			buffer += '\\';
+		}
+		buffer += c;
+	}
+	buffer += '\'';
+
+	return buffer;
+}
+
 void
 config::expand_one(const char *&src, string &dst)
 {
@@ -650,8 +679,7 @@ config::expand_one(const char *&src, string &dst)
 	}
 
 	// $(foo) -> $(foo)
-	// Not sure if I want to support this or not, so for now we just pass
-	// it through.
+	// This is the escape hatch for passing down shell subcommands
 	if (*src == '(') {
 		dst += '$';
 		count = 1;
@@ -677,7 +705,7 @@ config::expand_one(const char *&src, string &dst)
 	do {
 		buffer += *src++;
 	} while (is_id_char(*src));
-	dst.append(get_variable(buffer));
+	dst.append(shell_quote(get_variable(buffer)));
 }
 
 const string
@@ -826,7 +854,7 @@ process_event(char *buffer)
 	// Save the time this happened (as approximated by when we got
 	// around to processing it).
 	gettimeofday(&tv, NULL);
-	asprintf(&timestr, "%jd.%06ld", (uintmax_t)tv.tv_sec, tv.tv_usec);
+	asprintf(&timestr, "%jd.%06ld", static_cast<uintmax_t>(tv.tv_sec), tv.tv_usec);
 	cfg.set_variable("timestamp", timestr);
 	free(timestr);
 
@@ -876,7 +904,7 @@ process_event(char *buffer)
 	cfg.pop_var_table();
 }
 
-int
+static int
 create_socket(const char *name, int socktype)
 {
 	int fd, slen;
@@ -891,7 +919,7 @@ create_socket(const char *name, int socktype)
 	unlink(name);
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 	    	err(1, "fcntl");
-	if (::bind(fd, (struct sockaddr *) & sun, slen) < 0)
+	if (::bind(fd, reinterpret_cast<struct sockaddr *>(&sun), slen) < 0)
 		err(1, "bind");
 	listen(fd, 4);
 	if (chown(name, 0, 0))	/* XXX - root.wheel */
@@ -906,7 +934,7 @@ static unsigned int num_clients;
 
 static list<client_t> clients;
 
-void
+static void
 notify_clients(const char *data, int len)
 {
 	list<client_t>::iterator i;
@@ -936,7 +964,7 @@ notify_clients(const char *data, int len)
 	}
 }
 
-void
+static void
 check_clients(void)
 {
 	int s;
@@ -966,7 +994,7 @@ check_clients(void)
 	}
 }
 
-void
+static void
 new_client(int fd, int socktype)
 {
 	client_t s;

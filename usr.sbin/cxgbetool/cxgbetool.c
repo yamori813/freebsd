@@ -1102,6 +1102,8 @@ del_filter(uint32_t idx, int hashfilter)
 	return doit(CHELSIO_T4_DEL_FILTER, &t);
 }
 
+#define MAX_VLANID (4095)
+
 static int
 set_filter(uint32_t idx, int argc, const char *argv[], int hash)
 {
@@ -1308,7 +1310,8 @@ set_filter(uint32_t idx, int argc, const char *argv[], int hash)
 			    t.fs.newvlan == VLAN_INSERT) {
 				t.fs.vlan = strtoul(argv[start_arg + 1] + 1,
 				    &p, 0);
-				if (p == argv[start_arg + 1] + 1 || p[0] != 0) {
+				if (p == argv[start_arg + 1] + 1 || p[0] != 0 ||
+				    t.fs.vlan > MAX_VLANID) {
 					warnx("invalid vlan \"%s\"",
 					     argv[start_arg + 1]);
 					return (EINVAL);
@@ -2859,15 +2862,20 @@ sched_class(int argc, const char *argv[])
 			warnx("sched params \"level\" parameter missing");
 			errs++;
 		}
-		if (op.u.params.mode < 0) {
+		if (op.u.params.mode < 0 &&
+		    op.u.params.level == SCHED_CLASS_LEVEL_CL_RL) {
 			warnx("sched params \"mode\" parameter missing");
 			errs++;
 		}
-		if (op.u.params.rateunit < 0) {
+		if (op.u.params.rateunit < 0 &&
+		    (op.u.params.level == SCHED_CLASS_LEVEL_CL_RL ||
+		    op.u.params.level == SCHED_CLASS_LEVEL_CH_RL)) {
 			warnx("sched params \"rate-unit\" parameter missing");
 			errs++;
 		}
-		if (op.u.params.ratemode < 0) {
+		if (op.u.params.ratemode < 0 &&
+		    (op.u.params.level == SCHED_CLASS_LEVEL_CL_RL ||
+		    op.u.params.level == SCHED_CLASS_LEVEL_CH_RL)) {
 			warnx("sched params \"rate-mode\" parameter missing");
 			errs++;
 		}
@@ -2875,7 +2883,9 @@ sched_class(int argc, const char *argv[])
 			warnx("sched params \"channel\" missing");
 			errs++;
 		}
-		if (op.u.params.cl < 0) {
+		if (op.u.params.cl < 0 &&
+		    (op.u.params.level == SCHED_CLASS_LEVEL_CL_RL ||
+		    op.u.params.level == SCHED_CLASS_LEVEL_CL_WRR)) {
 			warnx("sched params \"class\" missing");
 			errs++;
 		}
@@ -2886,15 +2896,14 @@ sched_class(int argc, const char *argv[])
 			    "rate-limit level");
 			errs++;
 		}
-		if (op.u.params.weight < 0 &&
-		    op.u.params.level == SCHED_CLASS_LEVEL_CL_WRR) {
-			warnx("sched params \"weight\" missing for "
-			    "weighted-round-robin level");
+		if (op.u.params.level == SCHED_CLASS_LEVEL_CL_WRR &&
+		    (op.u.params.weight < 1 || op.u.params.weight > 99)) {
+			warnx("sched params \"weight\" missing or invalid "
+			    "(not 1-99) for weighted-round-robin level");
 			errs++;
 		}
 		if (op.u.params.pktsize < 0 &&
-		    (op.u.params.level == SCHED_CLASS_LEVEL_CL_RL ||
-		    op.u.params.level == SCHED_CLASS_LEVEL_CH_RL)) {
+		    op.u.params.level == SCHED_CLASS_LEVEL_CL_RL) {
 			warnx("sched params \"pkt-size\" missing for "
 			    "rate-limit level");
 			errs++;

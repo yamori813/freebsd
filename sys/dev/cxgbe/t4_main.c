@@ -559,6 +559,7 @@ static int sysctl_fec(SYSCTL_HANDLER_ARGS);
 static int sysctl_autoneg(SYSCTL_HANDLER_ARGS);
 static int sysctl_handle_t4_reg64(SYSCTL_HANDLER_ARGS);
 static int sysctl_temperature(SYSCTL_HANDLER_ARGS);
+static int sysctl_loadavg(SYSCTL_HANDLER_ARGS);
 static int sysctl_cctrl(SYSCTL_HANDLER_ARGS);
 static int sysctl_cim_ibq_obq(SYSCTL_HANDLER_ARGS);
 static int sysctl_cim_la(SYSCTL_HANDLER_ARGS);
@@ -1403,7 +1404,8 @@ t4_detach_common(device_t dev)
 	free(sc->sge.iqmap, M_CXGBE);
 	free(sc->sge.eqmap, M_CXGBE);
 	free(sc->tids.ftid_tab, M_CXGBE);
-	free(sc->tids.hftid_tab, M_CXGBE);
+	if (sc->tids.hftid_tab)
+		free_hftid_tab(&sc->tids);
 	free(sc->tids.atid_tab, M_CXGBE);
 	free(sc->tids.tid_tab, M_CXGBE);
 	free(sc->tt.tls_rx_ports, M_CXGBE);
@@ -1419,10 +1421,6 @@ t4_detach_common(device_t dev)
 	if (mtx_initialized(&sc->tids.ftid_lock)) {
 		mtx_destroy(&sc->tids.ftid_lock);
 		cv_destroy(&sc->tids.ftid_cv);
-	}
-	if (mtx_initialized(&sc->tids.hftid_lock)) {
-		mtx_destroy(&sc->tids.hftid_lock);
-		cv_destroy(&sc->tids.hftid_cv);
 	}
 	if (mtx_initialized(&sc->tids.atid_lock))
 		mtx_destroy(&sc->tids.atid_lock);
@@ -5545,6 +5543,10 @@ t4_sysctls(struct adapter *sc)
 	    CTLFLAG_RD, sc, 0, sysctl_temperature, "I",
 	    "chip temperature (in Celsius)");
 
+	SYSCTL_ADD_PROC(ctx, children, OID_AUTO, "loadavg", CTLTYPE_STRING |
+	    CTLFLAG_RD, sc, 0, sysctl_loadavg, "A",
+	    "microprocessor load averages (debug firmwares only)");
+
 	SYSCTL_ADD_INT(ctx, children, OID_AUTO, "core_vdd", CTLFLAG_RD,
 	    &sc->params.core_vdd, 0, "core Vdd (in mV)");
 
@@ -6609,6 +6611,45 @@ sysctl_temperature(SYSCTL_HANDLER_ARGS)
 	t = val == 0 ? -1 : val;
 
 	rc = sysctl_handle_int(oidp, &t, 0, req);
+	return (rc);
+}
+
+static int
+sysctl_loadavg(SYSCTL_HANDLER_ARGS)
+{
+	struct adapter *sc = arg1;
+	struct sbuf *sb;
+	int rc;
+	uint32_t param, val;
+
+	rc = begin_synchronized_op(sc, NULL, SLEEP_OK | INTR_OK, "t4lavg");
+	if (rc)
+		return (rc);
+	param = V_FW_PARAMS_MNEM(FW_PARAMS_MNEM_DEV) |
+	    V_FW_PARAMS_PARAM_X(FW_PARAMS_PARAM_DEV_LOAD);
+	rc = -t4_query_params(sc, sc->mbox, sc->pf, 0, 1, &param, &val);
+	end_synchronized_op(sc, 0);
+	if (rc)
+		return (rc);
+
+	rc = sysctl_wire_old_buffer(req, 0);
+	if (rc != 0)
+		return (rc);
+
+	sb = sbuf_new_for_sysctl(NULL, NULL, 4096, req);
+	if (sb == NULL)
+		return (ENOMEM);
+
+	if (val == 0xffffffff) {
+		/* Only debug and custom firmwares report load averages. */
+		sbuf_printf(sb, "not available");
+	} else {
+		sbuf_printf(sb, "%d %d %d", val & 0xff, (val >> 8) & 0xff,
+		    (val >> 16) & 0xff);
+	}
+	rc = sbuf_finish(sb);
+	sbuf_delete(sb);
+
 	return (rc);
 }
 
@@ -8571,34 +8612,35 @@ sysctl_tc_params(SYSCTL_HANDLER_ARGS)
 	tc = sc->port[port_id]->sched_params->cl_rl[i];
 	mtx_unlock(&sc->tc_lock);
 
-	if (tc.flags & TX_CLRL_ERROR) {
-		sbuf_printf(sb, "error");
-		goto done;
-	}
-
-	if (tc.ratemode == SCHED_CLASS_RATEMODE_REL) {
-		/* XXX: top speed or actual link speed? */
-		gbps = port_top_speed(sc->port[port_id]);
-		sbuf_printf(sb, " %u%% of %uGbps", tc.maxrate, gbps);
-	} else if (tc.ratemode == SCHED_CLASS_RATEMODE_ABS) {
-		switch (tc.rateunit) {
-		case SCHED_CLASS_RATEUNIT_BITS:
+	switch (tc.rateunit) {
+	case SCHED_CLASS_RATEUNIT_BITS:
+		switch (tc.ratemode) {
+		case SCHED_CLASS_RATEMODE_REL:
+			/* XXX: top speed or actual link speed? */
+			gbps = port_top_speed(sc->port[port_id]);
+			sbuf_printf(sb, "%u%% of %uGbps", tc.maxrate, gbps);
+			break;
+		case SCHED_CLASS_RATEMODE_ABS:
 			mbps = tc.maxrate / 1000;
 			gbps = tc.maxrate / 1000000;
 			if (tc.maxrate == gbps * 1000000)
-				sbuf_printf(sb, " %uGbps", gbps);
+				sbuf_printf(sb, "%uGbps", gbps);
 			else if (tc.maxrate == mbps * 1000)
-				sbuf_printf(sb, " %uMbps", mbps);
+				sbuf_printf(sb, "%uMbps", mbps);
 			else
-				sbuf_printf(sb, " %uKbps", tc.maxrate);
-			break;
-		case SCHED_CLASS_RATEUNIT_PKTS:
-			sbuf_printf(sb, " %upps", tc.maxrate);
+				sbuf_printf(sb, "%uKbps", tc.maxrate);
 			break;
 		default:
 			rc = ENXIO;
 			goto done;
 		}
+		break;
+	case SCHED_CLASS_RATEUNIT_PKTS:
+		sbuf_printf(sb, "%upps", tc.maxrate);
+		break;
+	default:
+		rc = ENXIO;
+		goto done;
 	}
 
 	switch (tc.mode) {
@@ -8651,7 +8693,6 @@ sysctl_cpus(SYSCTL_HANDLER_ARGS)
 	sbuf_delete(sb);
 
 	return (rc);
-
 }
 
 #ifdef TCP_OFFLOAD

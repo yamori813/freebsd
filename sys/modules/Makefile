@@ -218,8 +218,6 @@ SUBDIR=	\
 	libalias \
 	libiconv \
 	libmchain \
-	${_linprocfs} \
-	${_linsysfs} \
 	${_linux} \
 	${_linux_common} \
 	${_linux64} \
@@ -232,17 +230,12 @@ SUBDIR=	\
 	mac_lomac \
 	mac_mls \
 	mac_none \
+	mac_ntpd \
 	mac_partition \
 	mac_portacl \
 	mac_seeotheruids \
 	mac_stub \
 	mac_test \
-	mac_veriexec \
-	mac_veriexec_rmd160 \
-	mac_veriexec_sha1 \
-	mac_veriexec_sha256 \
-	mac_veriexec_sha384 \
-	mac_veriexec_sha512 \
 	malo \
 	md \
 	mdio \
@@ -394,7 +387,6 @@ SUBDIR=	\
 	uinput \
 	unionfs \
 	usb \
-	veriexec \
 	${_vesa} \
 	${_virtio} \
 	vge \
@@ -491,6 +483,12 @@ _ipfilter=	ipfilter
 SUBDIR+=	cfiscsi
 SUBDIR+=	iscsi
 SUBDIR+=	iscsi_initiator
+.endif
+
+.if ${MACHINE_CPUARCH} == "aarch64" || ${MACHINE_CPUARCH} == "amd64" || \
+    ${MACHINE_CPUARCH} == "i386"
+SUBDIR+=	linprocfs
+SUBDIR+=	linsysfs
 .endif
 
 .if ${MK_NAND} != "no" || defined(ALL_MODULES)
@@ -607,8 +605,6 @@ _iser=		iser
 .endif
 _ix=		ix
 _ixv=		ixv
-_linprocfs=	linprocfs
-_linsysfs=	linsysfs
 _linux=		linux
 .if ${MK_SOURCELESS_UCODE} != "no"
 _lio=		lio
@@ -798,6 +794,7 @@ _wi=		wi
 
 .if ${MACHINE_ARCH} == "powerpc64"
 _drm2=		drm2
+_ipmi=		ipmi
 .endif
 .if ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc"
 # Don't build powermac_nvram for powerpcspe, it's never supported.

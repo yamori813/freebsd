@@ -31,23 +31,17 @@ BIN1=	crontab \
 	mac.conf \
 	motd \
 	netconfig \
-	network.subr \
 	networks \
 	newsyslog.conf \
 	nsswitch.conf \
 	phones \
 	profile \
 	protocols \
-	rc \
 	rc.bsdextended \
 	rc.firewall \
-	rc.initdiskless \
-	rc.shutdown \
-	rc.subr \
 	remote \
 	rpc \
 	services \
-	shells \
 	sysctl.conf \
 	syslog.conf \
 	termcap.small
@@ -74,10 +68,6 @@ BSM_ETC_DIR=			${DESTDIR}/etc/security
 
 .if ${MK_AMD} != "no"
 BIN1+= amd.map
-.endif
-
-.if ${MK_APM} != "no"
-BIN1+= apmd.conf
 .endif
 
 .if ${MK_AUTOFS} != "no"
@@ -125,10 +115,6 @@ SSH=	${SRCTOP}/crypto/openssh/ssh_config \
 SSL=	${SRCTOP}/crypto/openssl/apps/openssl.cnf
 .endif
 
-.if ${MK_NS_CACHING} != "no"
-BIN1+= nscd.conf
-.endif
-
 .if ${MK_PORTSNAP} != "no"
 BIN1+= portsnap.conf
 .endif
@@ -148,9 +134,6 @@ BIN1+= csh.cshrc csh.login csh.logout
 .if ${MK_WIRELESS} != "no"
 BIN1+= regdomain.xml
 .endif
-
-# -rwxr-xr-x root:wheel, for the new cron root:wheel
-BIN2=	netstart pccard_ether rc.suspend rc.resume
 
 .if ${MK_SENDMAIL} == "no"
 ETCMAIL=mailer.conf aliases
@@ -178,13 +161,6 @@ distribute:
 	${_+_}cd ${.CURDIR} ; ${MAKE} distribution DESTDIR=${DISTDIR}/${DISTRIBUTION}
 
 .include <bsd.endian.mk>
-.if ${TARGET_ENDIANNESS} == "1234"
-CAP_MKDB_ENDIAN?= -l
-.elif ${TARGET_ENDIANNESS} == "4321"
-CAP_MKDB_ENDIAN?= -b
-.else
-CAP_MKDB_ENDIAN?=
-.endif
 
 .if defined(NO_ROOT)
 METALOG.add?=	cat -l >> ${METALOG}
@@ -199,12 +175,15 @@ distribution:
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
 		${BIN1} ${DESTDIR}/etc; \
 	    cap_mkdb ${CAP_MKDB_ENDIAN} ${DESTDIR}/etc/login.conf; \
-	    services_mkdb ${CAP_MKDB_ENDIAN} -q -o ${DESTDIR}/var/db/services.db \
-		${DESTDIR}/etc/services; \
-	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 755 \
-		${BIN2} ${DESTDIR}/etc; \
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 600 \
 		master.passwd nsmb.conf opieaccess ${DESTDIR}/etc;
+
+.if ${MK_SERVICESDB} != "no"
+	cd ${.CURDIR}; \
+	    services_mkdb ${CAP_MKDB_ENDIAN} -q -o ${DESTDIR}/var/db/services.db \
+		${DESTDIR}/etc/services;
+.endif
+
 .if ${MK_BSNMP} != "no"
 	cd ${.CURDIR}; \
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 600 \
@@ -220,6 +199,7 @@ distribution:
 		echo "./etc/passwd type=file mode=0644 uname=root gname=wheel"; \
 		echo "./etc/pwd.db type=file mode=0644 uname=root gname=wheel"; \
 		echo "./etc/spwd.db type=file mode=0600 uname=root gname=wheel"; \
+		echo "./var/db/services.db type=file mode=0644 uname=root gname=wheel"; \
 	) | ${METALOG.add}
 .endif
 .if ${MK_AUTOFS} != "no"
@@ -241,7 +221,6 @@ distribution:
 .if ${MK_PKGBOOTSTRAP} != "no"
 	${_+_}cd ${.CURDIR}/pkg; ${MAKE} install
 .endif
-	${_+_}cd ${.CURDIR}/rc.d; ${MAKE} install
 	${_+_}cd ${SRCTOP}/share/termcap; ${MAKE} etc-termcap
 	${_+_}cd ${.CURDIR}/syslog.d; ${MAKE} install
 	${_+_}cd ${SRCTOP}/usr.sbin/rmt; ${MAKE} etc-rmt
@@ -277,7 +256,7 @@ distribution:
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
 		dot.profile ${DESTDIR}/root/.profile; \
 	    rm -f ${DESTDIR}/.profile; \
-	    ln ${DESTDIR}/root/.profile ${DESTDIR}/.profile
+	    ${INSTALL_LINK} ${DESTDIR}/root/.profile ${DESTDIR}/.profile
 .if ${MK_TCSH} != "no"
 	cd ${.CURDIR}/root; \
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
@@ -285,18 +264,16 @@ distribution:
 	    ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
 		dot.login ${DESTDIR}/root/.login; \
 	    rm -f ${DESTDIR}/.cshrc; \
-	    ln ${DESTDIR}/root/.cshrc ${DESTDIR}/.cshrc
+	    ${INSTALL_LINK} ${DESTDIR}/root/.cshrc ${DESTDIR}/.cshrc
 .endif
 .if ${MK_MAIL} != "no"
 	cd ${.CURDIR}/mail; ${INSTALL} -o ${BINOWN} -g ${BINGRP} -m 644 \
 	    ${ETCMAIL} ${DESTDIR}/etc/mail
 	if [ -d ${DESTDIR}/etc/mail -a -f ${DESTDIR}/etc/mail/aliases -a \
 	      ! -f ${DESTDIR}/etc/aliases ]; then \
-		ln -s mail/aliases ${DESTDIR}/etc/aliases; \
+		${INSTALL_SYMLINK} mail/aliases ${DESTDIR}/etc/aliases; \
 	fi
 .endif
-	${INSTALL} -o ${BINOWN} -g operator -m 664 /dev/null \
-	    ${DESTDIR}/etc/dumpdates
 .if ${MK_LOCATE} != "no"
 	${INSTALL} -o nobody -g ${BINGRP} -m 644 /dev/null \
 	    ${DESTDIR}/var/db/locate.database
