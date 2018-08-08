@@ -32,7 +32,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * from: FreeBSD: sys/arm/lpc/lpc_machdep.c
+ * from: FreeBSD 11: sys/arm/lpc/lpc_machdep.c
  */
 
 #include "opt_ddb.h"
