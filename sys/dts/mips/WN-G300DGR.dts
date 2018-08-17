@@ -57,22 +57,17 @@
 
 		led1 {
 			label = "led1";
-			gpios = <&gpio0 5 1>;
+			gpios = <&gpio0 13 1>;
 		};
 
 		led2 {
 			label = "led2";
-			gpios = <&gpio0 6 1>;
+			gpios = <&gpio0 8 1>;
 		};
 
 		led3 {
 			label = "led3";
-			gpios = <&gpio0 8 1>;
-		};
-
-		led4 {
-			label = "led4";
-			gpios = <&gpio0 18 1>;
+			gpios = <&gpio0 11 1>;
 		};
 
 	};
@@ -90,6 +85,7 @@
 		};
 
 	};
+
         gpioiic {
                 compatible = "gpioiic";
                 gpios = <&gpio0 2 0
