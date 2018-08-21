@@ -130,6 +130,8 @@ mtkswitch_reset(struct mtkswitch_softc *sc)
 	phandle_t node;
 	int val;
 
+	node = ofw_bus_get_node(sc->sc_dev);
+
 	if (OF_getencprop(node, "ralink,noreset", &val,
 	    sizeof(val)) >= 0) {
 		if(val == 1)
