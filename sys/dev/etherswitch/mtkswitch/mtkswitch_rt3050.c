@@ -171,6 +171,10 @@ mtkswitch_hw_setup(struct mtkswitch_softc *sc)
 	val = val & ~(POC0_DIS_PORT_MSK | POC0_DIS_GPORT1_MSK |
 	    POC0_DIS_GPORT2_MSK);
 	MTKSWITCH_WRITE(sc, MTKSWITCH_POC0, val);
+	MTKSWITCH_WRITE(sc, MTKSWITCH_SOCPC, (SOCPC_CRC_PADDING | 
+	    SOCPC_DISBC2C(MTKSWITCH_CPU_PORT) |
+	    SOCPC_DISMC2C(MTKSWITCH_CPU_PORT) |
+	    SOCPC_DISUN2C(MTKSWITCH_CPU_PORT)));
 
 	/* Called early and hence unlocked */
 	/* Set ports 0-4 to auto negotiation */

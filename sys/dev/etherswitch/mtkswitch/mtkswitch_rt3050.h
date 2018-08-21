@@ -57,6 +57,12 @@
 #define	MTKSWITCH_FPA		0x0084
 #define		FPA_ALL_AUTO	0x00000000
 
+#define	MTKSWITCH_SOCPC		0x008c
+#define		SOCPC_DISUN2C(x)	(1 << (x))
+#define		SOCPC_DISMC2C(x)	((1 << (x)) << 8)
+#define		SOCPC_DISBC2C(x)	((1 << (x)) << 16)
+#define		SOCPC_CRC_PADDING	0x02000000
+
 #define	MTKSWITCH_POC0		0x0090
 #define		POC0_DIS_PORT_MSK	0x0f800000
 #define		POC0_DIS_GPORT1_MSK	0x10000000
