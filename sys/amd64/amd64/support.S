@@ -330,7 +330,7 @@ copyout_fault:
 	movq	$EFAULT,%rax
 	POP_FRAME_POINTER
 	ret
-END(copyout)
+END(copyout_smap)
 
 /*
  * copyin(from_user, to_kernel, len)
@@ -573,7 +573,7 @@ ENTRY(fueword_nosmap)
 	movq	%r11,(%rsi)
 	POP_FRAME_POINTER
 	ret
-END(fueword64_nosmap)
+END(fueword_nosmap)
 
 ENTRY(fueword_smap)
 	PUSH_FRAME_POINTER
@@ -592,7 +592,7 @@ ENTRY(fueword_smap)
 	movq	%r11,(%rsi)
 	POP_FRAME_POINTER
 	ret
-END(fueword64_smap)
+END(fueword_smap)
 
 ENTRY(fueword32_nosmap)
 	PUSH_FRAME_POINTER
@@ -922,7 +922,7 @@ ENTRY(copyinstr_smap)
 
 2:
 	decq	%rdx
-	jz	copyinstr_succ
+	jz	copyinstr_toolong
 
 	stac
 	lodsb
@@ -1225,3 +1225,36 @@ ENTRY(handle_ibrs_exit_rs)
 END(handle_ibrs_exit_rs)
 
 	.noaltmacro
+
+/*
+ * Flush L1D cache.  Load enough of the data from the kernel text
+ * to flush existing L1D content.
+ *
+ * N.B. The function does not follow ABI calling conventions, it corrupts %rbx.
+ * The vmm.ko caller expects that only %rax, %rdx, %rbx, %rcx, %r9, and %rflags
+ * registers are clobbered.  The NMI handler caller only needs %r13 preserved.
+ */
+ENTRY(flush_l1d_sw)
+#define	L1D_FLUSH_SIZE	(64 * 1024)
+	movq	$KERNBASE, %r9
+	movq	$-L1D_FLUSH_SIZE, %rcx
+	/*
+	 * pass 1: Preload TLB.
+	 * Kernel text is mapped using superpages.  TLB preload is
+	 * done for the benefit of older CPUs which split 2M page
+	 * into 4k TLB entries.
+	 */
+1:	movb	L1D_FLUSH_SIZE(%r9, %rcx), %al
+	addq	$PAGE_SIZE, %rcx
+	jne	1b
+	xorl	%eax, %eax
+	cpuid
+	movq	$-L1D_FLUSH_SIZE, %rcx
+	/* pass 2: Read each cache line. */
+2:	movb	L1D_FLUSH_SIZE(%r9, %rcx), %al
+	addq	$64, %rcx
+	jne	2b
+	lfence
+	ret
+#undef	L1D_FLUSH_SIZE
+END(flush_l1d_sw)
