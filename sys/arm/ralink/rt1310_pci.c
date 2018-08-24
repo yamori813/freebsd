@@ -257,10 +257,6 @@ rt1310_pci_attach(device_t dev)
 	/* Enable PCI bridge. */
 	uint32_t val;
 	val = rt1310_pci_read_config(dev, 0, 0, 0, PCIR_COMMAND, 2);
-/*
-	val |= PCIM_CMD_SERRESPEN | PCIM_CMD_BUSMASTEREN |
-	    PCIM_CMD_MEMEN | PCIM_CMD_PORTEN;
-*/
 	val |= (PCIM_CMD_MEMEN | PCIM_CMD_PORTEN);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_COMMAND, val, 2);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_INTLINE, 0, 1);
@@ -464,6 +460,20 @@ rt1310_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	uint32_t shift, mask;
 	uint32_t addr;
 
+	if (slot == 0) {
+		switch (bytes) {
+			case 4: 
+				return (0xffffffff);
+				break;
+			case 2:
+				return (0xffff);
+				break;
+			case 1:
+				return (0xff);
+				break;
+		}
+	}
+
 	addr = (bus << 16) | (slot << 11) | (func << 8) | (reg & ~3);
 
 	/* register access is 32-bit aligned */
@@ -559,6 +569,5 @@ static driver_t rt1310_pci_driver = {
 
 static devclass_t rt1310_pci_devclass;
 
-//DRIVER_MODULE(rt1310_pci, simplebus, rt1310_pci_driver, rt1310_pci_devclass, 0, 0);
 EARLY_DRIVER_MODULE(rt1310_pci, simplebus, rt1310_pci_driver,
-rt1310_pci_devclass, 0, 0, BUS_PASS_BUS);
+    rt1310_pci_devclass, 0, 0, BUS_PASS_BUS);
