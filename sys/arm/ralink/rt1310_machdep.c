@@ -104,7 +104,7 @@ platform_late_init(void)
 int
 platform_devmap_init(void)
 {
-	devmap_add_entry(0x19C00000, 0x4b00000);
+	devmap_add_entry(0x19C00000, 0xE0000);
 	devmap_add_entry(0x1e800000, 0x800000);
 	devmap_add_entry(0x1f000000, 0x400000);
 	return (0);
@@ -122,23 +122,6 @@ bus_dma_get_range_nb(void)
 {
 
 	return (0);
-}
-
-int get_cpuid(void);
-int
-get_cpuid(void)
-{
-	bus_space_tag_t bst;
-	bus_space_handle_t bsh;
-	int res;
-
-	bst = fdtbus_bs_tag;
-
-	bus_space_map(bst, 0x1e8e0000, 0x20000, 0, &bsh);
-	res = bus_space_read_4(bst, bsh, 0x14);
-	bus_space_unmap(bst, bsh, 0x20000);
-
-	return res;
 }
 
 void
