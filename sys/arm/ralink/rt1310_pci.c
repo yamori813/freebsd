@@ -147,18 +147,14 @@ struct rt1310_pci_softc {
 
 	struct mtx		mtx;
 	struct ofw_bus_iinfo	pci_iinfo;
+
+	int			prepare;
 };
 
 static struct resource_spec rt1310_pci_mem_spec[] = {
 	{ SYS_RES_MEMORY, 0, RF_ACTIVE },
 	{ SYS_RES_MEMORY, 1, RF_ACTIVE },
 	{ SYS_RES_MEMORY, 2, RF_ACTIVE },
-/*
-	{ SYS_RES_IRQ, 0, RF_ACTIVE},
-	{ SYS_RES_IRQ, 1, RF_ACTIVE},
-	{ SYS_RES_IRQ, 2, RF_ACTIVE},
-	{ SYS_RES_IRQ, 3, RF_ACTIVE},
-*/
 	{ -1, 0, 0 }
 };
 
@@ -248,6 +244,8 @@ rt1310_pci_attach(device_t dev)
 	DELAY(1000*100);
 	mtx_unlock_spin(&sc->mtx);
 
+	sc->prepare = 1;
+
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_BAR(0), 0x40000000, 4);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_BAR(1), 0x0, 4);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_BAR(2), 0x0, 4);
@@ -260,6 +258,8 @@ rt1310_pci_attach(device_t dev)
 	val |= (PCIM_CMD_MEMEN | PCIM_CMD_PORTEN);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_COMMAND, val, 2);
 	rt1310_pci_write_config(dev, 0, 0, 0, PCIR_INTLINE, 0, 1);
+
+	sc->prepare = 0;
 
 	ofw_bus_setup_iinfo(node, &sc->pci_iinfo, sizeof(cell_t));
 
@@ -460,7 +460,7 @@ rt1310_pci_read_config(device_t dev, u_int bus, u_int slot, u_int func,
 	uint32_t shift, mask;
 	uint32_t addr;
 
-	if (slot == 0) {
+	if (sc->prepare == 0 && slot == 0) {
 		switch (bytes) {
 			case 4: 
 				return (0xffffffff);
