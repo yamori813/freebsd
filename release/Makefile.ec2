@@ -17,11 +17,11 @@ SVN_CMD=   ${_P}/${_S}
 .endif
 .if exists(${SRCTOP}/.svn)
 .  if empty(EC2_SVNBRANCH)
-   EC2_SVNBRANCH!=	${SVN_CMD} info --show-item relative-url ${WORLDDIR} | sed -e 's/\^\///'
+   EC2_SVNBRANCH!=	${SVN_CMD} info --show-item relative-url ${WORLDDIR} 2>/dev/null | sed -e 's/\^\///'
 .  export EC2_SVNBRANCH
 .  endif
 .  if empty(EC2_SVNREV)
-   EC2_SVNREV!=	${SVN_CMD} info --show-item last-changed-revision ${WORLDDIR}
+   EC2_SVNREV!=	${SVN_CMD} info --show-item last-changed-revision ${WORLDDIR} 2>/dev/null || true
 .  export EC2_SVNREV
 .  endif
 .else
@@ -34,6 +34,9 @@ AMINAMESUFFIX!=	date +-%Y-%m-%d
 .endif
 .if defined(EC2PUBLIC) && !empty(EC2PUBLIC)
 PUBLISH=	--public
+.endif
+.if defined(EC2PUBLICSNAP) && !empty(EC2PUBLICSNAP)
+PUBLICSNAP=	--publicsnap
 .endif
 .if defined(EC2SNSTOPIC) && !empty(EC2SNSTOPIC)
 EC2SNSREL=	${REVISION}-${BRANCH}
@@ -79,7 +82,7 @@ ec2ami: cw-ec2 ${CW_EC2_PORTINSTALL}
 	@echo "--------------------------------------------------------------"
 	@false
 .endif
-	/usr/local/bin/bsdec2-image-upload ${PUBLISH} --sriov --ena \
+	/usr/local/bin/bsdec2-image-upload ${PUBLISH} ${PUBLICSNAP} --sriov --ena \
 	    ${.OBJDIR}/ec2.raw \
 	    "${TYPE} ${REVISION}-${BRANCH}-${TARGET}${AMINAMESUFFIX}" \
 	    "${TYPE}/${TARGET} ${EC2_SVNBRANCH}@${EC2_SVNREV}" \
