@@ -15,8 +15,18 @@
 		#size-cells = <1>;
 
 		partition@0 {
-			label = "uBoot";
-			reg = <0x0 0x50000>;
+			label = "Bootloader";
+			reg = <0x0 0x30000>;
+			read-only;
+		};
+		devdata: partition@30000 {
+			label = "Config";
+			reg = <0x00030000 0x00010000>;
+			read-only;
+		};
+		factory: partition@40000 {
+			label = "Factory";
+			reg = <0x00040000 0x00010000>;
 			read-only;
 		};
 
@@ -29,11 +39,10 @@
 			reg = <0x00050000 0x00790000>;
 		};
 
-		factory: partition@7e0000 {
+		partition@7e0000 {
 			label = "NVRAM";
 			reg = <0x007e0000 0x00010000>;
 		};
-
 		partition@7f0000 {
 			label = "NVRAM_FACTORY";
 			reg = <0x007f0000 0x00010000>;
