@@ -1527,8 +1527,9 @@ static void rt2860_init_locked(void *priv)
 	if ((sc->mac_rev & 0xffff0000) >= 0x30710000)
 		rt3090_rf_setup(sc);
 
-//	if (sc->rf_rev == RT2860_EEPROM_RF_3022 ||
-	if (sc->rf_rev == RT2860_EEPROM_RF_3020)
+	/* RT3050 and RT3052 */
+	if (sc->rf_rev == RT2860_EEPROM_RF_3020 ||
+	    sc->rf_rev == RT2860_EEPROM_RF_3022)
 	{
 		/* calibrate RF */
                 tmp = rt2860_io_rf_read(sc, 30);

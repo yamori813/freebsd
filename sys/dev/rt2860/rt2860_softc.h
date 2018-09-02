@@ -54,7 +54,7 @@
 
 //#include "opt_rt2860.h"
 #define RT2860_DEBUG
-//#define RT2860_HW_CRYPTO
+#define RT2860_HW_CRYPTO
 
 #include <dev/rt2860/rt2860_rxdesc.h>
 #include <dev/rt2860/rt2860_txdesc.h>
