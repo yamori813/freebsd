@@ -636,8 +636,7 @@ int rt2860_attach(device_t dev, int id)
 
 	/* delayed BA */
 
-//	if (sc->mac_rev != 0x28600100)
-	if (sc->mac_rev != 0x28600102)
+	if (sc->mac_rev != 0x28600100)
 		ic->ic_htcaps |= IEEE80211_HTCAP_DELBA;
 
 	/* init channels */
@@ -1178,7 +1177,7 @@ static void rt2860_init_locked(void *priv)
 
 	RT2860_SOFTC_ASSERT_LOCKED(sc);
 
-	if (sc->mac_rev != 0x28720200)
+	if (sc->mac_rev != 0x28720200 && sc->mac_rev != 0x28600101)
 	{
 	    if (!(sc->flags & RT2860_SOFTC_FLAGS_UCODE_LOADED))
 	    {
@@ -1645,8 +1644,7 @@ static int rt2860_init_bbp(struct rt2860_softc *sc)
 	if ((sc->mac_rev & 0xffff) != 0x0101)
 		rt2860_io_bbp_write(sc, 84, 0x19);
 
-//	if (sc->mac_rev == 0x28600100)
-	if (sc->mac_rev == 0x28600102)
+	if (sc->mac_rev == 0x28600100)
 	{
 		rt2860_io_bbp_write(sc, 69, 0x16);
 		rt2860_io_bbp_write(sc, 73, 0x12);
@@ -6039,8 +6037,7 @@ static void rt2860_bbp_tuning(struct rt2860_softc *sc)
 
 	/* RT2860C does not support BBP tuning */
 
-//	if (sc->mac_rev == 0x28600100)
-	if (sc->mac_rev == 0x28600102)
+	if (sc->mac_rev == 0x28600100)
 		return;
 
 	ic = &sc->sc_ic;

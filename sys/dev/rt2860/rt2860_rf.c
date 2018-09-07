@@ -538,8 +538,7 @@ void rt2860_rf_select_chan_group(struct rt2860_softc *sc,
 
 	rt2860_io_bbp_write(sc, 3, tmp);
 
-//	if (sc->mac_rev == 0x28600100)
-	if (sc->mac_rev == 0x28600102)
+	if (sc->mac_rev == 0x28600100)
 	{
 		if (!IEEE80211_IS_CHAN_HT40(c))
 		{
