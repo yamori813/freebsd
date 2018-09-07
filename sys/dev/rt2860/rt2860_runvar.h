@@ -157,11 +157,11 @@ struct rt2860_usb_endpoint_queue {
 };
 
 struct rt2860_usb_softc {
-	struct mtx			sc_mtx;
+	struct mtx			lock;
 	struct ieee80211com		sc_ic;
 	struct ieee80211_ratectl_tx_stats sc_txs;
 	struct mbufq			sc_snd;
-	device_t			sc_dev;
+	device_t			dev;
 	struct usb_device		*sc_udev;
 	int				sc_need_fwload;
 
@@ -227,7 +227,7 @@ struct rt2860_usb_softc {
 	struct task			cmdq_task;
 	uint32_t			cmdq_store;
 	uint8_t				cmdq_exec;
-	uint8_t				cmdq_rt2860;
+	uint8_t				cmdq_run;
 	uint8_t				cmdq_key_set;
 #define	RUN_CMDQ_ABORT	0
 #define	RUN_CMDQ_GO	1
@@ -238,11 +238,11 @@ struct rt2860_usb_softc {
 
 	uint8_t				fifo_cnt;
 
-	uint8_t				rt2860ning;
-	uint8_t				rt2860bmap;
-	uint8_t				ap_rt2860ning;
-	uint8_t				adhoc_rt2860ning;
-	uint8_t				sta_rt2860ning;
+	uint8_t				running;
+	uint8_t				runbmap;
+	uint8_t				ap_running;
+	uint8_t				adhoc_running;
+	uint8_t				sta_running;
 	uint8_t				rvp_cnt;
 	uint8_t				rvp_bmap;
 	uint8_t				sc_detached;
@@ -262,8 +262,8 @@ struct rt2860_usb_softc {
 #define sc_txtap	sc_txtapu.th
 };
 
-#define	RUN_LOCK(sc)		mtx_lock(&(sc)->sc_mtx)
-#define	RUN_UNLOCK(sc)		mtx_unlock(&(sc)->sc_mtx)
-#define	RUN_LOCK_ASSERT(sc, t)	mtx_assert(&(sc)->sc_mtx, t)
+#define	RUN_LOCK(sc)		mtx_lock(&(sc)->lock)
+#define	RUN_UNLOCK(sc)		mtx_unlock(&(sc)->lock)
+#define	RUN_LOCK_ASSERT(sc, t)	mtx_assert(&(sc)->lock, t)
 
 #endif	/* _IF_RUNVAR_H_ */

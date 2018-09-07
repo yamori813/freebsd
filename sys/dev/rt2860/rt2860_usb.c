@@ -76,7 +76,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb/usb_debug.h>
 #include <dev/usb/usb_msctest.h>
 
-#include <dev/usb/wlan/if_runreg.h>
+#include "rt2860_runreg.h"
 #include "rt2860_runvar.h"
 
 #ifdef	USB_DEBUG
@@ -113,7 +113,7 @@ enum {
 
 #define RUN_DPRINTF(_sc, _m, ...) do {			\
 	if (rt2860_usb_debug & (_m))				\
-		device_printf((_sc)->sc_dev, __VA_ARGS__);	\
+		device_printf((_sc)->dev, __VA_ARGS__);	\
 } while(0)
 #else
 #define RUN_DPRINTF(_sc, _m, ...)	do { (void) _sc; } while (0)
@@ -744,18 +744,18 @@ rt2860_usb_attach(device_t self)
 
 	device_set_usb_desc(self);
 	sc->sc_udev = uaa->device;
-	sc->sc_dev = self;
+	sc->dev = self;
 	if (USB_GET_DRIVER_INFO(uaa) != RUN_EJECT)
 		sc->sc_flags |= RUN_FLAG_FWLOAD_NEEDED;
 
-	mtx_init(&sc->sc_mtx, device_get_nameunit(sc->sc_dev),
+	mtx_init(&sc->lock, device_get_nameunit(sc->dev),
 	    MTX_NETWORK_LOCK, MTX_DEF);
 	mbufq_init(&sc->sc_snd, ifqmaxlen);
 
 	iface_index = RT2860_IFACE_INDEX;
 
 	error = usbd_transfer_setup(uaa->device, &iface_index,
-	    sc->sc_xfer, rt2860_usb_config, RUN_N_XFER, sc, &sc->sc_mtx);
+	    sc->sc_xfer, rt2860_usb_config, RUN_N_XFER, sc, &sc->lock);
 	if (error) {
 		device_printf(self, "could not allocate USB transfers, "
 		    "err=%s\n", usbd_errstr(error));
@@ -775,7 +775,7 @@ rt2860_usb_attach(device_t self)
 		rt2860_usb_delay(sc, 10);
 	}
 	if (ntries == 100) {
-		device_printf(sc->sc_dev,
+		device_printf(sc->dev,
 		    "timeout waiting for NIC to initialize\n");
 		RUN_UNLOCK(sc);
 		goto detach;
@@ -786,7 +786,7 @@ rt2860_usb_attach(device_t self)
 	/* retrieve RF rev. no and various other things from EEPROM */
 	rt2860_usb_read_eeprom(sc);
 
-	device_printf(sc->sc_dev,
+	device_printf(sc->dev,
 	    "MAC/BBP RT%04X (rev 0x%04X), RF %s (MIMO %dT%dR), address %s\n",
 	    sc->mac_ver, sc->mac_rev, rt2860_usb_get_rf(sc->rf_rev),
 	    sc->ntxchains, sc->nrxchains, ether_sprintf(ic->ic_macaddr));
@@ -849,7 +849,7 @@ rt2860_usb_attach(device_t self)
 
 	TASK_INIT(&sc->cmdq_task, 0, rt2860_usb_cmdq_cb, sc);
 	TASK_INIT(&sc->ratectl_task, 0, rt2860_usb_ratectl_cb, sc);
-	usb_callout_init_mtx(&sc->ratectl_ch, &sc->sc_mtx, 0);
+	usb_callout_init_mtx(&sc->ratectl_ch, &sc->lock, 0);
 
 	if (bootverbose)
 		ieee80211_announce(ic);
@@ -892,7 +892,7 @@ rt2860_usb_detach(device_t self)
 
 	RUN_LOCK(sc);
 	sc->ratectl_rt2860 = RUN_RATECTL_OFF;
-	sc->cmdq_rt2860 = sc->cmdq_key_set = RUN_CMDQ_ABORT;
+	sc->cmdq_run = sc->cmdq_key_set = RUN_CMDQ_ABORT;
 
 	/* free TX list, if any */
 	for (i = 0; i != RUN_EP_QUEUES; i++)
@@ -910,7 +910,7 @@ rt2860_usb_detach(device_t self)
 		ieee80211_ifdetach(ic);
 	}
 
-	mtx_destroy(&sc->sc_mtx);
+	mtx_destroy(&sc->lock);
 
 	return (0);
 }
@@ -927,7 +927,7 @@ rt2860_usb_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int un
 	int i;
 
 	if (sc->rvp_cnt >= RUN_VAP_MAX) {
-		device_printf(sc->sc_dev, "number of VAPs maxed out\n");
+		device_printf(sc->dev, "number of VAPs maxed out\n");
 		return (NULL);
 	}
 
@@ -953,13 +953,13 @@ rt2860_usb_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int un
 			break;
 		}
 		if (vap == NULL) {
-			device_printf(sc->sc_dev,
+			device_printf(sc->dev,
 			    "wds only supported in ap mode\n");
 			return (NULL);
 		}
 		break;
 	default:
-		device_printf(sc->sc_dev, "unknown opmode %d\n", opmode);
+		device_printf(sc->dev, "unknown opmode %d\n", opmode);
 		return (NULL);
 	}
 
@@ -1011,7 +1011,7 @@ rt2860_usb_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int un
 		ic->ic_opmode = opmode;
 
 	if (opmode == IEEE80211_M_HOSTAP)
-		sc->cmdq_rt2860 = RUN_CMDQ_GO;
+		sc->cmdq_run = RUN_CMDQ_GO;
 
 	RUN_DPRINTF(sc, RUN_DEBUG_STATE, "rvp_id=%d bmap=%x rvp_cnt=%d\n",
 	    rvp->rvp_id, sc->rvp_bmap, sc->rvp_cnt);
@@ -1076,7 +1076,7 @@ rt2860_usb_cmdq_cb(void *arg, int pending)
 	    i = sc->cmdq_exec, pending--) {
 		RUN_DPRINTF(sc, RUN_DEBUG_CMD, "cmdq_exec=%d pending=%d\n",
 		    i, pending);
-		if (sc->cmdq_rt2860 == RUN_CMDQ_GO) {
+		if (sc->cmdq_run == RUN_CMDQ_GO) {
 			/*
 			 * If arg0 is NULL, callback func needs more
 			 * than one arg. So, pass ptr to cmdq struct.
@@ -1151,13 +1151,13 @@ rt2860_usb_load_microcode(struct rt2860_usb_softc *sc)
 	fw = firmware_get("runfw");
 	RUN_LOCK(sc);
 	if (fw == NULL) {
-		device_printf(sc->sc_dev,
+		device_printf(sc->dev,
 		    "failed loadfirmware of file %s\n", "runfw");
 		return ENOENT;
 	}
 
 	if (fw->datasize != 8192) {
-		device_printf(sc->sc_dev,
+		device_printf(sc->dev,
 		    "invalid firmware size (should be 8KB)\n");
 		error = EINVAL;
 		goto fail;
@@ -1180,7 +1180,7 @@ rt2860_usb_load_microcode(struct rt2860_usb_softc *sc)
 	temp = fw->data;
 	bytes = *temp;
 	if (bytes != be64toh(0xffffff0210280210ULL)) {
-		device_printf(sc->sc_dev, "firmware checksum failed\n");
+		device_printf(sc->dev, "firmware checksum failed\n");
 		error = EINVAL;
 		goto fail;
 	}
@@ -1197,9 +1197,9 @@ rt2860_usb_load_microcode(struct rt2860_usb_softc *sc)
 	USETW(req.wValue, 8);
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	if ((error = usbd_do_request(sc->sc_udev, &sc->sc_mtx, &req, NULL))
+	if ((error = usbd_do_request(sc->sc_udev, &sc->lock, &req, NULL))
 	    != 0) {
-		device_printf(sc->sc_dev, "firmware reset failed\n");
+		device_printf(sc->dev, "firmware reset failed\n");
 		goto fail;
 	}
 
@@ -1220,12 +1220,12 @@ rt2860_usb_load_microcode(struct rt2860_usb_softc *sc)
 		rt2860_usb_delay(sc, 10);
 	}
 	if (ntries == 1000) {
-		device_printf(sc->sc_dev,
+		device_printf(sc->dev,
 		    "timeout waiting for MCU to initialize\n");
 		error = ETIMEDOUT;
 		goto fail;
 	}
-	device_printf(sc->sc_dev, "firmware %s ver. %u.%u loaded\n",
+	device_printf(sc->dev, "firmware %s ver. %u.%u loaded\n",
 	    (base == fw->data) ? "RT2870" : "RT3071",
 	    *(base + 4092), *(base + 4093));
 
@@ -1244,7 +1244,7 @@ rt2860_usb_reset(struct rt2860_usb_softc *sc)
 	USETW(req.wValue, 1);
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	return (usbd_do_request(sc->sc_udev, &sc->sc_mtx, &req, NULL));
+	return (usbd_do_request(sc->sc_udev, &sc->lock, &req, NULL));
 }
 
 static usb_error_t
@@ -1257,7 +1257,7 @@ rt2860_usb_do_request(struct rt2860_usb_softc *sc,
 	RUN_LOCK_ASSERT(sc, MA_OWNED);
 
 	while (ntries--) {
-		err = usbd_do_request_flags(sc->sc_udev, &sc->sc_mtx,
+		err = usbd_do_request_flags(sc->sc_udev, &sc->lock,
 		    req, data, 0, NULL, 250 /* ms */);
 		if (err == 0)
 			break;
@@ -1445,7 +1445,7 @@ rt2860_usb_eeprom_read_2(struct rt2860_usb_softc *sc, uint16_t addr, uint16_t *v
 	USETW(req.wIndex, addr);
 	USETW(req.wLength, sizeof(tmp));
 
-	error = usbd_do_request(sc->sc_udev, &sc->sc_mtx, &req, &tmp);
+	error = usbd_do_request(sc->sc_udev, &sc->lock, &req, &tmp);
 	if (error == 0)
 		*val = le16toh(tmp);
 	else
@@ -1859,7 +1859,7 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 		rt2860_usb_srom_read(sc, RT2860_EEPROM_ANTENNA, &val);
 
 	if (val == 0xffff) {
-		device_printf(sc->sc_dev,
+		device_printf(sc->dev,
 		    "invalid EEPROM antenna info, using default\n");
 		if (sc->mac_ver == 0x3572) {
 			/* default to RF3052 2T2R */
@@ -2123,10 +2123,10 @@ rt2860_usb_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int a
 			break;
 
 		ratectl &= ~bid;
-		sc->rt2860bmap &= ~bid;
+		sc->runbmap &= ~bid;
 
-		/* abort TSF synchronization if there is no vap rt2860ning */
-		if (--sc->rt2860ning == 0) {
+		/* abort TSF synchronization if there is no vap running */
+		if (--sc->running == 0) {
 			rt2860_usb_read(sc, RT2860_BCN_TIME_CFG, &tmp);
 			rt2860_usb_write(sc, RT2860_BCN_TIME_CFG,
 			    tmp & ~(RT2860_BCN_TX_EN | RT2860_TSF_TIMER_EN |
@@ -2135,10 +2135,10 @@ rt2860_usb_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int a
 		break;
 
 	case IEEE80211_S_RUN:
-		if (!(sc->rt2860bmap & bid)) {
-			if(sc->rt2860ning++)
+		if (!(sc->runbmap & bid)) {
+			if(sc->running++)
 				restart_ratectl = 1;
-			sc->rt2860bmap |= bid;
+			sc->runbmap |= bid;
 		}
 
 		m_freem(rvp->beacon_mbuf);
@@ -2147,19 +2147,19 @@ rt2860_usb_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int a
 		switch (vap->iv_opmode) {
 		case IEEE80211_M_HOSTAP:
 		case IEEE80211_M_MBSS:
-			sc->ap_rt2860ning |= bid;
+			sc->ap_running |= bid;
 			ic->ic_opmode = vap->iv_opmode;
 			rt2860_usb_update_beacon_cb(vap);
 			break;
 		case IEEE80211_M_IBSS:
-			sc->adhoc_rt2860ning |= bid;
-			if (!sc->ap_rt2860ning)
+			sc->adhoc_running |= bid;
+			if (!sc->ap_running)
 				ic->ic_opmode = vap->iv_opmode;
 			rt2860_usb_update_beacon_cb(vap);
 			break;
 		case IEEE80211_M_STA:
-			sc->sta_rt2860ning |= bid;
-			if (!sc->ap_rt2860ning && !sc->adhoc_rt2860ning)
+			sc->sta_running |= bid;
+			if (!sc->ap_running && !sc->adhoc_running)
 				ic->ic_opmode = vap->iv_opmode;
 
 			/* read statistic counters (clear on read) */
@@ -2208,7 +2208,7 @@ rt2860_usb_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int a
 		break;
 	}
 
-	/* restart amrr for rt2860ning VAPs */
+	/* restart amrr for running VAPs */
 	if ((sc->ratectl_rt2860 = ratectl) && restart_ratectl)
 		usb_callout_reset(&sc->ratectl_ch, hz, rt2860_usb_ratectl_to, sc);
 
@@ -2702,7 +2702,7 @@ rt2860_usb_newassoc(struct ieee80211_node *ni, int isnew)
 	    1 : RUN_AID2WCID(ni->ni_associd);
 
 	if (wcid > RT2870_WCID_MAX) {
-		device_printf(sc->sc_dev, "wcid=%d out of range\n", wcid);
+		device_printf(sc->dev, "wcid=%d out of range\n", wcid);
 		return;
 	}
 
@@ -3002,7 +3002,7 @@ tr_setup:
 			/* try to clear stall first */
 			usbd_xfer_set_stall(xfer);
 			if (error == USB_ERR_TIMEOUT)
-				device_printf(sc->sc_dev, "device timeout\n");
+				device_printf(sc->dev, "device timeout\n");
 			counter_u64_add(ic->ic_ierrors, 1);
 			goto tr_setup;
 		}
@@ -3190,7 +3190,7 @@ tr_setup:
 
 		if (error != USB_ERR_CANCELLED) {
 			if (error == USB_ERR_TIMEOUT) {
-				device_printf(sc->sc_dev, "device timeout\n");
+				device_printf(sc->dev, "device timeout\n");
 				uint32_t i = RUN_CMDQ_GET(&sc->cmdq_store);
 				RUN_DPRINTF(sc, RUN_DEBUG_XMIT | RUN_DEBUG_USB,
 				    "cmdq_store=%d\n", i);
@@ -5990,7 +5990,7 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 	rt2860_usb_stop(sc);
 
 	if (rt2860_usb_load_microcode(sc) != 0) {
-		device_printf(sc->sc_dev, "could not load 8051 microcode\n");
+		device_printf(sc->dev, "could not load 8051 microcode\n");
 		goto fail;
 	}
 
@@ -6017,7 +6017,7 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 		rt2860_usb_delay(sc, 10);
 	}
 	if (ntries == 100) {
-		device_printf(sc->sc_dev, "timeout waiting for DMA engine\n");
+		device_printf(sc->dev, "timeout waiting for DMA engine\n");
 		goto fail;
 	}
 	tmp &= 0xff0;
@@ -6033,7 +6033,7 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 	rt2860_usb_write(sc, RT2860_USB_DMA_CFG, 0);
 
 	if (rt2860_usb_reset(sc) != 0) {
-		device_printf(sc->sc_dev, "could not reset chipset\n");
+		device_printf(sc->dev, "could not reset chipset\n");
 		goto fail;
 	}
 
@@ -6091,7 +6091,7 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 	rt2860_usb_delay(sc, 10);
 
 	if (rt2860_usb_bbp_init(sc) != 0) {
-		device_printf(sc->sc_dev, "could not initialize BBP\n");
+		device_printf(sc->dev, "could not initialize BBP\n");
 		goto fail;
 	}
 
@@ -6181,7 +6181,7 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 	rt2860_usb_set_leds(sc, RT2860_LED_RADIO);
 
 	sc->sc_flags |= RUN_RUNNING;
-	sc->cmdq_rt2860 = RUN_CMDQ_GO;
+	sc->cmdq_run = RUN_CMDQ_GO;
 
 	for (i = 0; i != RUN_N_XFER; i++)
 		usbd_xfer_set_stall(sc->sc_xfer[i]);
@@ -6213,7 +6213,7 @@ rt2860_usb_stop(void *arg)
 	sc->sc_flags &= ~RUN_RUNNING;
 
 	sc->ratectl_rt2860 = RUN_RATECTL_OFF;
-	sc->cmdq_rt2860 = sc->cmdq_key_set;
+	sc->cmdq_run = sc->cmdq_key_set;
 
 	RUN_UNLOCK(sc);
 
@@ -6243,7 +6243,7 @@ rt2860_usb_stop(void *arg)
 		rt2860_usb_delay(sc, 10);
 	}
 	if (ntries == 100) {
-		device_printf(sc->sc_dev, "timeout waiting for DMA engine\n");
+		device_printf(sc->dev, "timeout waiting for DMA engine\n");
 		return;
 	}
 
@@ -6282,8 +6282,8 @@ rt2860_usb_stop(void *arg)
 static void
 rt2860_usb_delay(struct rt2860_usb_softc *sc, u_int ms)
 {
-	usb_pause_mtx(mtx_owned(&sc->sc_mtx) ? 
-	    &sc->sc_mtx : NULL, USB_MS_TO_TICKS(ms));
+	usb_pause_mtx(mtx_owned(&sc->lock) ? 
+	    &sc->lock : NULL, USB_MS_TO_TICKS(ms));
 }
 
 static device_method_t rt2860_usb_methods[] = {
