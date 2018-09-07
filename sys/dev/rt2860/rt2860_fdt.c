@@ -34,6 +34,7 @@
 
 
 static const struct ofw_compat_data rt_compat_data[] = {
+	{ "ralink,rt2880-wmac",		RT_CHIPID_RT2880 },
 	{ "ralink,rt3050-wmac",		RT_CHIPID_RT3050 },
 	{ "ralink,rt3052-wmac",		RT_CHIPID_RT3052 },
 	{ NULL,				0 }
