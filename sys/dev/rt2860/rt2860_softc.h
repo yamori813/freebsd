@@ -61,6 +61,7 @@
 #include <dev/rt2860/rt2860_txwi.h>
 #include <dev/rt2860/rt2860_amrr.h>
 
+#define	RT_CHIPID_RT2880				0x2880
 #define	RT_CHIPID_RT3050				0x3050
 #define	RT_CHIPID_RT3052				0x3052
 
@@ -107,18 +108,18 @@
 	(RT2860_SOFTC_TX_RING_DATA_COUNT * RT2860_SOFTC_MAX_SCATTER)
 
 #define RT2860_SOFTC_RX_RADIOTAP_PRESENT				\
-	((1 << IEEE80211_RADIOTAP_FLAGS) |				\
+	((1 << IEEE80211_RADIOTAP_TSFT) |				\
+	 (1 << IEEE80211_RADIOTAP_FLAGS) |				\
 	 (1 << IEEE80211_RADIOTAP_RATE) |				\
+	 (1 << IEEE80211_RADIOTAP_CHANNEL) |				\
 	 (1 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |			\
-	 (1 << IEEE80211_RADIOTAP_DBM_ANTNOISE) |			\
 	 (1 << IEEE80211_RADIOTAP_ANTENNA) |				\
-	 (1 << IEEE80211_RADIOTAP_DB_ANTSIGNAL) |			\
-	 (1 << IEEE80211_RADIOTAP_XCHANNEL))
+	 (1 << IEEE80211_RADIOTAP_DB_ANTSIGNAL))
 
 #define RT2860_SOFTC_TX_RADIOTAP_PRESENT				\
 	((1 << IEEE80211_RADIOTAP_FLAGS) |				\
 	 (1 << IEEE80211_RADIOTAP_RATE) |				\
-	 (1 << IEEE80211_RADIOTAP_XCHANNEL))
+	 (1 << IEEE80211_RADIOTAP_CHANNEL))
 
 struct rt2860_softc_rx_data
 {
@@ -193,31 +194,31 @@ struct rt2860_softc_vap
 
 struct rt2860_softc_rx_radiotap_header
 {
-	struct ieee80211_radiotap_header ihdr;
-	uint8_t	flags;
-	uint8_t	rate;
-	int8_t dbm_antsignal;
-	int8_t dbm_antnoise;
-	uint8_t	antenna;
-	uint8_t	antsignal;
-	uint8_t pad[2];
-	uint32_t chan_flags;
-	uint16_t chan_freq;
-	uint8_t chan_ieee;
-	int8_t chan_maxpow;
-} __packed;
+	struct ieee80211_radiotap_header wr_ihdr;
+	uint64_t	wr_tsf;
+	uint8_t		wr_flags;
+	uint8_t		wr_rate;
+	uint16_t	wr_chan_freq;
+	uint16_t	wr_chan_flags;
+	int8_t		wr_dbm_antsignal;
+	uint8_t		wr_antenna;
+	uint8_t		wr_antsignal;
+	int8_t		wr_dbm_antnoise;
+	uint8_t		wr_pad[2];
+	uint8_t		wr_chan_ieee;
+	int8_t		wr_chan_maxpow;
+} __packed __aligned(8);
 
 struct rt2860_softc_tx_radiotap_header
 {
-	struct ieee80211_radiotap_header ihdr;
-	uint8_t flags;
-	uint8_t	rate;
-	uint8_t pad[2];
-	uint32_t chan_flags;
-	uint16_t chan_freq;
-	uint8_t chan_ieee;
-	int8_t chan_maxpow;
-} __packed;
+	struct ieee80211_radiotap_header wt_ihdr;
+	uint8_t		wt_flags;
+	uint8_t		wt_rate;
+	uint16_t	wt_chan_freq;
+	uint16_t	wt_chan_flags;
+	uint8_t		wt_chan_ieee;
+	int8_t		wt_chan_maxpow;
+} __packed __aligned(8);
 
 struct rt2860_softc
 {

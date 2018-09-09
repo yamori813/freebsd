@@ -186,6 +186,10 @@ static void rt2860_asic_enable_tsf_sync(struct rt2860_softc *sc);
 
 static void rt2860_asic_disable_tsf_sync(struct rt2860_softc *sc);
 
+static void rt2860_asic_enable_tsf(struct rt2860_softc *sc);
+
+static void rt2860_get_tsf(struct rt2860_softc *, uint64_t *);
+
 static void rt2860_asic_enable_mrr(struct rt2860_softc *sc);
 
 static void rt2860_asic_set_txpreamble(struct rt2860_softc *sc);
@@ -695,9 +699,9 @@ int rt2860_attach(device_t dev, int id)
 	ic->ic_flags_ext |= IEEE80211_FEXT_SWBMISS;
 
 	ieee80211_radiotap_attach(ic,
-	    &sc->txtap.ihdr, sizeof(sc->txtap),
+	    &sc->txtap.wt_ihdr, sizeof(sc->txtap),
 		RT2860_SOFTC_TX_RADIOTAP_PRESENT,
-	    &sc->rxtap.ihdr, sizeof(sc->rxtap),
+	    &sc->rxtap.wr_ihdr, sizeof(sc->rxtap),
 		RT2860_SOFTC_RX_RADIOTAP_PRESENT);
 
 	/* init task queue */
@@ -2135,6 +2139,8 @@ static int rt2860_vap_newstate(struct ieee80211vap *vap,
 
 			if (vap->iv_opmode != IEEE80211_M_MONITOR)
 				rt2860_asic_enable_tsf_sync(sc);
+			else
+				rt2860_asic_enable_tsf(sc);
 
 			/* turn link LED on */
 
@@ -3379,6 +3385,28 @@ static void rt2860_asic_disable_tsf_sync(struct rt2860_softc *sc)
 	rt2860_io_mac_write(sc, RT2860_REG_BCN_TIME_CFG, tmp);
 }
 
+static void
+rt2860_asic_enable_tsf(struct rt2860_softc *sc)
+{
+	uint32_t tmp;
+
+	tmp = rt2860_io_mac_read(sc, RT2860_REG_BCN_TIME_CFG);
+
+	tmp &= ~(RT2860_REG_BCN_TX_ENABLE | RT2860_REG_TBTT_TIMER_ENABLE);
+	tmp |= RT2860_REG_TSF_TIMER_ENABLE;
+
+	rt2860_io_mac_write(sc, RT2860_REG_BCN_TIME_CFG, tmp);
+}
+
+/*
+ * rt2860_get_tsf
+ */
+static void rt2860_get_tsf(struct rt2860_softc *sc, uint64_t *buf)
+{
+	rt2860_io_mac_read_multi(sc, RT2860_REG_TSF_TIMER_DW0, (uint8_t *)buf,
+            sizeof(*buf));
+}
+
 /*
  * rt2860_asic_enable_mrr
  */
@@ -4352,22 +4380,22 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 	{
 		tap = &sc->txtap;
 
-		tap->flags = IEEE80211_RADIOTAP_F_DATAPAD;
-		tap->chan_flags = htole32(ic->ic_curchan->ic_flags);
-		tap->chan_freq = htole16(ic->ic_curchan->ic_freq);
-		tap->chan_ieee = ic->ic_curchan->ic_ieee;
-		tap->chan_maxpow = 0;
+		tap->wt_flags = IEEE80211_RADIOTAP_F_DATAPAD;
+		tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
+		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
+		tap->wt_chan_ieee = ic->ic_curchan->ic_ieee;
+		tap->wt_chan_maxpow = 0;
 
 		if (ni->ni_flags & IEEE80211_NODE_HT)
-			tap->rate = mcs | IEEE80211_RATE_MCS;
+			tap->wt_rate = mcs | IEEE80211_RATE_MCS;
 		else
-			tap->rate = rate;
+			tap->wt_rate = rate;
 
 		if (mcs & RT2860_TXWI_MCS_SHOTPRE)
-			tap->flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
-			tap->flags |= IEEE80211_RADIOTAP_F_WEP;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_WEP;
 
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 		{
@@ -4755,30 +4783,30 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 	{
 		tap = &sc->txtap;
 
-		tap->flags = IEEE80211_RADIOTAP_F_DATAPAD;
-		tap->chan_flags = htole32(ic->ic_curchan->ic_flags);
-		tap->chan_freq = htole16(ic->ic_curchan->ic_freq);
-		tap->chan_ieee = ic->ic_curchan->ic_ieee;
-		tap->chan_maxpow = 0;
+		tap->wt_flags = IEEE80211_RADIOTAP_F_DATAPAD;
+		tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
+		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
+		tap->wt_chan_ieee = ic->ic_curchan->ic_ieee;
+		tap->wt_chan_maxpow = 0;
 
 		if (ni->ni_flags & IEEE80211_NODE_HT)
-			tap->rate = mcs | IEEE80211_RATE_MCS;
+			tap->wt_rate = mcs | IEEE80211_RATE_MCS;
 		else
-			tap->rate = rate;
+			tap->wt_rate = rate;
 
 		if (mcs & RT2860_TXWI_MCS_SHOTPRE)
-			tap->flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
 		if (shortgi)
-			tap->flags |= IEEE80211_RADIOTAP_F_SHORTGI;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_SHORTGI;
 
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
-			tap->flags |= IEEE80211_RADIOTAP_F_WEP;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_WEP;
 
 		/* XXX use temporarily radiotap CFP flag as A-MPDU flag */
 
 		if (ampdu)
-			tap->flags |= IEEE80211_RADIOTAP_F_CFP;
+			tap->wt_flags |= IEEE80211_RADIOTAP_F_CFP;
 
 		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED)
 		{
@@ -5335,15 +5363,56 @@ static void rt2860_auto_wakeup_intr(struct rt2860_softc *sc)
 }
 
 /*
+ * rt2860_updatestats
+ * copy from dev/ral/rt2860.c
+ */
+static void rt2860_updatestats(struct rt2860_softc *sc)
+{
+	struct ieee80211com *ic = &sc->sc_ic;
+
+	/*
+	 * In IBSS or HostAP modes (when the hardware sends beacons), the
+	 * MAC can run into a livelock and start sending CTS-to-self frames
+	 * like crazy if protection is enabled.  Fortunately, we can detect
+	 * when such a situation occurs and reset the MAC.
+	 */
+	if (ic->ic_curmode != IEEE80211_M_STA) {
+		/* check if we're in a livelock situation.. */
+		uint32_t tmp = rt2860_io_mac_read(sc, 0x10f4);
+		if ((tmp & (1 << 29)) && (tmp & (1 << 7 | 1 << 5))) {
+			/* ..and reset MAC/BBP for a while.. */
+			RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
+			    "%s: CTS-to-self livelock detected\n",
+			    device_get_nameunit(sc->dev));
+			rt2860_io_mac_write(sc, RT2860_REG_SYS_CTRL,
+			    RT2860_REG_MAC_SRST);
+			DELAY(1);
+			rt2860_io_mac_write(sc, RT2860_REG_SYS_CTRL,
+			    RT2860_REG_RX_ENABLE | RT2860_REG_TX_ENABLE);
+		}
+	}
+
+}
+
+/*
  * rt2860_gp_timer_intr
  */
 static void rt2860_gp_timer_intr(struct rt2860_softc *sc)
 {
+	struct ieee80211com *ic;
+	struct ieee80211vap *vap;
+
+	ic = &sc->sc_ic;
+	vap = TAILQ_FIRST(&ic->ic_vaps);
+
 	RT2860_DPRINTF(sc, RT2860_DEBUG_INTR,
 		"%s: GP timer interrupt\n",
 		device_get_nameunit(sc->dev));
 
 	sc->gp_timer_interrupts++;
+
+	if (vap->iv_state == IEEE80211_S_RUN)
+		rt2860_updatestats(sc);
 }
 
 /*
@@ -5789,45 +5858,48 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 		seq = ((rxwi->seq_frag >> RT2860_RXWI_SEQ_SHIFT) & RT2860_RXWI_SEQ_MASK);
 		frag = ((rxwi->seq_frag >> RT2860_RXWI_FRAG_SHIFT) & RT2860_RXWI_FRAG_MASK);
 
-		if (ieee80211_radiotap_active(ic))
+		if (__predict_false(ieee80211_radiotap_active(ic)))
 		{
 			tap = &sc->rxtap;
 
-			tap->flags = (desc_flags & RT2860_RXDESC_FLAGS_L2PAD) ? IEEE80211_RADIOTAP_F_DATAPAD : 0;
-			tap->dbm_antsignal = rssi_dbm;
-			tap->dbm_antnoise = RT2860_NOISE_FLOOR;
-			tap->antenna = ant;
-			tap->antsignal = rssi;
-			tap->chan_flags = htole32(ic->ic_curchan->ic_flags);
-			tap->chan_freq = htole16(ic->ic_curchan->ic_freq);
-			tap->chan_ieee = ic->ic_curchan->ic_ieee;
-			tap->chan_maxpow = 0;
+			tap->wr_flags = (desc_flags & RT2860_RXDESC_FLAGS_L2PAD) ? IEEE80211_RADIOTAP_F_DATAPAD : 0;
+			tap->wr_dbm_antsignal = rssi_dbm;
+			tap->wr_dbm_antnoise = RT2860_NOISE_FLOOR;
+			tap->wr_antenna = ant;
+			tap->wr_antsignal = rssi;
+			tap->wr_chan_flags = htole16(ic->ic_curchan->ic_flags);
+			tap->wr_chan_freq = htole16(ic->ic_curchan->ic_freq);
+			tap->wr_chan_ieee = ic->ic_curchan->ic_ieee;
+			tap->wr_chan_maxpow = 0;
+			RT2860_SOFTC_LOCK(sc);
+			rt2860_get_tsf(sc, &tap->wr_tsf);
+			RT2860_SOFTC_UNLOCK(sc);
 
 			if (phymode == RT2860_TXWI_PHYMODE_HT_MIXED || phymode == RT2860_TXWI_PHYMODE_HT_GF)
-				tap->rate = mcs | IEEE80211_RATE_MCS;
+				tap->wr_rate = mcs | IEEE80211_RATE_MCS;
 			else
-				tap->rate = rt2860_rxrate(rxwi);
+				tap->wr_rate = rt2860_rxrate(rxwi);
 
 			if (desc_flags & RT2860_RXDESC_FLAGS_CRC_ERR)
-				tap->flags |= IEEE80211_RADIOTAP_F_BADFCS;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_BADFCS;
 
 			if (desc_flags & RT2860_RXDESC_FLAGS_FRAG)
-				tap->flags |= IEEE80211_RADIOTAP_F_FRAG;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_FRAG;
 
 			if (rxwi->bw_mcs & RT2860_RXWI_MCS_SHOTPRE)
-				tap->flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_SHORTPRE;
 
 			if ((desc_flags & RT2860_RXDESC_FLAGS_DECRYPTED) ||
 				(wh->i_fc[1] & IEEE80211_FC1_PROTECTED))
-				tap->flags |= IEEE80211_RADIOTAP_F_WEP;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_WEP;
 
 			if (shortgi)
-				tap->flags |= IEEE80211_RADIOTAP_F_SHORTGI;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_SHORTGI;
 
 			/* XXX use temporarily radiotap CFP flag as A-MPDU flag */
 
 			if (ampdu)
-				tap->flags |= IEEE80211_RADIOTAP_F_CFP;
+				tap->wr_flags |= IEEE80211_RADIOTAP_F_CFP;
 		}
 
 		/*
