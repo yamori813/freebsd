@@ -26,6 +26,7 @@
 
 #include <dev/rt2860/rt2860_io.h>
 #include <dev/rt2860/rt2860_reg.h>
+#include <dev/rt2860/rt2860_soc.h>
 
 #include "rt2860_chips.h"
 
@@ -164,7 +165,7 @@ uint16_t rt2860_io_eeprom_read(struct rt2860_softc *sc, uint16_t addr)
 	addr = (addr >> 1);
 
 	/* RT3050 and RT2880 */
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101) {
+	if (IS_SOC(sc)) {
 #if defined(EEPROM_IN_FLASH)
 		/* xxx get from dts value */
 		uint8_t *eeprom = (uint8_t *)MIPS_PHYS_TO_KSEG1(EEPROM_IN_FLASH);
@@ -246,7 +247,7 @@ uint8_t rt2860_io_bbp_read(struct rt2860_softc *sc, uint8_t reg)
 	int ntries;
 	uint32_t tmp;
 
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101)
+	if (IS_SOC(sc))
 	{
 		for (ntries = 0; ntries < 100; ntries ++) {
 			if ( !(rt2860_io_mac_read(sc, RT2860_REG_BBP_CSR_CFG) & 
@@ -335,7 +336,7 @@ void rt2860_io_bbp_write(struct rt2860_softc *sc, uint8_t reg, uint8_t val)
 	int ntries;
 	uint32_t tmp;
 
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101)
+	if (IS_SOC(sc))
 	{
 		for (ntries = 0; ntries < 100; ntries ++) {
 			if ( !(rt2860_io_mac_read(sc, RT2860_REG_BBP_CSR_CFG) & 
@@ -391,7 +392,7 @@ void rt2860_io_bbp_write(struct rt2860_softc *sc, uint8_t reg, uint8_t val)
 void rt2860_io_rf_write(struct rt2860_softc *sc, uint8_t reg, uint32_t val)
 {
 	int ntries;
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101)
+	if (sc->mac_rev == RT305XMAC)
 	{
 		for (ntries = 0; ntries < 100; ntries ++) {
 			if ( !(rt2860_io_mac_read(sc, RT2872_REG_RF_CSR_CFG) & 
@@ -434,7 +435,7 @@ void rt2860_io_rf_write(struct rt2860_softc *sc, uint8_t reg, uint32_t val)
 int32_t rt2860_io_rf_read(struct rt2860_softc *sc, uint8_t reg)
 {
 	int ntries;
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101)
+	if (sc->mac_rev == RT305XMAC)
 	{
 		for (ntries = 0; ntries < 100; ntries ++) {
 			if ( !(rt2860_io_mac_read(sc, RT2872_REG_RF_CSR_CFG) & 
@@ -504,7 +505,7 @@ void rt2860_io_mcu_cmd(struct rt2860_softc *sc, uint8_t cmd,
 	uint32_t tmp;
 	int ntries;
 
-	if (sc->mac_rev == 0x28720200 || sc->mac_rev == 0x28600101)
+	if (IS_SOC(sc))
 		return;
 
 	for (ntries = 0; ntries < 100; ntries++)
@@ -615,13 +616,13 @@ int rt2860_io_mcu_load_ucode(struct rt2860_softc *sc,
 		    (ucode[i+1] << 8) | ucode[i]);
 	}
 
-	if (sc->mac_rev != 0x28720200 && sc->mac_rev != 0x28600101)
+	if (!IS_SOC(sc))
 		rt2860_io_mac_write_multi(sc, RT2860_REG_MCU_UCODE_BASE,
 		    ucode, len);
 
 	rt2860_io_mac_write(sc, RT2860_REG_PBF_SYS_CTRL, 0);
 
-	if (sc->mac_rev != 0x28720200 && sc->mac_rev != 0x28600101)
+	if (!IS_SOC(sc))
 		rt2860_io_mac_write(sc, RT2860_REG_PBF_SYS_CTRL,
 		    RT2860_REG_MCU_RESET);
 
@@ -632,7 +633,7 @@ int rt2860_io_mcu_load_ucode(struct rt2860_softc *sc,
 	rt2860_io_mac_write(sc, RT2860_REG_H2M_MAILBOX_BBP_AGENT, 0);
 	rt2860_io_mac_write(sc, RT2860_REG_H2M_MAILBOX, 0);
 
-	if (sc->mac_rev != 0x28720200 && sc->mac_rev != 0x28600101) {
+	if (!IS_SOC(sc)) {
 
 		for (ntries = 0; ntries < 1000; ntries++)
 		{

@@ -25,6 +25,7 @@
 #include <dev/rt2860/rt2860_read_eeprom.h>
 #include <dev/rt2860/rt2860_led.h>
 #include <dev/rt2860/rt2860_rf.h>
+#include <dev/rt2860/rt2860_soc.h>
 #include <dev/rt2860/rt2860_debug.h>
 
 /*
@@ -1106,7 +1107,7 @@ static void rt2860_init_locked(void *priv)
 
 	RT2860_SOFTC_ASSERT_LOCKED(sc);
 
-	if (sc->mac_rev != 0x28720200 && sc->mac_rev != 0x28600101)
+	if (!IS_SOC(sc))
 	{
 	    if (!(sc->flags & RT2860_SOFTC_FLAGS_UCODE_LOADED))
 	    {
