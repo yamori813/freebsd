@@ -5782,7 +5782,6 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 
 			tap->wr_flags = (desc_flags & RT2860_RXDESC_FLAGS_L2PAD) ? IEEE80211_RADIOTAP_F_DATAPAD : 0;
 			tap->wr_dbm_antsignal = rssi_dbm;
-			tap->wr_dbm_antnoise = RT2860_NOISE_FLOOR;
 			tap->wr_antenna = ant;
 			tap->wr_antsignal = rssi;
 			tap->wr_chan_flags = htole16(ic->ic_curchan->ic_flags);
