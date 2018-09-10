@@ -2062,10 +2062,10 @@ static int rt2860_vap_newstate(struct ieee80211vap *vap,
 				rt2860_asic_update_beacon(sc, vap);
 			}
 
-			if (vap->iv_opmode != IEEE80211_M_MONITOR)
-				rt2860_asic_enable_tsf_sync(sc);
-			else
+			if (vap->iv_opmode == IEEE80211_M_MONITOR)
 				rt2860_asic_enable_tsf(sc);
+			else
+				rt2860_asic_enable_tsf_sync(sc);
 
 			/* turn link LED on */
 
