@@ -181,8 +181,8 @@ struct rt2860_usb_softc {
 	uint16_t			mac_rev;
 	uint16_t			rf_rev;
 	uint8_t				freq;
-	uint8_t				ntxchains;
-	uint8_t				nrxchains;
+	uint8_t				ntxpath;
+	uint8_t				nrxpath;
 
 	uint8_t				bbp25;
 	uint8_t				bbp26;
@@ -199,9 +199,9 @@ struct rt2860_usb_softc {
 	int8_t				txpow1[54];
 	int8_t				txpow2[54];
 	int8_t				txpow3[54];
-	int8_t				rssi_2ghz[3];
-	int8_t				rssi_5ghz[3];
-	uint8_t				lna[4];
+	int8_t				rssi_off_2ghz[3];
+	int8_t				rssi_off_5ghz[3];
+	uint8_t				lna_gain[4];
 
 	struct {
 		uint8_t	reg;

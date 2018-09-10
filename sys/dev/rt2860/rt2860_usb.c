@@ -789,7 +789,7 @@ rt2860_usb_attach(device_t self)
 	device_printf(sc->dev,
 	    "MAC/BBP RT%04X (rev 0x%04X), RF %s (MIMO %dT%dR), address %s\n",
 	    sc->mac_ver, sc->mac_rev, rt2860_usb_get_rf(sc->rf_rev),
-	    sc->ntxchains, sc->nrxchains, ether_sprintf(ic->ic_macaddr));
+	    sc->ntxpath, sc->nrxpath, ether_sprintf(ic->ic_macaddr));
 
 	RUN_UNLOCK(sc);
 
@@ -1654,19 +1654,19 @@ rt2860_usb_rt3593_get_txpower(struct rt2860_usb_softc *sc)
 
 	/* Read power settings for 2GHz channels. */
 	for (i = 0; i < 14; i += 2) {
-		addr = (sc->ntxchains == 3) ? RT3593_EEPROM_PWR2GHZ_BASE1 :
+		addr = (sc->ntxpath == 3) ? RT3593_EEPROM_PWR2GHZ_BASE1 :
 		    RT2860_EEPROM_PWR2GHZ_BASE1;
 		rt2860_usb_srom_read(sc, addr + i / 2, &val);
 		sc->txpow1[i + 0] = (int8_t)(val & 0xff);
 		sc->txpow1[i + 1] = (int8_t)(val >> 8);
 
-		addr = (sc->ntxchains == 3) ? RT3593_EEPROM_PWR2GHZ_BASE2 :
+		addr = (sc->ntxpath == 3) ? RT3593_EEPROM_PWR2GHZ_BASE2 :
 		    RT2860_EEPROM_PWR2GHZ_BASE2;
 		rt2860_usb_srom_read(sc, addr + i / 2, &val);
 		sc->txpow2[i + 0] = (int8_t)(val & 0xff);
 		sc->txpow2[i + 1] = (int8_t)(val >> 8);
 
-		if (sc->ntxchains == 3) {
+		if (sc->ntxpath == 3) {
 			rt2860_usb_srom_read(sc, RT3593_EEPROM_PWR2GHZ_BASE3 + i / 2,
 			    &val);
 			sc->txpow3[i + 0] = (int8_t)(val & 0xff);
@@ -1679,7 +1679,7 @@ rt2860_usb_rt3593_get_txpower(struct rt2860_usb_softc *sc)
 			sc->txpow1[i] = 5;
 		if (sc->txpow2[i] > 31)
 			sc->txpow2[i] = 5;
-		if (sc->ntxchains == 3) {
+		if (sc->ntxpath == 3) {
 			if (sc->txpow3[i] > 31)
 				sc->txpow3[i] = 5;
 		}
@@ -1694,7 +1694,7 @@ rt2860_usb_rt3593_get_txpower(struct rt2860_usb_softc *sc)
 		sc->txpow2[i + 14] = (int8_t)(val & 0xff);
 		sc->txpow2[i + 15] = (int8_t)(val >> 8);
 
-		if (sc->ntxchains == 3) {
+		if (sc->ntxpath == 3) {
 			rt2860_usb_srom_read(sc, RT3593_EEPROM_PWR5GHZ_BASE3 + i / 2,
 			    &val);
 			sc->txpow3[i + 14] = (int8_t)(val & 0xff);
@@ -1864,18 +1864,18 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 		if (sc->mac_ver == 0x3572) {
 			/* default to RF3052 2T2R */
 			sc->rf_rev = RT3070_RF_3052;
-			sc->ntxchains = 2;
-			sc->nrxchains = 2;
+			sc->ntxpath = 2;
+			sc->nrxpath = 2;
 		} else if (sc->mac_ver >= 0x3070) {
 			/* default to RF3020 1T1R */
 			sc->rf_rev = RT3070_RF_3020;
-			sc->ntxchains = 1;
-			sc->nrxchains = 1;
+			sc->ntxpath = 1;
+			sc->nrxpath = 1;
 		} else {
 			/* default to RF2820 1T2R */
 			sc->rf_rev = RT2860_RF_2820;
-			sc->ntxchains = 1;
-			sc->nrxchains = 2;
+			sc->ntxpath = 1;
+			sc->nrxpath = 2;
 		}
 	} else {
 		if (sc->mac_ver == 0x5390 || sc->mac_ver ==0x5392) {
@@ -1883,11 +1883,11 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 			rt2860_usb_srom_read(sc, RT2860_EEPROM_ANTENNA, &val);
 		} else
 			sc->rf_rev = (val >> 8) & 0xf;
-		sc->ntxchains = (val >> 4) & 0xf;
-		sc->nrxchains = val & 0xf;
+		sc->ntxpath = (val >> 4) & 0xf;
+		sc->nrxpath = val & 0xf;
 	}
 	RUN_DPRINTF(sc, RUN_DEBUG_ROM, "EEPROM RF rev=0x%04x chains=%dT%dR\n",
-	    sc->rf_rev, sc->ntxchains, sc->nrxchains);
+	    sc->rf_rev, sc->ntxpath, sc->nrxpath);
 
 	/* check if RF supports automatic Tx access gain control */
 	rt2860_usb_srom_read(sc, RT2860_EEPROM_CONFIG, &val);
@@ -1948,14 +1948,14 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 	/* Read RSSI offsets and LNA gains from EEPROM. */
 	rt2860_usb_srom_read(sc, (sc->mac_ver != 0x3593) ? RT2860_EEPROM_RSSI1_2GHZ :
 	    RT3593_EEPROM_RSSI1_2GHZ, &val);
-	sc->rssi_2ghz[0] = val & 0xff;	/* Ant A */
-	sc->rssi_2ghz[1] = val >> 8;	/* Ant B */
+	sc->rssi_off_2ghz[0] = val & 0xff;	/* Ant A */
+	sc->rssi_off_2ghz[1] = val >> 8;	/* Ant B */
 	rt2860_usb_srom_read(sc, (sc->mac_ver != 0x3593) ? RT2860_EEPROM_RSSI2_2GHZ :
 	    RT3593_EEPROM_RSSI2_2GHZ, &val);
 	if (sc->mac_ver >= 0x3070) {
 		if (sc->mac_ver == 0x3593) {
 			sc->txmixgain_2ghz = 0;
-			sc->rssi_2ghz[2] = val & 0xff;	/* Ant C */
+			sc->rssi_off_2ghz[2] = val & 0xff;	/* Ant C */
 		} else {
 			/*
 			 * On RT3070 chips (limited to 2 Rx chains), this ROM
@@ -1967,15 +1967,15 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 		RUN_DPRINTF(sc, RUN_DEBUG_ROM, "tx mixer gain=%u (2GHz)\n",
 		    sc->txmixgain_2ghz);
 	} else
-		sc->rssi_2ghz[2] = val & 0xff;	/* Ant C */
+		sc->rssi_off_2ghz[2] = val & 0xff;	/* Ant C */
 	if (sc->mac_ver == 0x3593)
 		rt2860_usb_srom_read(sc, RT3593_EEPROM_LNA_5GHZ, &val);
-	sc->lna[2] = val >> 8;		/* channel group 2 */
+	sc->lna_gain[2] = val >> 8;		/* channel group 2 */
 
 	rt2860_usb_srom_read(sc, (sc->mac_ver != 0x3593) ? RT2860_EEPROM_RSSI1_5GHZ :
 	    RT3593_EEPROM_RSSI1_5GHZ, &val);
-	sc->rssi_5ghz[0] = val & 0xff;	/* Ant A */
-	sc->rssi_5ghz[1] = val >> 8;	/* Ant B */
+	sc->rssi_off_5ghz[0] = val & 0xff;	/* Ant A */
+	sc->rssi_off_5ghz[1] = val >> 8;	/* Ant B */
 	rt2860_usb_srom_read(sc, (sc->mac_ver != 0x3593) ? RT2860_EEPROM_RSSI2_5GHZ :
 	    RT3593_EEPROM_RSSI2_5GHZ, &val);
 	if (sc->mac_ver == 0x3572) {
@@ -1988,43 +1988,43 @@ rt2860_usb_read_eeprom(struct rt2860_usb_softc *sc)
 		RUN_DPRINTF(sc, RUN_DEBUG_ROM, "tx mixer gain=%u (5GHz)\n",
 		    sc->txmixgain_5ghz);
 	} else
-		sc->rssi_5ghz[2] = val & 0xff;	/* Ant C */
+		sc->rssi_off_5ghz[2] = val & 0xff;	/* Ant C */
 	if (sc->mac_ver == 0x3593) {
 		sc->txmixgain_5ghz = 0;
 		rt2860_usb_srom_read(sc, RT3593_EEPROM_LNA_5GHZ, &val);
 	}
-	sc->lna[3] = val >> 8;		/* channel group 3 */
+	sc->lna_gain[3] = val >> 8;		/* channel group 3 */
 
 	rt2860_usb_srom_read(sc, (sc->mac_ver != 0x3593) ? RT2860_EEPROM_LNA :
 	    RT3593_EEPROM_LNA, &val);
-	sc->lna[0] = val & 0xff;	/* channel group 0 */
-	sc->lna[1] = val >> 8;		/* channel group 1 */
+	sc->lna_gain[0] = val & 0xff;	/* channel group 0 */
+	sc->lna_gain[1] = val >> 8;		/* channel group 1 */
 
 	/* fix broken 5GHz LNA entries */
-	if (sc->lna[2] == 0 || sc->lna[2] == 0xff) {
+	if (sc->lna_gain[2] == 0 || sc->lna_gain[2] == 0xff) {
 		RUN_DPRINTF(sc, RUN_DEBUG_ROM,
 		    "invalid LNA for channel group %d\n", 2);
-		sc->lna[2] = sc->lna[1];
+		sc->lna_gain[2] = sc->lna_gain[1];
 	}
-	if (sc->lna[3] == 0 || sc->lna[3] == 0xff) {
+	if (sc->lna_gain[3] == 0 || sc->lna_gain[3] == 0xff) {
 		RUN_DPRINTF(sc, RUN_DEBUG_ROM,
 		    "invalid LNA for channel group %d\n", 3);
-		sc->lna[3] = sc->lna[1];
+		sc->lna_gain[3] = sc->lna_gain[1];
 	}
 
 	/* fix broken RSSI offset entries */
 	for (ant = 0; ant < 3; ant++) {
-		if (sc->rssi_2ghz[ant] < -10 || sc->rssi_2ghz[ant] > 10) {
+		if (sc->rssi_off_2ghz[ant] < -10 || sc->rssi_off_2ghz[ant] > 10) {
 			RUN_DPRINTF(sc, RUN_DEBUG_ROM | RUN_DEBUG_RSSI,
 			    "invalid RSSI%d offset: %d (2GHz)\n",
-			    ant + 1, sc->rssi_2ghz[ant]);
-			sc->rssi_2ghz[ant] = 0;
+			    ant + 1, sc->rssi_off_2ghz[ant]);
+			sc->rssi_off_2ghz[ant] = 0;
 		}
-		if (sc->rssi_5ghz[ant] < -10 || sc->rssi_5ghz[ant] > 10) {
+		if (sc->rssi_off_5ghz[ant] < -10 || sc->rssi_off_5ghz[ant] > 10) {
 			RUN_DPRINTF(sc, RUN_DEBUG_ROM | RUN_DEBUG_RSSI,
 			    "invalid RSSI%d offset: %d (5GHz)\n",
-			    ant + 1, sc->rssi_5ghz[ant]);
-			sc->rssi_5ghz[ant] = 0;
+			    ant + 1, sc->rssi_off_5ghz[ant]);
+			sc->rssi_off_5ghz[ant] = 0;
 		}
 	}
 	return (0);
@@ -2772,10 +2772,10 @@ rt2860_usb_maxrssi_chain(struct rt2860_usb_softc *sc, const struct rt2860_rxwi *
 {
 	uint8_t rxchain = 0;
 
-	if (sc->nrxchains > 1) {
+	if (sc->nrxpath > 1) {
 		if (rxwi->rssi[1] > rxwi->rssi[rxchain])
 			rxchain = 1;
-		if (sc->nrxchains > 2)
+		if (sc->nrxpath > 2)
 			if (rxwi->rssi[2] > rxwi->rssi[rxchain])
 				rxchain = 2;
 	}
@@ -3910,9 +3910,9 @@ rt2860_usb_select_chan_group(struct rt2860_usb_softc *sc, int group)
 	uint32_t tmp;
 	uint8_t agc;
 
-	rt2860_usb_bbp_write(sc, 62, 0x37 - sc->lna[group]);
-	rt2860_usb_bbp_write(sc, 63, 0x37 - sc->lna[group]);
-	rt2860_usb_bbp_write(sc, 64, 0x37 - sc->lna[group]);
+	rt2860_usb_bbp_write(sc, 62, 0x37 - sc->lna_gain[group]);
+	rt2860_usb_bbp_write(sc, 63, 0x37 - sc->lna_gain[group]);
+	rt2860_usb_bbp_write(sc, 64, 0x37 - sc->lna_gain[group]);
 	if (sc->mac_ver < 0x3572)
 		rt2860_usb_bbp_write(sc, 86, 0x00);
 
@@ -3995,19 +3995,19 @@ rt2860_usb_select_chan_group(struct rt2860_usb_softc *sc, int group)
 	tmp = RT2860_RFTR_EN | RT2860_TRSW_EN | RT2860_LNA_PE0_EN;
 	if (sc->mac_ver == 0x3593)
 		tmp |= 1 << 29 | 1 << 28;
-	if (sc->nrxchains > 1)
+	if (sc->nrxpath > 1)
 		tmp |= RT2860_LNA_PE1_EN;
 	if (group == 0) {	/* 2GHz */
 		tmp |= RT2860_PA_PE_G0_EN;
-		if (sc->ntxchains > 1)
+		if (sc->ntxpath > 1)
 			tmp |= RT2860_PA_PE_G1_EN;
 		if (sc->mac_ver == 0x3593) {
-			if (sc->ntxchains > 2)
+			if (sc->ntxpath > 2)
 				tmp |= 1 << 25;
 		}
 	} else {		/* 5GHz */
 		tmp |= RT2860_PA_PE_A0_EN;
-		if (sc->ntxchains > 1)
+		if (sc->ntxpath > 1)
 			tmp |= RT2860_PA_PE_A1_EN;
 	}
 	if (sc->mac_ver == 0x3572) {
@@ -4034,16 +4034,16 @@ rt2860_usb_select_chan_group(struct rt2860_usb_softc *sc, int group)
 	/* set initial AGC value */
 	if (group == 0) {	/* 2GHz band */
 		if (sc->mac_ver >= 0x3070)
-			agc = 0x1c + sc->lna[0] * 2;
+			agc = 0x1c + sc->lna_gain[0] * 2;
 		else
-			agc = 0x2e + sc->lna[0];
+			agc = 0x2e + sc->lna_gain[0];
 	} else {		/* 5GHz band */
 		if (sc->mac_ver == 0x5592)
-			agc = 0x24 + sc->lna[group] * 2;
+			agc = 0x24 + sc->lna_gain[group] * 2;
 		else if (sc->mac_ver == 0x3572 || sc->mac_ver == 0x3593)
-			agc = 0x22 + (sc->lna[group] * 5) / 3;
+			agc = 0x22 + (sc->lna_gain[group] * 5) / 3;
 		else
-			agc = 0x32 + (sc->lna[group] * 5) / 3;
+			agc = 0x32 + (sc->lna_gain[group] * 5) / 3;
 	}
 	rt2860_usb_set_agc(sc, agc);
 }
@@ -4060,11 +4060,11 @@ rt2860_usb_rt2870_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 	for (i = 0; rfprog[i].chan != chan; i++);
 
 	r2 = rfprog[i].r2;
-	if (sc->ntxchains == 1)
+	if (sc->ntxpath == 1)
 		r2 |= 1 << 14;		/* 1T: disable Tx chain 2 */
-	if (sc->nrxchains == 1)
+	if (sc->nrxpath == 1)
 		r2 |= 1 << 17 | 1 << 6;	/* 1R: disable Rx chains 2 & 3 */
-	else if (sc->nrxchains == 2)
+	else if (sc->nrxpath == 2)
 		r2 |= 1 << 6;		/* 2R: disable Rx chain 3 */
 
 	/* use Tx power values from EEPROM */
@@ -4156,13 +4156,13 @@ rt2860_usb_rt3070_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 
 	rt2860_usb_rt3070_rf_read(sc, 1, &rf);
 	rf &= ~0xfc;
-	if (sc->ntxchains == 1)
+	if (sc->ntxpath == 1)
 		rf |= 1 << 7 | 1 << 5;	/* 1T: disable Tx chains 2 & 3 */
-	else if (sc->ntxchains == 2)
+	else if (sc->ntxpath == 2)
 		rf |= 1 << 7;		/* 2T: disable Tx chain 3 */
-	if (sc->nrxchains == 1)
+	if (sc->nrxpath == 1)
 		rf |= 1 << 6 | 1 << 4;	/* 1R: disable Rx chains 2 & 3 */
-	else if (sc->nrxchains == 2)
+	else if (sc->nrxpath == 2)
 		rf |= 1 << 6;		/* 2R: disable Rx chain 3 */
 	rt2860_usb_rt3070_rf_write(sc, 1, rf);
 
@@ -4238,13 +4238,13 @@ rt2860_usb_rt3572_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 	/* set Tx/Rx streams */
 	rt2860_usb_rt3070_rf_read(sc, 1, &rf);
 	rf &= ~0xfc;
-	if (sc->ntxchains == 1)
+	if (sc->ntxpath == 1)
 		rf |= 1 << 7 | 1 << 5;  /* 1T: disable Tx chains 2 & 3 */
-	else if (sc->ntxchains == 2)
+	else if (sc->ntxpath == 2)
 		rf |= 1 << 7;           /* 2T: disable Tx chain 3 */
-	if (sc->nrxchains == 1)
+	if (sc->nrxpath == 1)
 		rf |= 1 << 6 | 1 << 4;  /* 1R: disable Rx chains 2 & 3 */
-	else if (sc->nrxchains == 2)
+	else if (sc->nrxpath == 2)
 		rf |= 1 << 6;           /* 2R: disable Rx chain 3 */
 	rt2860_usb_rt3070_rf_write(sc, 1, rf);
 
@@ -4347,7 +4347,7 @@ rt2860_usb_rt3593_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 	/* use Tx power values from EEPROM */
 	txpow1 = sc->txpow1[i];
 	txpow2 = sc->txpow2[i];
-	txpow3 = (sc->ntxchains == 3) ? sc->txpow3[i] : 0;
+	txpow3 = (sc->ntxpath == 3) ? sc->txpow3[i] : 0;
 
 	if (chan <= 14) {
 		rt2860_usb_bbp_write(sc, 25, sc->bbp25);
@@ -4389,7 +4389,7 @@ rt2860_usb_rt3593_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 	rt2860_usb_rt3070_rf_write(sc, 54, rf);
 
 	rf = RT3070_RF_BLOCK | RT3070_PLL_PD;
-	if (sc->ntxchains == 3)
+	if (sc->ntxpath == 3)
 		rf |= RT3070_TX0_PD | RT3070_TX1_PD | RT3070_TX2_PD;
 	else
 		rf |= RT3070_TX0_PD | RT3070_TX1_PD;
@@ -4721,9 +4721,9 @@ rt2860_usb_rt5592_set_chan(struct rt2860_usb_softc *sc, u_int chan)
 	/* Enable RF_BLOCK, PLL_PD, RX0_PD, and TX0_PD. */
 	rt2860_usb_rt3070_rf_read(sc, 1, &rf);
 	rf |= (RT3070_RF_BLOCK | RT3070_PLL_PD | RT3070_RX0_PD | RT3070_TX0_PD);
-	if (sc->ntxchains > 1)
+	if (sc->ntxpath > 1)
 		rf |= RT3070_TX1_PD;
-	if (sc->nrxchains > 1)
+	if (sc->nrxpath > 1)
 		rf |= RT3070_RX1_PD;
 	rt2860_usb_rt3070_rf_write(sc, 1, rf);
 
@@ -5272,17 +5272,17 @@ rt2860_usb_rssi2dbm(struct rt2860_usb_softc *sc, uint8_t rssi, uint8_t rxchain)
 
 	if (IEEE80211_IS_CHAN_5GHZ(c)) {
 		u_int chan = ieee80211_chan2ieee(ic, c);
-		delta = sc->rssi_5ghz[rxchain];
+		delta = sc->rssi_off_5ghz[rxchain];
 
 		/* determine channel group */
 		if (chan <= 64)
-			delta -= sc->lna[1];
+			delta -= sc->lna_gain[1];
 		else if (chan <= 128)
-			delta -= sc->lna[2];
+			delta -= sc->lna_gain[2];
 		else
-			delta -= sc->lna[3];
+			delta -= sc->lna_gain[3];
 	} else
-		delta = sc->rssi_2ghz[rxchain] - sc->lna[0];
+		delta = sc->rssi_off_2ghz[rxchain] - sc->lna_gain[0];
 
 	return (-12 - delta - rssi);
 }
@@ -5295,7 +5295,7 @@ rt2860_usb_rt5390_bbp_init(struct rt2860_usb_softc *sc)
 
 	/* Apply maximum likelihood detection for 2 stream case. */
 	rt2860_usb_bbp_read(sc, 105, &bbp);
-	if (sc->nrxchains > 1)
+	if (sc->nrxpath > 1)
 		rt2860_usb_bbp_write(sc, 105, bbp | RT5390_MLD);
 
 	/* Avoid data lost and CRC error. */
@@ -5729,9 +5729,9 @@ rt2860_usb_rt3070_rf_setup(struct rt2860_usb_softc *sc)
 			rt2860_usb_bbp_write(sc, 103, 0xc0);
 
 		rt2860_usb_bbp_read(sc, 138, &bbp);
-		if (sc->ntxchains == 1)
+		if (sc->ntxpath == 1)
 			bbp |= 0x20;	/* turn off DAC1 */
-		if (sc->nrxchains == 1)
+		if (sc->nrxpath == 1)
 			bbp &= ~0x02;	/* turn off ADC1 */
 		rt2860_usb_bbp_write(sc, 138, bbp);
 
@@ -5756,9 +5756,9 @@ rt2860_usb_rt3070_rf_setup(struct rt2860_usb_softc *sc)
 		}
 
 		rt2860_usb_bbp_read(sc, 138, &bbp);
-		if (sc->ntxchains == 1)
+		if (sc->ntxpath == 1)
 			bbp |= 0x20;	/* turn off DAC1 */
-		if (sc->nrxchains == 1)
+		if (sc->nrxpath == 1)
 			bbp &= ~0x02;	/* turn off ADC1 */
 		rt2860_usb_bbp_write(sc, 138, bbp);
 
@@ -5835,7 +5835,7 @@ rt2860_usb_rt3593_rf_setup(struct rt2860_usb_softc *sc)
 
 	/* Apply maximum likelihood detection for 2 stream case. */
 	rt2860_usb_bbp_read(sc, 105, &bbp);
-	if (sc->nrxchains > 1)
+	if (sc->nrxpath > 1)
 		rt2860_usb_bbp_write(sc, 105, bbp | RT5390_MLD);
 
 	/* Avoid data lost and CRC error. */
@@ -5883,9 +5883,9 @@ rt2860_usb_rt5390_rf_setup(struct rt2860_usb_softc *sc)
 	}
 
 	rt2860_usb_bbp_read(sc, 138, &bbp);
-	if (sc->ntxchains == 1)
+	if (sc->ntxpath == 1)
 		bbp |= 0x20;	/* turn off DAC1 */
-	if (sc->nrxchains == 1)
+	if (sc->nrxpath == 1)
 		bbp &= ~0x02;	/* turn off ADC1 */
 	rt2860_usb_bbp_write(sc, 138, bbp);
 
@@ -6152,15 +6152,15 @@ rt2860_usb_init_locked(struct rt2860_usb_softc *sc)
 	/* disable non-existing Rx chains */
 	rt2860_usb_bbp_read(sc, 3, &bbp3);
 	bbp3 &= ~(1 << 3 | 1 << 4);
-	if (sc->nrxchains == 2)
+	if (sc->nrxpath == 2)
 		bbp3 |= 1 << 3;
-	else if (sc->nrxchains == 3)
+	else if (sc->nrxpath == 3)
 		bbp3 |= 1 << 4;
 	rt2860_usb_bbp_write(sc, 3, bbp3);
 
 	/* disable non-existing Tx chains */
 	rt2860_usb_bbp_read(sc, 1, &bbp1);
-	if (sc->ntxchains == 1)
+	if (sc->ntxpath == 1)
 		bbp1 &= ~(1 << 3 | 1 << 4);
 	rt2860_usb_bbp_write(sc, 1, bbp1);
 
