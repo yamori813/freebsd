@@ -4308,8 +4308,6 @@ static int rt2860_tx_mgmt(struct rt2860_softc *sc,
 		tap->wt_flags = IEEE80211_RADIOTAP_F_DATAPAD;
 		tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
 		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
-		tap->wt_chan_ieee = ic->ic_curchan->ic_ieee;
-		tap->wt_chan_maxpow = 0;
 
 		if (ni->ni_flags & IEEE80211_NODE_HT)
 			tap->wt_rate = mcs | IEEE80211_RATE_MCS;
@@ -4711,8 +4709,6 @@ static int rt2860_tx_data(struct rt2860_softc *sc,
 		tap->wt_flags = IEEE80211_RADIOTAP_F_DATAPAD;
 		tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
 		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
-		tap->wt_chan_ieee = ic->ic_curchan->ic_ieee;
-		tap->wt_chan_maxpow = 0;
 
 		if (ni->ni_flags & IEEE80211_NODE_HT)
 			tap->wt_rate = mcs | IEEE80211_RATE_MCS;
@@ -5791,8 +5787,6 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 			tap->wr_antsignal = rssi;
 			tap->wr_chan_flags = htole16(ic->ic_curchan->ic_flags);
 			tap->wr_chan_freq = htole16(ic->ic_curchan->ic_freq);
-			tap->wr_chan_ieee = ic->ic_curchan->ic_ieee;
-			tap->wr_chan_maxpow = 0;
 			RT2860_SOFTC_LOCK(sc);
 			rt2860_get_tsf(sc, &tap->wr_tsf);
 			RT2860_SOFTC_UNLOCK(sc);

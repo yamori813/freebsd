@@ -205,9 +205,6 @@ struct rt2860_softc_rx_radiotap_header
 	uint8_t		wr_antenna;
 	uint8_t		wr_antsignal;
 	int8_t		wr_dbm_antnoise;
-	uint8_t		wr_pad[2];
-	uint8_t		wr_chan_ieee;
-	int8_t		wr_chan_maxpow;
 } __packed __aligned(8);
 
 struct rt2860_softc_tx_radiotap_header
@@ -217,8 +214,6 @@ struct rt2860_softc_tx_radiotap_header
 	uint8_t		wt_rate;
 	uint16_t	wt_chan_freq;
 	uint16_t	wt_chan_flags;
-	uint8_t		wt_chan_ieee;
-	int8_t		wt_chan_maxpow;
 } __packed __aligned(8);
 
 struct rt2860_softc
