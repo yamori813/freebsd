@@ -24,8 +24,6 @@
 
 static void rt2872_rf_set_chan(struct rt2860_softc *sc,	struct ieee80211_channel *c);
 
-extern uint8_t rt3052_rf_default[];
-
 /*
  * Static variables
  */
@@ -1043,6 +1041,8 @@ void rt2860_rf_set_chan(struct rt2860_softc *sc,
 	DELAY(1000);
 }
 
+
+
 /*
  * rt2872_rf_set_chan
  */
@@ -1102,38 +1102,38 @@ rt2872_rf_set_chan(struct rt2860_softc *sc,
 	r3 = rt2860_rf_fi3020[i].k;
 	rt2860_io_rf_write(sc, 3 , r3 );
 
-	r6 = (rt3052_rf_default[6] & 0xFC) | (rt2860_rf_fi3020[i].r & 0x03);
+	r6 = (rt2860_io_rf_get_default(6) & 0xFC) | (rt2860_rf_fi3020[i].r & 0x03);
 	rt2860_io_rf_write(sc, 6 , r6 );
 
 	/* Set Tx Power */
-	r12 = (rt3052_rf_default[12] & 0xE0) | (txpow1 & 0x1f);
+	r12 = (rt2860_io_rf_get_default(12) & 0xE0) | (txpow1 & 0x1f);
 	rt2860_io_rf_write(sc, 12, r12);
 
 	/* Set Tx1 Power */
-	r13 = (rt3052_rf_default[13] & 0xE0) | (txpow2 & 0x1f);
+	r13 = (rt2860_io_rf_get_default(13) & 0xE0) | (txpow2 & 0x1f);
 	rt2860_io_rf_write(sc, 13, r13);
 
 	/* Set RF offset */
-	r23 = (rt3052_rf_default[23] & 0x80) | (sc->rf_freq_off);
+	r23 = (rt2860_io_rf_get_default(23) & 0x80) | (sc->rf_freq_off);
 	rt2860_io_rf_write(sc, 23, r23);
 
 	/* Set BW */
-	r24 = (rt3052_rf_default[24] & 0xDF);
+	r24 = (rt2860_io_rf_get_default(24) & 0xDF);
 	if (!(ic->ic_flags & IEEE80211_F_SCAN) && IEEE80211_IS_CHAN_HT40(c))
 	    r24 |= 0x20;
 	rt2860_io_rf_write(sc, 24, r24);
 
 	/* Enable RF tuning */
-	r7 = (rt3052_rf_default[7]) | 1;
+	r7 = (rt2860_io_rf_get_default(7)) | 1;
 	rt2860_io_rf_write(sc, 7 , r7 );
 
 	/* Antenna */
 /*
-	r1 = (rt3052_rf_default[1] & 0xab) | ((sc->nrxpath == 1)?0x10:0) |
+	r1 = (rt2860_io_rf_get_default(1) & 0xab) | ((sc->nrxpath == 1)?0x10:0) |
 	    ((sc->ntxpath == 1)?0x20:0);
 	rt2860_io_rf_write(sc, 1 , r1 );
 */
-	r1 = (rt3052_rf_default[1] & 0xab) | 0x10;
+	r1 = (rt2860_io_rf_get_default(1) & 0xab) | 0x10;
 	rt2860_io_rf_write(sc, 1 , r1 );
 	r1 = (r1 & 0x57) | 0x20;
 	rt2860_io_rf_write(sc, 1 , r1 );

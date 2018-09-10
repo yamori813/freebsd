@@ -557,4 +557,16 @@
 #define RT2860_REG_H2M_CID3_SHIFT					24
 #define RT2860_REG_H2M_CID_MASK						0xff
 
+typedef struct _RT2860_REG_PAIR
+{
+        uint32_t reg;
+        uint32_t val;
+} RT2860_REG_PAIR, *PRT2860_REG_PAIR;
+
+typedef struct _REG_PAIR
+{
+	uint8_t reg;
+	uint8_t val;
+} REG_PAIR, *PREG_PAIR;
+
 #endif /* #ifndef _RT2860_REG_H_ */

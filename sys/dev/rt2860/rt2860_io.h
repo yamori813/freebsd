@@ -34,6 +34,9 @@
 #define RT2860_IO_MCU_CMD_POWERSAVE_LEVEL		0x83
 
 void rt2860_io_rf_load_defaults(struct rt2860_softc *sc);
+
+int rt2860_io_rf_get_default(int reg);
+
 uint32_t rt2860_io_mac_read(struct rt2860_softc *sc, uint16_t reg);
 
 void rt2860_io_mac_read_multi(struct rt2860_softc *sc,

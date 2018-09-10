@@ -328,13 +328,8 @@ static void rt2860_sysctl_attach(struct rt2860_softc *sc);
  * Static variables
  */
 
-static const struct
+static const RT2860_REG_PAIR rt2860_def_mac[] =
 {
-	uint32_t reg;
-	uint32_t val;
-} rt2860_def_mac[] =
-{
-#if 1
 	{ RT2860_REG_PBF_BCN_OFFSET0, 			0xf8f0e8e0 },
 	{ RT2860_REG_PBF_BCN_OFFSET1, 			0x6f77d0c8 },
 	{ RT2860_REG_LEGACY_BASIC_RATE, 		0x0000013f },
@@ -366,61 +361,12 @@ static const struct
 	{ RT2860_REG_SCHDMA_WMM_AIFSN_CFG,		0x00002273 },
 	{ RT2860_REG_SCHDMA_WMM_CWMIN_CFG,		0x00002344 },
 	{ RT2860_REG_SCHDMA_WMM_CWMAX_CFG,		0x000034aa },
-#else
-
-	{ RT2860_REG_PBF_BCN_OFFSET0,		0xf8f0e8e0}, /* 0x3800(e0), 0x3A00(e8), 0x3C00(f0), 0x3E00(f8), 512B for each beacon */
-	{ RT2860_REG_PBF_BCN_OFFSET1,		0x6f77d0c8}, /* 0x3200(c8), 0x3400(d0), 0x1DC0(77), 0x1BC0(6f), 512B for each beacon */
-	{ RT2860_REG_LEGACY_BASIC_RATE,		0x0000013f}, //  Basic rate set bitmap
-	{ RT2860_REG_HT_BASIC_RATE,		0x00008003}, // Basic HT rate set , 20M, MCS=3, MM. Format is the same as in TXWI.
-	{ RT2860_REG_SYS_CTRL,			0x00000000}, // 0x1004, , default Disable RX
-	{ RT2860_REG_RX_FILTER_CFG,		0x00017f97}, //0x1400  , RX filter control,  
-	{ RT2860_REG_BKOFF_SLOT_CFG,		0x00000209}, // default set short slot time, CC_DELAY_TIME should be 2	 
-	{ RT2860_REG_TX_SW_CFG0,		0x00000400},   // Gary,2008-05-21 0x0 for CWC test , 2008-06-19 0x400 for rf reason
-	{ RT2860_REG_TX_SW_CFG1,		0x00000000}, 	  // Gary,2008-06-18 
-	{ RT2860_REG_TX_SW_CFG2,		0x00000030}, 	  // Bruce, CwC IOT issue
-	{ RT2860_REG_TX_LINK_CFG,		0x00001020},		// Gary,2006-08-23 
-	{ RT2860_REG_TX_TIMEOUT_CFG,		0x000a2090},	// CCK has some problem. So increase timieout value. 2006-10-09// MArvek RT , Modify for 2860E ,2007-08-01
-	{ RT2860_REG_MAX_LEN_CFG,		(1 << 12) | RT2860_MAX_AGG_SIZE },	// 0x3018, MAX frame length. Max PSDU = 16kbytes.
-	{ RT2860_REG_LED_CFG,			0x7f031e46}, // Gary, 2006-08-23
-	{ RT2860_REG_PBF_MAX_PCNT,		0x1F3FBF9F}, 	//0x1F3f7f9f},		//Jan, 2006/04/20
-	{ RT2860_REG_TX_RTY_CFG,		0x47d01f0f},	// Jan, 2006/11/16, Set TxWI->ACK =0 in Probe Rsp Modify for 2860E ,2007-08-03
-	{ RT2860_REG_AUTO_RSP_CFG,		0x00000053},	// Initial Auto_Responder, because QA will turn off Auto-Responder
-	{ RT2860_REG_TX_CCK_PROT_CFG,		0x05740003},	// Initial Auto_Responder, because QA will turn off Auto-Responder. And RTS threshold is enabled. 
-	{ RT2860_REG_TX_OFDM_PROT_CFG,		0x05740003},	// Initial Auto_Responder, because QA will turn off Auto-Responder. And RTS threshold is enabled. 
-	{ RT2860_REG_TX_GF20_PROT_CFG,		0x01744004},    // set 19:18 --> Short NAV for MIMO PS
-	{ RT2860_REG_TX_GF40_PROT_CFG,		0x03F44084},    
-	{ RT2860_REG_TX_MM20_PROT_CFG,		0x01744004},    
-	{ RT2860_REG_TX_MM40_PROT_CFG,		0x03F54084},	
-	{ RT2860_REG_TX_TXOP_CTRL_CFG,		0x0000583f},	//Extension channel backoff.
-	{ RT2860_REG_TX_RTS_CFG,		0x00092b20},	
-	{ RT2860_REG_TX_EXP_ACK_TIME,		0x002400ca},	// default value
-	{ RT2860_REG_HCCAPSMP_TXOP_HLDR_ET, 	0x00000002},
-	{ RT2860_REG_XIFS_TIME_CFG,		0x33a41010},
-	{ RT2860_REG_PWR_PIN_CFG,		0x00000003},	// patch for 2880-E
-#if 1	/* CONFIG_AP_SUPPORT */
-	{ RT2860_REG_SCHDMA_WMM_AIFSN_CFG,	0x00001173},
-	{ RT2860_REG_SCHDMA_WMM_CWMIN_CFG,	0x00002344},
-	{ RT2860_REG_SCHDMA_WMM_CWMAX_CFG,	0x000034a6},
-	{ RT2860_REG_SCHDMA_WMM_TXOP0_CFG,	0x00100020},
-	{ RT2860_REG_SCHDMA_WMM_TXOP1_CFG,	0x002F0038},
-	{ RT2860_REG_TBTT_SYNC_CFG,		0x00012000},
-#else		/* CONFIG_STA_SUPPORT */
-	{ RT2860_REG_SCHDMA_WMM_AIFSN_CFG,	0x00002273},
-	{ RT2860_REG_SCHDMA_WMM_CWMIN_CFG,	0x00002344},
-	{ RT2860_REG_SCHDMA_WMM_CWMAX_CFG,	0x000034aa},
-#endif // CONFIG_AP_SUPPORT //
-#endif
 };
 
 #define RT2860_DEF_MAC_SIZE		(sizeof(rt2860_def_mac) / sizeof(rt2860_def_mac[0]))
 
-static const struct
+static const REG_PAIR rt2860_def_bbp[] =
 {
-	uint8_t	reg;
-	uint8_t	val;
-} rt2860_def_bbp[] =
-{
-#if 1 /* orig */
 	{ 65,	0x2c },
 	{ 66,	0x38 },
 	{ 69,	0x12 },
@@ -436,27 +382,6 @@ static const struct
 	{ 103,	0x00 },
 	{ 105,	0x05 },
 	{ 106,	0x35 },
-#else
-	{ 31,	0x08},		//gary recommend for ACE
-	{ 65,	0x2C},		// fix rssi issue
-	{ 66,	0x38},	// Also set this default value to pAd->BbpTuning.R66CurrentValue at initial
-	{ 68,	0x0B},  // improve Rx sensitivity.
-	{ 69,	0x12},
-	{ 70,	0xa},	// BBP_R70 will change to 0x8 in ApStartUp and LinkUp for rt2860C, otherwise value is 0xa
-	{ 73,	0x10},
-	{ 78,	0x0E},
-	{ 80,	0x08}, // requested by Gary for high power
-	{ 81,	0x37},
-	{ 82,	0x62},
-	{ 83,	0x6A},
-	{ 84,	0x99},	// 0x19 is for rt2860E and after. This is for extension channel overlapping IOT. 0x99 is for rt2860D and before
-	{ 86,	0x00},	// middle range issue, Rory @2008-01-28 	
-	{ 91,	0x04},	// middle range issue, Rory @2008-01-28
-	{ 92,	0x00},	// middle range issue, Rory @2008-01-28
-	{ 103,	0xC0},
-	{ 105,	0x01},/*kurtis:0x01 ori*/// 0x05 is for rt2860E to turn on FEQ control. It is safe for rt2860D and before, because Bit 7:2 are reserved in rt2860D and before.
-	{ 106,	0x35},	// Optimizing the Short GI sampling request from Gray @2009-0409
-#endif
 };
 
 #define RT2860_DEF_BBP_SIZE		(sizeof(rt2860_def_bbp) / sizeof(rt2860_def_bbp[0]))

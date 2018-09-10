@@ -52,7 +52,6 @@
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_regdomain.h>
 
-//#include "opt_rt2860.h"
 #define RT2860_DEBUG
 #define RT2860_HW_CRYPTO
 
