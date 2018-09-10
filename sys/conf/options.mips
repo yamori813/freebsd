@@ -154,6 +154,10 @@ RT305X_UBOOT			opt_rt305x.h
 RT305X_USE_UART			opt_rt305x.h
 RT_MDIO				opt_rt305x.h
 
+RT2860_RT2880			opt_rt2860.h
+RT2860_RT305X			opt_rt2860.h
+RT2860_RT5350			opt_rt2860.h
+
 #
 # Options that affect the pmap.
 #

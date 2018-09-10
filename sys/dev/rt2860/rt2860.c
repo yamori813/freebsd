@@ -1095,7 +1095,9 @@ static void rt2860_init_locked(void *priv)
 	struct ieee80211vap *vap;
 	int error, i, ntries;
 	uint32_t tmp, stacnt[6];
+#if !defined(RT2860_RT2880) && !defined(RT2860_RT305X)
 	const struct firmware *fp;
+#endif
 
 	sc = priv;
 	ic = &sc->sc_ic;
@@ -1109,6 +1111,7 @@ static void rt2860_init_locked(void *priv)
 
 	if (!IS_SOC(sc))
 	{
+#if !defined(RT2860_RT2880) && !defined(RT2860_RT305X)
 	    if (!(sc->flags & RT2860_SOFTC_FLAGS_UCODE_LOADED))
 	    {
 		RT2860_DPRINTF(sc, RT2860_DEBUG_ANY,
@@ -1136,6 +1139,7 @@ static void rt2860_init_locked(void *priv)
 
 		sc->flags |= RT2860_SOFTC_FLAGS_UCODE_LOADED;
 	    }
+#endif
 	}
 	else
 	{

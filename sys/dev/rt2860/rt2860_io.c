@@ -17,7 +17,6 @@
  */
 
 #if defined(__mips__)
-#include "opt_rt305x.h"
 
 #include <machine/cpuregs.h>
 
@@ -172,7 +171,7 @@ uint16_t rt2860_io_eeprom_read(struct rt2860_softc *sc, uint16_t addr)
 		return (*(eeprom + addr*2) + 
 		    *(eeprom + addr*2+1) * 0x100);
 #else
-#if defined(RT305X)
+#if defined(RT2860_RT305X)
 		return (rt3050_eeprom[addr*2] + 
 		    rt3050_eeprom[addr*2+1] * 0x100);
 #endif
@@ -473,7 +472,7 @@ int32_t rt2860_io_rf_read(struct rt2860_softc *sc, uint8_t reg)
  */
 void rt2860_io_rf_load_defaults(struct rt2860_softc *sc)
 {
-#if defined(RT305X)
+#if defined(RT2860_RT305X)
 	int i;
 
 	for (i = 0; i < sizeof(rt3052_rf_default)/sizeof(REG_PAIR); i ++)
@@ -484,7 +483,7 @@ void rt2860_io_rf_load_defaults(struct rt2860_softc *sc)
 
 int rt2860_io_rf_get_default(int reg)
 {
-#if defined(RT305X)
+#if defined(RT2860_RT305X)
 	int i;
 
 	for (i = 0; i < sizeof(rt3052_rf_default)/sizeof(REG_PAIR); i ++)

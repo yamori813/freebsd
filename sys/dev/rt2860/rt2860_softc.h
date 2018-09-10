@@ -19,6 +19,8 @@
 #ifndef _RT2860_SOFTC_H_
 #define _RT2860_SOFTC_H_
 
+#include "opt_rt2860.h"
+
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/sockio.h>
