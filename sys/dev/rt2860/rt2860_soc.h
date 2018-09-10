@@ -24,7 +24,10 @@
 
 #define	RT2880MAC	0x28600101
 #define	RT305XMAC	0x28720200
+#define	RT5350MAC	0x53500500
 
-#define IS_SOC(sc)	(sc->mac_rev == RT305XMAC || sc->mac_rev == 0x28600101)
+#define IS_SOC(sc)	(sc->mac_rev == RT2880MAC || \
+			 sc->mac_rev == RT305XMAC || \
+			 sc->mac_rev == RT5350MAC)
 
 #endif /* _RT2860_SOC_H_ */
