@@ -2109,7 +2109,6 @@ static void rt2860_vap_key_update_begin(struct ieee80211vap *vap)
 
 	taskqueue_block(sc->taskqueue);
 
-//	IF_LOCK(&ifp->if_snd);
 }
 
 /*
@@ -2126,8 +2125,6 @@ static void rt2860_vap_key_update_end(struct ieee80211vap *vap)
 	RT2860_DPRINTF(sc, RT2860_DEBUG_KEY,
 		"%s: VAP key update end\n",
 		device_get_nameunit(sc->dev));
-
-//	IF_UNLOCK(&ifp->if_snd);
 
 	taskqueue_unblock(sc->taskqueue);
 }
@@ -2936,7 +2933,6 @@ static void rt2860_addba_stop(struct ieee80211_node *ni,
 	sc = ic->ic_softc;
 	rni = (struct rt2860_softc_node *) ni;
 
-//	tid = WME_AC_TO_TID(tap->txa_ac);
 	tid = WME_AC_TO_TID(tap->txa_tid);
 
 	RT2860_DPRINTF(sc, RT2860_DEBUG_BA,
@@ -3061,7 +3057,6 @@ static int rt2860_send_bar(struct ieee80211_node *ni,
 	IEEE80211_ADDR_COPY(bar->i_ra, ni->ni_macaddr);
 	IEEE80211_ADDR_COPY(bar->i_ta, vap->iv_myaddr);
 
-//	tid = WME_AC_TO_TID(tap->txa_ac);
 	tid = WME_AC_TO_TID(tap->txa_tid);
 
 	barctl = (tap->txa_flags & IEEE80211_AGGR_IMMEDIATE ?  0 : IEEE80211_BAR_NOACK) |
@@ -5432,8 +5427,7 @@ static void rt2860_tx_done_task(void *context, int pending)
 
 	RT2860_SOFTC_UNLOCK(sc);
 
-//	if (!IFQ_IS_EMPTY(&ifp->if_snd))
-		rt2860_start(sc);
+	rt2860_start(sc);
 }
 
 /*
@@ -5473,8 +5467,7 @@ static void rt2860_fifo_sta_full_task(void *context, int pending)
 
 	RT2860_SOFTC_UNLOCK(sc);
 
-//	if (!IFQ_IS_EMPTY(&ifp->if_snd))
-		rt2860_start(sc);
+	rt2860_start(sc);
 }
 
 /*
@@ -5642,7 +5635,6 @@ static int rt2860_rx_eof(struct rt2860_softc *sc, int limit)
 			len += 2;
 		}
 
-//		m->m_pkthdr.rcvif = ifp;
 		m->m_data = (caddr_t) (rxwi + 1);
 		m->m_pkthdr.len = m->m_len = len;
 
@@ -5937,15 +5929,10 @@ static void rt2860_tx_eof(struct rt2860_softc *sc,
 				BUS_DMASYNC_POSTWRITE);
 			bus_dmamap_unload(ring->data_dma_tag, data->dma_map);
 
-//			m_freem(data->m);
-
-//			ieee80211_free_node(data->ni);
 			ieee80211_tx_complete(data->ni, data->m, 0);
 
 			data->m = NULL;
 			data->ni = NULL;
-
-//			ifp->if_opackets++;
 
 			RT2860_SOFTC_TX_RING_LOCK(ring);
 

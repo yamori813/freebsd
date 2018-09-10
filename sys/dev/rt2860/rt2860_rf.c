@@ -1088,10 +1088,8 @@ rt2872_rf_set_chan(struct rt2860_softc *sc,
 	r3 = prog[i].r3;
 	r4 = prog[i].r4;
 
-//	txpow1 = sc->txpow1[i];
-//	txpow2 = sc->txpow2[i];
-	txpow1 = 30;
-	txpow2 = 30;
+	txpow1 = sc->txpow1[i];
+	txpow2 = sc->txpow2[i];
 	r3 = 16;
 
 	for (i = 0; rt2860_rf_fi3020[i].channel != chan; i++);
