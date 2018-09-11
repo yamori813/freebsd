@@ -38,20 +38,15 @@
 			reg = <0x00040000 0x00010000>;
 			read-only;
 		};
-		kernel: partition@50000 {
-			label = "kernel";
-			reg = <0x00050000 0x000f0000>;
-			read-only;
-		};
-		rootfs: partition@160000 {
-			label = "rootfs";
-			reg = <0x00140000 0x002c0000>;
+
+		firmware: partition@50000 {
+			label = "firmware";
+			reg = <0x00050000 0x003b0000>;
 			read-only;
 		};
 		upgrade: partition@400000 {
 			label = "upgrade";
 			reg = <0x00050000 0x003b0000>;
-			read-only;
 		};
 
 	};
