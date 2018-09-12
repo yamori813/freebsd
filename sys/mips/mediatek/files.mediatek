@@ -39,12 +39,13 @@ dev/etherswitch/mtkswitch/mtkswitch.c 	optional mtkswitch
 dev/etherswitch/mtkswitch/mtkswitch_rt3050.c 	optional mtkswitch
 dev/etherswitch/mtkswitch/mtkswitch_mt7620.c 	optional mtkswitch
 
-#dev/rt2860/rt2860_pci.c    optional        rt2860
-#dev/rt2860/rt2860_nexus.c		optional rt2860
-dev/rt2860/rt2860_fdt.c			optional rt2860
+#dev/rt2860/rt2860_pci.c			optional rt2860 pci
+dev/rt2860/rt2860_fdt.c			optional rt2860 fdt
+dev/rt2860/rt2860_usb.c			optional rt2860 usb
 dev/rt2860/rt2860.c			optional rt2860
 dev/rt2860/rt2860_amrr.c		optional rt2860
 dev/rt2860/rt2860_io.c			optional rt2860
+dev/rt2860/rt2860_io_mac.c		optional rt2860
 dev/rt2860/rt2860_led.c			optional rt2860
 dev/rt2860/rt2860_read_eeprom.c		optional rt2860
 dev/rt2860/rt2860_rf.c			optional rt2860
