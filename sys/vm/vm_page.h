@@ -234,7 +234,7 @@ struct vm_page {
  * 	 mappings, and such pages are also not on any PQ queue.
  *
  */
-#define	VPO_UNUSED01	0x01		/* --available-- */
+#define	VPO_KMEM_EXEC	0x01		/* kmem mapping allows execution */
 #define	VPO_SWAPSLEEP	0x02		/* waiting for swap to finish */
 #define	VPO_UNMANAGED	0x04		/* no PV management for page */
 #define	VPO_SWAPINPROG	0x08		/* swap I/O in progress on page */
@@ -737,22 +737,6 @@ vm_page_dirty(vm_page_t m)
 #else
 	m->dirty = VM_PAGE_BITS_ALL;
 #endif
-}
-
-/*
- *	vm_page_remque:
- *
- *	If the given page is in a page queue, then remove it from that page
- *	queue.
- *
- *	The page must be locked.
- */
-static inline void
-vm_page_remque(vm_page_t m)
-{
-
-	if (m->queue != PQ_NONE)
-		vm_page_dequeue(m);
 }
 
 /*
