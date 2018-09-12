@@ -23,11 +23,10 @@
 #include <dev/rt2860/rt2860_softc.h>
 
 #define	RT2880MAC	0x28600101
+#define	RT2780MAC	0x28600103
 #define	RT305XMAC	0x28720200
 #define	RT5350MAC	0x53500500
 
-#define IS_SOC(sc)	(sc->mac_rev == RT2880MAC || \
-			 sc->mac_rev == RT305XMAC || \
-			 sc->mac_rev == RT5350MAC)
+#define IS_SOC(sc)	(sc->bustype == RT2860_RBUS)
 
 #endif /* _RT2860_SOC_H_ */

@@ -84,6 +84,7 @@ static int rt2860_fdt_attach(device_t dev)
 
 	sc = device_get_softc(dev);
 	sc->mem_rid = 0;
+	sc->bustype = RT2860_RBUS;
 
 	cd = ofw_bus_search_compatible(dev, rt_compat_data);
 

@@ -175,6 +175,10 @@ uint16_t rt2860_io_eeprom_read(struct rt2860_softc *sc, uint16_t addr)
 		return (rt3050_eeprom[addr*2] + 
 		    rt3050_eeprom[addr*2+1] * 0x100);
 #endif
+#if defined(RT2860_RT2880)
+		return (rt2880_eeprom[addr*2] + 
+		    rt2880_eeprom[addr*2+1] * 0x100);
+#endif
 #endif
 	} else if ((sc->mac_rev & 0xffff0000) >= 0x30710000) {
 		tmp = rt2860_io_mac_read(sc, RT3070_EFUSE_CTRL);

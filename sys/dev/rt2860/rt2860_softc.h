@@ -234,6 +234,11 @@ struct rt2860_softc
 
 	int pid;
 
+	int bustype;
+#define RT2860_RBUS		1
+#define RT2860_PCI		2
+#define RT2860_USB		3
+
 	int	mem_rid;
 	struct resource	*mem;
 

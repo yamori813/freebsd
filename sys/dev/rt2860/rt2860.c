@@ -478,9 +478,9 @@ int rt2860_attach(device_t dev, int id)
 	rt2860_read_eeprom(sc);
 	memcpy(ic->ic_macaddr, sc->mac_addr, 6);
 
-	printf("%s: MAC/BBP RT2860 (rev 0x%08x), RF %s\n",
+	printf("%s: MAC/BBP RT2860 (rev 0x%08x), RF %s(%d)\n",
 	    device_get_nameunit(sc->dev), sc->mac_rev,
-		rt2860_rf_name(sc->rf_rev));
+		rt2860_rf_name(sc->rf_rev), sc->rf_rev);
 
 	RT2860_SOFTC_LOCK(sc);
 	/* clear key tables */

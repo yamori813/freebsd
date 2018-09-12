@@ -120,6 +120,8 @@ static int rt2860_pci_attach(device_t dev)
 
 	sc = device_get_softc(dev);
 
+	sc->bustype = RT2860_PCI;
+
 	if (pci_get_powerstate(dev) != PCI_POWERSTATE_D0)
 	{
 		printf("%s: chip is in D%d power mode, setting to D0\n",
