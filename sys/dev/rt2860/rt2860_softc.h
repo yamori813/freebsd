@@ -19,7 +19,9 @@
 #ifndef _RT2860_SOFTC_H_
 #define _RT2860_SOFTC_H_
 
+#if defined(__mips__)
 #include "opt_rt2860.h"
+#endif
 
 #include <sys/param.h>
 #include <sys/sysctl.h>
