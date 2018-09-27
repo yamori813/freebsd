@@ -86,24 +86,26 @@ static const struct evdev_methods hc153key_evdev_methods = {
 	.ev_close = &hc153key_ev_close,
 };
 
-static void
-hc153key_ev_close(struct evdev_dev *evdev, void *data)
+static int
+hc153key_ev_close(struct evdev_dev *evdev)
 {
 	struct hc153key_softc *sc;
 
-	sc = (struct hc153key_softc *)data;
+	sc = evdev_get_softc(evdev);
 
 	HC153KEY_LOCK_ASSERT(sc);
 
 	callout_stop(&sc->scan_callout);
+
+	return (0);
 }
 
 static int
-hc153key_ev_open(struct evdev_dev *evdev, void *data)
+hc153key_ev_open(struct evdev_dev *evdev)
 {
 	struct hc153key_softc *sc;
 
-	sc = (struct hc153key_softc *)data;
+	sc = evdev_get_softc(evdev);
 
 	HC153KEY_LOCK_ASSERT(sc);
 
