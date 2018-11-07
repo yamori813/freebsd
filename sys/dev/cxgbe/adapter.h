@@ -113,6 +113,7 @@ enum {
 	SGE_MAX_WR_NDESC = SGE_MAX_WR_LEN / EQ_ESIZE, /* max WR size in desc */
 	TX_SGL_SEGS = 39,
 	TX_SGL_SEGS_TSO = 38,
+	TX_SGL_SEGS_EO_TSO = 30,	/* XXX: lower for IPv6. */
 	TX_WR_FLITS = SGE_MAX_WR_LEN / 8
 };
 
@@ -193,6 +194,7 @@ struct vi_info {
 	int16_t  xact_addr_filt;/* index of exact MAC address filter */
 	uint16_t rss_size;	/* size of VI's RSS table slice */
 	uint16_t rss_base;	/* start of VI's RSS table slice */
+	int hashen;
 
 	int nintr;
 	int first_intr;
@@ -572,6 +574,7 @@ struct sge_txq {
 	uint64_t txpkts1_wrs;	/* # of type1 coalesced tx work requests */
 	uint64_t txpkts0_pkts;	/* # of frames in type0 coalesced tx WRs */
 	uint64_t txpkts1_pkts;	/* # of frames in type1 coalesced tx WRs */
+	uint64_t raw_wrs;	/* # of raw work requests (alloc_wr_mbuf) */
 
 	/* stats for not-that-common events */
 } __aligned(CACHE_LINE_SIZE);
@@ -1168,6 +1171,7 @@ void t4_intr_err(void *);
 void t4_intr_evt(void *);
 void t4_wrq_tx_locked(struct adapter *, struct sge_wrq *, struct wrqe *);
 void t4_update_fl_bufsize(struct ifnet *);
+struct mbuf *alloc_wr_mbuf(int, int);
 int parse_pkt(struct adapter *, struct mbuf **);
 void *start_wrq_wr(struct sge_wrq *, int, struct wrq_cookie *);
 void commit_wrq_wr(struct sge_wrq *, void *, struct wrq_cookie *);
