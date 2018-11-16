@@ -179,18 +179,12 @@ struct bootinfo bootinfo;
  */
 vm_offset_t kernel_kseg0_end = (vm_offset_t)&end;
 
-void cpu_identify(void);
-
 static void
 cpu_startup(void *dummy)
 {
 
 	if (boothowto & RB_VERBOSE)
 		bootverbose++;
-
-	printf("CPU model: %s\n", cpu_model);
-
-	cpu_identify();
 
 	printf("real memory  = %ju (%juK bytes)\n", ptoa((uintmax_t)realmem),
 	    ptoa((uintmax_t)realmem) / 1024);

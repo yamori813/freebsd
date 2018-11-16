@@ -61,7 +61,7 @@ __FBSDID("$FreeBSD$");
 #include <contrib/octeon-sdk/octeon-model.h>
 #endif
 
-void cpu_identify(void);
+static void cpu_identify(void);
 
 struct mips_cpuinfo cpuinfo;
 
@@ -341,9 +341,11 @@ mips_cpu_init(void)
 
 	mips_icache_sync_all();
 	mips_dcache_wbinv_all();
+	/* Print some info about CPU */
+	cpu_identify();
 }
 
-void
+static void
 cpu_identify(void)
 {
 	uint32_t cfg0, cfg1, cfg2, cfg3;
