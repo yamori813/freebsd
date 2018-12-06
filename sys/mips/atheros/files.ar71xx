@@ -36,10 +36,10 @@ mips/atheros/qca955x_pci.c	optional qca955x_pci pci
 
 dev/gpio/hc153key.c		optional hc153
 
-dev/etherswitch/robosw/bcm53115.c	standard
-dev/etherswitch/robosw/bcm5325.c	standard
-dev/etherswitch/robosw/bcm5358.c	standard
-dev/etherswitch/robosw/robosw.c		standard
-dev/etherswitch/robosw/robosw_ddb.c	standard
-dev/etherswitch/robosw/robosw_hal.c	standard
+dev/etherswitch/robosw/bcm53115.c	optional robosw
+dev/etherswitch/robosw/bcm5325.c	optional robosw
+dev/etherswitch/robosw/bcm5358.c	optional robosw
+dev/etherswitch/robosw/robosw.c		optional robosw
+dev/etherswitch/robosw/robosw_ddb.c	optional robosw
+dev/etherswitch/robosw/robosw_hal.c	optional robosw
 
