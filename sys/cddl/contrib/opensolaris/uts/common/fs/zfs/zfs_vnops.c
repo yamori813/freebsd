@@ -2547,6 +2547,7 @@ zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, int *eofp, int *ncookies, u_lon
 			next = &odp->d_off;
 			(void) strlcpy(odp->d_name, zap.za_name, odp->d_namlen + 1);
 			odp->d_type = type;
+			dirent_terminate(odp);
 			odp = (dirent64_t *)((intptr_t)odp + reclen);
 		}
 		outcount += reclen;
@@ -5204,7 +5205,7 @@ zfs_freebsd_setattr(ap)
 		 * otherwise, they behave like unprivileged processes.
 		 */
 		if (secpolicy_fs_owner(vp->v_mount, cred) == 0 ||
-		    priv_check_cred(cred, PRIV_VFS_SYSFLAGS, 0) == 0) {
+		    priv_check_cred(cred, PRIV_VFS_SYSFLAGS) == 0) {
 			if (zflags &
 			    (ZFS_IMMUTABLE | ZFS_APPENDONLY | ZFS_NOUNLINK)) {
 				error = securelevel_gt(cred, 0);

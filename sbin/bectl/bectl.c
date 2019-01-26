@@ -66,22 +66,24 @@ usage(bool explicit)
 	FILE *fp;
 
 	fp =  explicit ? stdout : stderr;
-	fprintf(fp,
+	fprintf(fp, "%s",
 	    "usage:\tbectl {-h | -? | subcommand [args...]}\n"
-	    "\tbectl activate [-t] beName\n"
-	    "\tbectl create [-e {nonActiveBe | -e beName@snapshot}] beName\n"
-	    "\tbectl create beName@snapshot\n"
-	    "\tbectl destroy [-F] {beName | beName@snapshot}\n"
-	    "\tbectl export sourceBe\n"
-	    "\tbectl import targetBe\n"
 #if SOON
 	    "\tbectl add (path)*\n"
 #endif
-	    "\tbectl jail [{-b | -U}] [{-o key=value | -u key}]... bootenv [utility [argument ...]]\n"
-	    "\tbectl list [-a] [-D] [-H] [-s]\n"
+	    "\tbectl activate [-t] beName\n"
+	    "\tbectl create [-r] [-e {nonActiveBe | beName@snapshot}] beName\n"
+	    "\tbectl create [-r] beName@snapshot\n"
+	    "\tbectl destroy [-F] {beName | beName@snapshot}\n"
+	    "\tbectl export sourceBe\n"
+	    "\tbectl import targetBe\n"
+	    "\tbectl jail {-b | -U} [{-o key=value | -u key}]... "
+	    "{jailID | jailName}\n"
+	    "\t      bootenv [utility [argument ...]]\n"
+	    "\tbectl list [-DHas]\n"
 	    "\tbectl mount beName [mountpoint]\n"
 	    "\tbectl rename origBeName newBeName\n"
-	    "\tbectl {ujail | unjail} ⟨jailID | jailName | bootenv)\n"
+	    "\tbectl {ujail | unjail} {jailID | jailName} bootenv\n"
 	    "\tbectl {umount | unmount} [-f] beName\n");
 
 	return (explicit ? 0 : EX_USAGE);
@@ -376,8 +378,10 @@ bectl_cmd_mount(int argc, char *argv[])
 {
 	char result_loc[BE_MAXPATHLEN];
 	char *bootenv, *mountpoint;
-	int err;
+	int err, mntflags;
 
+	/* XXX TODO: Allow shallow */
+	mntflags = BE_MNT_DEEP;
 	if (argc < 2) {
 		fprintf(stderr, "bectl mount: missing argument(s)\n");
 		return (usage(false));
@@ -391,7 +395,7 @@ bectl_cmd_mount(int argc, char *argv[])
 	bootenv = argv[1];
 	mountpoint = ((argc == 3) ? argv[2] : NULL);
 
-	err = be_mount(be, bootenv, mountpoint, 0, result_loc);
+	err = be_mount(be, bootenv, mountpoint, mntflags, result_loc);
 
 	switch (err) {
 	case BE_ERR_SUCCESS:
