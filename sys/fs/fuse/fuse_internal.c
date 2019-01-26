@@ -171,7 +171,7 @@ fuse_internal_access(struct vnode *vp,
 		    return 0;
 	}
 	if ((mode & VADMIN) != 0) {
-		err = priv_check_cred(cred, PRIV_VFS_ADMIN, 0);
+		err = priv_check_cred(cred, PRIV_VFS_ADMIN);
 		if (err) {
 			return err;
 		}
@@ -357,7 +357,7 @@ fuse_internal_readdir_processdata(struct uio *uio,
 		memcpy((char *)cookediov->base + sizeof(struct dirent) - 
 		       MAXNAMLEN - 1,
 		       (char *)buf + FUSE_NAME_OFFSET, fudge->namelen);
-		((char *)cookediov->base)[bytesavail - 1] = '\0';
+		dirent_terminate(de);
 
 		err = uiomove(cookediov->base, cookediov->len, uio);
 		if (err) {
