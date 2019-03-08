@@ -189,6 +189,25 @@ ar5312_chip_soc_init(void)
 
 }
 
+void ar5312_chip_aterm_led(int var);
+void
+ar5312_chip_aterm_led(int var)
+{
+	uint32_t freg, greg;
+
+	freg = ATH_READ_REG(AR5312_FLASHCTL_BASE);
+	ATH_WRITE_REG(AR5312_FLASHCTL_BASE, freg & ~AR5312_FLASHCTL_MW);
+	DELAY(10);
+	greg = ATH_READ_REG(AR5312_GPIO_BASE + AR5312_GPIO_DO);
+	ATH_WRITE_REG(AR5312_GPIO_BASE + AR5312_GPIO_DO, greg | 0x01);
+	DELAY(10);
+	ATH_WRITE_REG(AR5312_FLASH_BASE, var);
+	DELAY(10);
+	ATH_WRITE_REG(AR5312_GPIO_BASE + AR5312_GPIO_DO, greg & 0x0fe);
+	DELAY(10);
+	ATH_WRITE_REG(AR5312_FLASHCTL_BASE, freg);
+}
+
 static uint32_t
 ar5312_chip_get_eth_pll(unsigned int mac, int speed)
 {

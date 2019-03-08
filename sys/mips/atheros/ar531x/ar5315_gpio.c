@@ -90,6 +90,8 @@ static int ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value);
 static int ar5315_gpio_pin_get(device_t dev, uint32_t pin, unsigned int *val);
 static int ar5315_gpio_pin_toggle(device_t dev, uint32_t pin);
 
+void ar5312_chip_aterm_led(int);
+
 /*
  * Enable/disable the GPIO function control space.
  *
@@ -123,11 +125,11 @@ ar5315_gpio_pin_configure(struct ar5315_gpio_softc *sc, struct gpio_pin *pin,
 		pin->gp_flags &= ~(GPIO_PIN_INPUT|GPIO_PIN_OUTPUT);
 		if (flags & GPIO_PIN_OUTPUT) {
 			pin->gp_flags |= GPIO_PIN_OUTPUT;
-			GPIO_SET_BITS(sc, ar531x_gpio_cr(), mask);
+			GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 		else {
 			pin->gp_flags |= GPIO_PIN_INPUT;
-			GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), mask);
+			GPIO_SET_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 	}
 }
@@ -145,8 +147,12 @@ ar5315_gpio_get_bus(device_t dev)
 static int
 ar5315_gpio_pin_max(device_t dev, int *maxpin)
 {
+	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 
-	*maxpin = ar531x_gpio_pins() - 1;
+	if (sc->aterm_led)
+		*maxpin = ar531x_gpio_pins() + 8 - 1;
+	else
+		*maxpin = ar531x_gpio_pins() - 1;
 	return (0);
 }
 
@@ -155,13 +161,19 @@ ar5315_gpio_pin_getcaps(device_t dev, uint32_t pin, uint32_t *caps)
 {
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	int i;
+	int npins;
 
-	for (i = 0; i < sc->gpio_npins; i++) {
+	if (sc->aterm_led)
+		npins = sc->gpio_npins + 8;
+	else
+		npins = sc->gpio_npins;
+
+	for (i = 0; i < npins; i++) {
 		if (sc->gpio_pins[i].gp_pin == pin)
 			break;
 	}
 
-	if (i >= sc->gpio_npins)
+	if (i >= npins)
 		return (EINVAL);
 
 	GPIO_LOCK(sc);
@@ -183,12 +195,18 @@ ar5315_gpio_pin_getflags(device_t dev, uint32_t pin, uint32_t *flags)
 			break;
 	}
 
-	if (i >= sc->gpio_npins)
-		return (EINVAL);
+	if (i >= sc->gpio_npins) {
+		if (sc->aterm_led && pin < sc->gpio_npins + 8) {
+			*flags = GPIO_PIN_OUTPUT;
+			return (0);
+		} else {
+			return (EINVAL);
+		}
+	}
 
 	dir = GPIO_READ(sc, ar531x_gpio_cr()) & (1 << pin);
 
-	*flags = dir ? GPIO_PIN_OUTPUT : GPIO_PIN_INPUT;
+	*flags = dir ? GPIO_PIN_INPUT : GPIO_PIN_OUTPUT;
 
 /*
 	GPIO_LOCK(sc);
@@ -204,13 +222,19 @@ ar5315_gpio_pin_getname(device_t dev, uint32_t pin, char *name)
 {
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	int i;
+	int npins;
 
-	for (i = 0; i < sc->gpio_npins; i++) {
+	if (sc->aterm_led)
+		npins = sc->gpio_npins + 8;
+	else
+		npins = sc->gpio_npins;
+
+	for (i = 0; i < npins; i++) {
 		if (sc->gpio_pins[i].gp_pin == pin)
 			break;
 	}
 
-	if (i >= sc->gpio_npins)
+	if (i >= npins)
 		return (EINVAL);
 
 	GPIO_LOCK(sc);
@@ -244,6 +268,15 @@ ar5315_gpio_pin_set(device_t dev, uint32_t pin, unsigned int value)
 {
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	uint32_t state;
+	int led;
+
+	if (pin >= sc->gpio_npins && sc->aterm_led) {
+		led = pin - sc->gpio_npins;
+		sc->aterm_led_bits &= ~(1 << led);
+		sc->aterm_led_bits |= value << led;
+		ar5312_chip_aterm_led(sc->aterm_led_bits);
+		return (0);
+	}
 
 	state = GPIO_READ(sc, ar531x_gpio_do());
 
@@ -269,8 +302,15 @@ ar5315_gpio_pin_get(device_t dev, uint32_t pin, unsigned int *val)
 			break;
 	}
 
-	if (i >= sc->gpio_npins)
-		return (EINVAL);
+	if (i >= sc->gpio_npins) {
+		if (sc->aterm_led) {
+			*val = (sc->aterm_led_bits >> (pin - sc->gpio_npins))
+			    & 1;
+			return (0);
+		} else {
+			return (EINVAL);
+		}
+	}
 
 	*val = (GPIO_READ(sc, ar531x_gpio_di()) & (1 << pin)) ? 1 : 0;
 
@@ -333,7 +373,9 @@ ar5315_gpio_attach(device_t dev)
 	struct ar5315_gpio_softc *sc = device_get_softc(dev);
 	int i, j, maxpin;
 	int mask, pinon;
+	int atermled;
 	uint32_t oe;
+	int npins;
 
 	KASSERT((device_get_unit(dev) == 0),
 	    ("ar5315_gpio: Only one gpio module supported"));
@@ -396,9 +438,23 @@ ar5315_gpio_attach(device_t dev)
 		sc->gpio_npins++;
 	}
 
+	if (resource_int_value(device_get_name(dev), device_get_unit(dev),
+	    "atermled", &atermled) == 0) {
+		sc->aterm_led = 1;
+		sc->aterm_led_bits = atermled;
+		/* override mask because of bit 0 use led controle */
+		mask = 0xfe;
+		GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), 0x01);
+		ar5312_chip_aterm_led(sc->aterm_led_bits);
+	}
+
 	/* Iniatilize the GPIO pins, keep the loader settings. */
 	oe = GPIO_READ(sc, ar531x_gpio_cr());
-	sc->gpio_pins = malloc(sizeof(struct gpio_pin) * sc->gpio_npins,
+	if (sc->aterm_led)
+		npins = sc->gpio_npins + 8;
+	else
+		npins = sc->gpio_npins;
+	sc->gpio_pins = malloc(sizeof(struct gpio_pin) * npins,
 	    M_DEVBUF, M_WAITOK | M_ZERO);
 	for (i = 0, j = 0; j <= maxpin; j++) {
 		if ((mask & (1 << j)) == 0)
@@ -412,6 +468,17 @@ ar5315_gpio_attach(device_t dev)
 		else
 			sc->gpio_pins[i].gp_flags = GPIO_PIN_INPUT;
 		i++;
+	}
+
+	if (sc->aterm_led) {
+		for (j = maxpin; j <= maxpin + 8; j++) {
+			snprintf(sc->gpio_pins[i].gp_name, GPIOMAXNAME,
+			    "led %d", j - maxpin);
+			sc->gpio_pins[i].gp_pin = j;
+			sc->gpio_pins[i].gp_caps = DEFAULT_CAPS;
+			sc->gpio_pins[i].gp_flags = GPIO_PIN_OUTPUT;
+			i++;
+		}
 	}
 
 #if 0

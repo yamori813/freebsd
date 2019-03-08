@@ -67,9 +67,8 @@ struct ar5315_gpio_softc {
 	void			*gpio_ih;
 	int			gpio_npins;
 	struct gpio_pin		*gpio_pins;
-	int			gpio_ppspin;
-	struct pps_state	gpio_pps;
-	uint32_t		gpio_ppsenable;
+	int			aterm_led;
+	int			aterm_led_bits;
 };
 
 #endif	/* __AR5315_GPIOVAR_H__ */
