@@ -123,13 +123,17 @@ ar5315_gpio_pin_configure(struct ar5315_gpio_softc *sc, struct gpio_pin *pin,
 	 */
 	if (flags & (GPIO_PIN_INPUT|GPIO_PIN_OUTPUT)) {
 		pin->gp_flags &= ~(GPIO_PIN_INPUT|GPIO_PIN_OUTPUT);
+#ifdef AR531X_1ST_GENERATION
+		if (flags & GPIO_PIN_INPUT) {
+#else
 		if (flags & GPIO_PIN_OUTPUT) {
+#endif
 			pin->gp_flags |= GPIO_PIN_OUTPUT;
-			GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), mask);
+			GPIO_SET_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 		else {
 			pin->gp_flags |= GPIO_PIN_INPUT;
-			GPIO_SET_BITS(sc, ar531x_gpio_cr(), mask);
+			GPIO_CLEAR_BITS(sc, ar531x_gpio_cr(), mask);
 		}
 	}
 }
@@ -206,7 +210,12 @@ ar5315_gpio_pin_getflags(device_t dev, uint32_t pin, uint32_t *flags)
 
 	dir = GPIO_READ(sc, ar531x_gpio_cr()) & (1 << pin);
 
+#ifdef AR531X_1ST_GENERATION
 	*flags = dir ? GPIO_PIN_INPUT : GPIO_PIN_OUTPUT;
+#else
+	*flags = dir ? GPIO_PIN_OUTPUT : GPIO_PIN_INPUT;
+#endif
+
 
 /*
 	GPIO_LOCK(sc);
