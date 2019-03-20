@@ -104,7 +104,9 @@ static void are_init(void *);
 static void are_init_locked(struct are_softc *);
 static void are_link_task(void *, int);
 static int are_miibus_readreg(device_t, int, int);
+#if !defined(ARE_MDIO)
 static void are_miibus_statchg(device_t);
+#endif
 static int are_miibus_writereg(device_t, int, int, int);
 static int are_probe(device_t);
 static void are_reset(struct are_softc *);
@@ -142,7 +144,9 @@ static device_method_t are_methods[] = {
 	/* MII interface */
 	DEVMETHOD(miibus_readreg,	are_miibus_readreg),
 	DEVMETHOD(miibus_writereg,	are_miibus_writereg),
+#if !defined(ARE_MDIO)
 	DEVMETHOD(miibus_statchg,	are_miibus_statchg),
+#endif
 
 	/* bus interface */
 	DEVMETHOD(bus_add_child,	device_add_child_ordered),
@@ -490,6 +494,7 @@ are_miibus_writereg(device_t dev, int phy, int reg, int data)
 	return (0);
 }
 
+#if !defined(ARE_MDIO)
 static void
 are_miibus_statchg(device_t dev)
 {
@@ -498,6 +503,7 @@ are_miibus_statchg(device_t dev)
 	sc = device_get_softc(dev);
 	taskqueue_enqueue(taskqueue_swi, &sc->are_link_task);
 }
+#endif
 
 static void
 are_link_task(void *arg, int pending)
@@ -695,6 +701,7 @@ are_encap(struct are_softc *sc, struct mbuf **m_head)
 	int			padlen;
 
 	startcount = sc->are_cdata.are_tx_cnt;
+
 
 	ARE_LOCK_ASSERT(sc);
 

@@ -18,3 +18,5 @@ mips/mips/tick.c				standard
 
 # Non Intrng
 mips/mips/intr_machdep.c			optional !intrng
+
+dev/etherswitch/rtl8366/rtl830x.c		standard
