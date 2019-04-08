@@ -39,17 +39,11 @@ __FBSDID("$FreeBSD$");
 #include <sys/slicer.h>
 
 #include <geom/geom.h>
-#include <geom/geom_slice.h>
 #include <geom/geom_disk.h>
+#include <geom/geom_flashmap.h>
+#include <geom/geom_slice.h>
 
 #include <dev/nand/nand_dev.h>
-
-#define	FLASHMAP_CLASS_NAME "Flashmap"
-
-#define	FLASHMAP_UBOOTHDRSIZE	64
-#define	FLASHMAP_SECTORSIZE	(64 * 1024)
-#define	FLASHMAP_MARKER_STR	"#!/bin/sh"
-#define	FLASHMAP_MAX_HDRCHK	8
 
 struct g_flashmap_slice {
 	off_t		sl_start;
@@ -75,12 +69,10 @@ static g_ioctl_t g_flashmap_ioctl;
 static g_taste_t g_flashmap_taste;
 
 static int g_flashmap_load(device_t dev, struct g_provider *pp,
-    struct g_consumer *cp, flash_slicer_t slicer, struct g_flashmap_head *head);
-static int g_flashmap_modify(struct g_geom *gp, const char *devname,
-    int secsize, struct g_flashmap_head *slices);
+    flash_slicer_t slicer, struct g_flashmap_head *head);
+static int g_flashmap_modify(struct g_flashmap *gfp, struct g_geom *gp,
+    const char *devname, int secsize, struct g_flashmap_head *slices);
 static void g_flashmap_print(struct g_flashmap_slice *slice);
-
-static off_t chkuboothdr(struct g_consumer *cp, off_t offset);
 
 MALLOC_DECLARE(M_FLASHMAP);
 MALLOC_DEFINE(M_FLASHMAP, "geom_flashmap", "GEOM flash memory slicer class");
@@ -95,8 +87,8 @@ g_flashmap_print(struct g_flashmap_slice *slice)
 }
 
 static int
-g_flashmap_modify(struct g_geom *gp, const char *devname, int secsize,
-    struct g_flashmap_head *slices)
+g_flashmap_modify(struct g_flashmap *gfp, struct g_geom *gp,
+    const char *devname, int secsize, struct g_flashmap_head *slices)
 {
 	struct g_flashmap_slice *slice;
 	int i, error;
@@ -121,6 +113,8 @@ g_flashmap_modify(struct g_geom *gp, const char *devname, int secsize,
 
 	i = 0;
 	STAILQ_FOREACH(slice, slices, sl_link) {
+		free(__DECONST(void *, gfp->labels[i]), M_FLASHMAP);
+		gfp->labels[i] = strdup(slice->sl_name, M_FLASHMAP);
 		error = g_slice_config(gp, i++, G_SLICE_CONFIG_SET,
 		    slice->sl_start,
 		    slice->sl_end - slice->sl_start + 1,
@@ -160,6 +154,7 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	struct g_consumer *cp;
 	struct g_flashmap_head head;
 	struct g_flashmap_slice *slice, *slice_temp;
+	struct g_flashmap *gfp;
 	flash_slicer_t slicer;
 	device_t dev;
 	int i, size;
@@ -171,7 +166,8 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	    strcmp(pp->geom->class->name, G_DISK_CLASS_NAME) != 0)
 		return (NULL);
 
-	gp = g_slice_new(mp, FLASH_SLICES_MAX_NUM, pp, &cp, NULL, 0, NULL);
+	gp = g_slice_new(mp, FLASH_SLICES_MAX_NUM, pp, &cp, (void**)&gfp,
+	    sizeof(struct g_flashmap), NULL);
 	if (gp == NULL)
 		return (NULL);
 
@@ -190,10 +186,10 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 		if (slicer == NULL)
 			break;
 
-		if (g_flashmap_load(dev, pp, cp, slicer, &head) == 0)
+		if (g_flashmap_load(dev, pp, slicer, &head) == 0)
 			break;
 
-		g_flashmap_modify(gp, cp->provider->name,
+		g_flashmap_modify(gfp, gp, cp->provider->name,
 		    cp->provider->sectorsize, &head);
 	} while (0);
 
@@ -209,67 +205,13 @@ g_flashmap_taste(struct g_class *mp, struct g_provider *pp, int flags)
 	return (gp);
 }
 
-static off_t
-chkuboothdr(struct g_consumer *cp, off_t offset)
-{
-	off_t val;
-	uint8_t *buf;
-	size_t sectorsize;
-	int i;
-	int uboothdr;
-
-	sectorsize = FLASHMAP_SECTORSIZE;
-	sectorsize = cp->provider->sectorsize;
-	buf = g_read_data(cp, offset, sectorsize, NULL);
-	/*
-	 * check u-boot header magic number.
-	 * A few u-boot have space before header.
-	 */
-	uboothdr = -1;
-	for (i = 0; i < FLASHMAP_MAX_HDRCHK; ++i) {
-		if (buf[i*4] == 0x27 && buf[i*4+1] == 0x05 &&
-		    buf[i*4+2] == 0x19 && buf[i*4+3] == 0x56) {
-			uboothdr = i;
-			break;
-		}
-	}
-	if (uboothdr == -1) {
-		g_free(buf);
-		return 0;
-	}
-	/* get image data size */
-	uboothdr *= 4;
-	val = buf[uboothdr+0xc] << 24 | buf[uboothdr+0xd] << 16 |
-	    buf[uboothdr+0xe] << 8 | buf[uboothdr+0xf];
-	val += FLASHMAP_UBOOTHDRSIZE + uboothdr;
-	val = (val - 1) / FLASHMAP_SECTORSIZE;
-	val = (val + 1) * FLASHMAP_SECTORSIZE;
-	g_free(buf);
-	/* check 64K and 128K boundly */
-	for (i = 0; i < 2; ++i) {
-		buf = g_read_data(cp, offset + val, sectorsize, NULL);
-		if (strncmp(buf, FLASHMAP_MARKER_STR,
-		    strlen(FLASHMAP_MARKER_STR)) == 0)
-			break;
-		g_free(buf);
-		val += FLASHMAP_SECTORSIZE;
-	}
-	if (i == 2)
-		return 0;
-	g_free(buf);
-	return offset + val;
-}
-
 static int
-g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
-    flash_slicer_t slicer, struct g_flashmap_head *head)
+g_flashmap_load(device_t dev, struct g_provider *pp, flash_slicer_t slicer,
+    struct g_flashmap_head *head)
 {
 	struct flash_slice *slices;
 	struct g_flashmap_slice *slice;
 	int i, nslices = 0;
-	struct g_flashmap_slice *rootfs;
-	off_t rootfsbase;
-	char *rootfsname;
 
 	slices = malloc(sizeof(struct flash_slice) * FLASH_SLICES_MAX_NUM,
 	    M_FLASHMAP, M_WAITOK | M_ZERO);
@@ -281,32 +223,8 @@ g_flashmap_load(device_t dev, struct g_provider *pp, struct g_consumer *cp,
 			slice->sl_name = slices[i].label;
 			slice->sl_start = slices[i].base;
 			slice->sl_end = slices[i].base + slices[i].size - 1;
-			if(strcmp("firmware", slice->sl_name) == 0) {
-				rootfsbase = chkuboothdr(cp, slice->sl_start);
-				if (rootfsbase != 0) {
-					rootfs = malloc(sizeof(
-					    struct g_flashmap_slice),
-					    M_FLASHMAP, M_WAITOK);
 
-					slice->sl_end = rootfsbase - 1;
-					rootfsname = g_malloc(32,
-					    M_WAITOK | M_ZERO);
-					strcpy(rootfsname, "rootfs");
-					rootfs->sl_name = rootfsname;
-					rootfs->sl_start = rootfsbase;
-					rootfs->sl_end = slices[i].base +
-					    slices[i].size - 1;
-					STAILQ_INSERT_TAIL(head, slice,
-					    sl_link);
-					STAILQ_INSERT_TAIL(head, rootfs,
-					    sl_link);
-				} else {
-					STAILQ_INSERT_TAIL(head, slice,
-					    sl_link);
-				}
-			} else {
-				STAILQ_INSERT_TAIL(head, slice, sl_link);
-			}
+			STAILQ_INSERT_TAIL(head, slice, sl_link);
 		}
 	}
 
