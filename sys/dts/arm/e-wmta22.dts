@@ -1,0 +1,92 @@
+/*
+ * Copyright (c) 2016 Hiroki Mori
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * Softbank E-WMTA2.2 Device Tree Source.
+ *
+ * $FreeBSD$
+ */
+
+/dts-v1/;
+
+#include "m83261g13.dtsi"
+
+/ {
+	compatible = "E-WMTA22", "mindspeed,m831xx-soc";
+	model = "E-WMTA22";
+
+	memory {
+		device_type = "memory";
+		reg = <0x80000000 0x8000000>;		// 128M at 0x80000000
+	};
+
+	flash@20000000 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "cfi-flash";
+		reg = <0x20000000 0x2000000>;		// 32M at 0x20000000
+		bank-width = <2>;
+		device-width = <1>;
+
+		partition@0 {
+			reg = <0x00000000 0x00040000>;
+			label = "u-boot";
+		};
+		partition@1 {
+			reg = <0x00040000 0x00020000>;
+			label = "env";
+		};
+		partition@2 {
+			reg = <0x00060000 0x00020000>;
+			label = "data";
+		};
+		partition@3 {
+			reg = <0x00080000 0x00020000>;
+			label = "wlan";
+		};
+		partition@4 {
+			reg = <0x000a0000 0x00100000>;
+			label = "config";
+		};
+		partition@5 {
+			reg = <0x001a0000 0x00130000>;
+			label = "kernel";
+		};
+		partition@6 {
+			reg = <0x002d0000 0x00330000>;
+			label = "rootfs";
+		};
+	};
+/*
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		status {
+			label = "status";
+			gpios = <&gpio0 4 0>;
+		};
+	};
+*/
+
+};
+
