@@ -4,16 +4,4 @@ arm/ralink/rt1310_intc.c		standard
 arm/ralink/rt1310_gpio.c		optional	rt1310gpio
 arm/ralink/rt1310_timer.c		standard
 arm/ralink/if_fv.c			optional	fv
-arm/ralink/rt1310_pci.c			optional	pci
-
-kern/kern_clocksource.c			standard
-
-dev/rt2860/rt2860_pci.c    optional        rt2860
-dev/rt2860/rt2860.c          optional        rt2860
-dev/rt2860/rt2860_amrr.c     optional        rt2860
-dev/rt2860/rt2860_io.c               optional        rt2860
-dev/rt2860/rt2860_io_mac.c               optional        rt2860
-dev/rt2860/rt2860_led.c              optional        rt2860
-dev/rt2860/rt2860_read_eeprom.c      optional        rt2860
-dev/rt2860/rt2860_rf.c               optional        rt2860
 
