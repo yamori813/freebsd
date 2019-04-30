@@ -501,6 +501,52 @@ out:
 }
 
 static int
+mtk_gpio_pin_access_32(device_t dev, uint32_t first_pin, uint32_t clear_pins,
+    uint32_t change_pins, uint32_t *orig_pins)
+{
+	struct mtk_gpio_softc *sc;
+	uint32_t data;
+
+	sc = device_get_softc(dev);
+	if (first_pin != 0)
+		return (EINVAL);
+
+	MTK_GPIO_LOCK(sc);
+	data = MTK_READ_4(sc, GPIO_PIODATA);
+	if ((clear_pins | change_pins) != 0) {
+		MTK_WRITE_4(sc, GPIO_PIODATA,
+		    (data & ~clear_pins) ^ change_pins);
+	}
+	MTK_GPIO_UNLOCK(sc);
+
+	if (orig_pins != NULL)
+		*orig_pins = data;
+
+	return 0;
+}
+
+static int
+mtk_gpio_pin_config_32(device_t dev, uint32_t first_pin, uint32_t num_pins,
+    uint32_t *pin_flags)
+{
+	struct mtk_gpio_softc *sc;
+	uint32_t pin;
+	int err;
+
+	sc = device_get_softc(dev);
+	if (first_pin != 0 || num_pins > sc->num_pins)
+		return (EINVAL);
+
+	for (err = 0, pin = 0; err == 0 && pin < num_pins; ++pin) {
+		if (pin_flags[pin] & (GPIO_PIN_INPUT | GPIO_PIN_OUTPUT)) {
+			err = mtk_gpio_pin_setflags(dev, pin, pin_flags[pin]);
+		}
+	}
+
+	return 0;
+}
+
+static int
 mtk_gpio_pic_map_fdt(struct mtk_gpio_softc *sc,
     struct intr_map_data_fdt *daf, u_int *irqp, uint32_t *modep)
 {
@@ -747,6 +793,8 @@ static device_method_t mtk_gpio_methods[] = {
 	DEVMETHOD(gpio_pin_get,		mtk_gpio_pin_get),
 	DEVMETHOD(gpio_pin_set,		mtk_gpio_pin_set),
 	DEVMETHOD(gpio_pin_toggle,	mtk_gpio_pin_toggle),
+	DEVMETHOD(gpio_pin_access_32,	mtk_gpio_pin_access_32),
+	DEVMETHOD(gpio_pin_config_32,	mtk_gpio_pin_config_32),
 
 	/* Interrupt controller interface */
 	DEVMETHOD(pic_disable_intr,	mtk_gpio_pic_disable_intr),
