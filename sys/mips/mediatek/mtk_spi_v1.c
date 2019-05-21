@@ -291,7 +291,7 @@ mtk_spi_transfer(device_t dev, device_t child, struct spi_command *cmd)
 		else if (clk > 6)
 			clk = 6;
 	} else {
-		clk = 0;
+		clk = 6;
 	}
 
 	SPI_WRITE(sc, MTK_SPICFG, cfgreg | clk);
