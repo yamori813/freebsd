@@ -31,6 +31,8 @@
  * GPIO driver for AR5315 
  */
 
+#include "opt_ar531x.h"
+
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 

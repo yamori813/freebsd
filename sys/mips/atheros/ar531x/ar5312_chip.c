@@ -136,6 +136,8 @@ ar5312_chip_device_start(void)
 	size1 <<= 20;
 
 	printf("SDRMCTL %x %x %x %x\n", cfg0, cfg1, size0, size1);
+	uint32_t freg = ATH_READ_REG(AR5312_FLASHCTL_BASE + AR5312_FLASHCTL_0);
+	printf("FLASHCTL %08x\n", freg);
 
 	ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_AHBPERR);
 	ATH_READ_REG(AR5312_SYSREG_BASE + AR5312_SYSREG_AHBDMAE);

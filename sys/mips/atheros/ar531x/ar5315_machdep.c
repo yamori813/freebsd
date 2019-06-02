@@ -40,6 +40,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/kdb.h>
 #include <sys/reboot.h>
 #include <sys/boot.h>
+#include <sys/mutex.h>
 
 #include <vm/vm.h>
 #include <vm/vm_page.h>
