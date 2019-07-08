@@ -50,8 +50,8 @@
 			label = "uboot_environ";
 		};
 		partition@2 {
-			reg = <0x00010000 0x003c0000>;
-			label = "firmware";
+			reg = <0x00110000 0x00295600>;
+			label = "rootfs";
 		};
 		partition@3 {
 			reg = <0x003e0000 0x00010000>;
