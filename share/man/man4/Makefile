@@ -3,8 +3,6 @@
 
 .include <src.opts.mk>
 
-PACKAGE=runtime-manuals
-
 MAN=	aac.4 \
 	aacraid.4 \
 	acpi.4 \
@@ -23,6 +21,7 @@ MAN=	aac.4 \
 	${_acpi_wmi.4} \
 	ada.4 \
 	adm6996fc.4 \
+	ads111x.4 \
 	ae.4 \
 	${_aesni.4} \
 	age.4 \
@@ -105,6 +104,7 @@ MAN=	aac.4 \
 	ccr.4 \
 	cd.4 \
 	cdce.4 \
+	cdceem.4 \
 	cfi.4 \
 	cfumass.4 \
 	ch.4 \
@@ -166,7 +166,6 @@ MAN=	aac.4 \
 	gdb.4 \
 	gem.4 \
 	geom.4 \
-	geom_fox.4 \
 	geom_linux_lvm.4 \
 	geom_map.4 \
 	geom_uzip.4 \
@@ -569,7 +568,13 @@ MAN=	aac.4 \
 	xpt.4 \
 	zero.4
 
-MLINKS=	ae.4 if_ae.4
+MLINKS=	ads111x.4 ads1013.4 \
+	ads111x.4 ads1014.4 \
+	ads111x.4 ads1015.4 \
+	ads111x.4 ads1113.4 \
+	ads111x.4 ads1114.4 \
+	ads111x.4 ads1115.4
+MLINKS+=ae.4 if_ae.4
 MLINKS+=age.4 if_age.4
 MLINKS+=agp.4 agpgart.4
 MLINKS+=alc.4 if_alc.4
