@@ -379,6 +379,7 @@ MAN=	aac.4 \
 	null.4 \
 	numa.4 \
 	${_nvd.4} \
+	${_nvdimm.4} \
 	${_nvme.4} \
 	${_nvram.4} \
 	${_nvram2env.4} \
@@ -412,6 +413,7 @@ MAN=	aac.4 \
 	psm.4 \
 	pst.4 \
 	pt.4 \
+	ptnet.4 \
 	pts.4 \
 	pty.4 \
 	puc.4 \
@@ -691,6 +693,7 @@ MLINKS+=pccbb.4 cbb.4
 MLINKS+=pcm.4 snd.4 \
 	pcm.4 sound.4
 MLINKS+=pms.4 pmspcv.4
+MLINKS+=ptnet.4 if_ptnet.4
 MLINKS+=ral.4 if_ral.4
 MLINKS+=re.4 if_re.4
 MLINKS+=rl.4 if_rl.4
@@ -790,6 +793,11 @@ _nda.4=		nda.4
 _ndis.4=	ndis.4
 _nfe.4=		nfe.4
 _nfsmb.4=	nfsmb.4
+_if_ntb.4=	if_ntb.4
+_ntb.4=		ntb.4
+_ntb_hw_intel.4=	ntb_hw_intel.4
+_ntb_hw_plx.4=	ntb_hw_plx.4
+_ntb_transport.4=ntb_transport.4
 _nvd.4=		nvd.4
 _nvme.4=	nvme.4
 _nvram.4=	nvram.4
@@ -817,12 +825,8 @@ _xnb.4=		xnb.4
 .endif
 
 .if ${MACHINE_CPUARCH} == "amd64"
-_if_ntb.4=	if_ntb.4
 _ioat.4=	ioat.4
-_ntb.4=		ntb.4
-_ntb_hw_intel.4=	ntb_hw_intel.4
-_ntb_hw_plx.4=	ntb_hw_plx.4
-_ntb_transport.4=ntb_transport.4
+_nvdimm.4=	nvdimm.4
 _qlxge.4=	qlxge.4
 _qlxgb.4=	qlxgb.4
 _qlxgbe.4=	qlxgbe.4
