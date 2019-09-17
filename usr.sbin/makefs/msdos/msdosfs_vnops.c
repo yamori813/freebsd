@@ -59,6 +59,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/time.h>
 
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -69,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include "msdos/direntry.h"
 #include <fs/msdosfs/denode.h>
 #include <fs/msdosfs/fat.h>
-#include "msdos/msdosfsmount.h"
+#include <fs/msdosfs/msdosfsmount.h>
 
 #include "makefs.h"
 #include "msdos.h"

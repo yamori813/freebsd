@@ -167,6 +167,7 @@ struct vm_object {
 		struct {
 			void *swp_tmpfs;
 			struct pctrie swp_blks;
+			vm_ooffset_t writemappings;
 		} swp;
 	} un_pager;
 	struct ucred *cred;
@@ -189,7 +190,6 @@ struct vm_object {
 #define	OBJ_TMPFS_DIRTY	0x0400		/* dirty tmpfs obj */
 #define	OBJ_COLORED	0x1000		/* pg_color is defined */
 #define	OBJ_ONEMAPPING	0x2000		/* One USE (a single, non-forked) mapping flag */
-#define	OBJ_DISCONNECTWNT 0x4000	/* disconnect from vnode wanted */
 #define	OBJ_TMPFS	0x8000		/* has tmpfs vnode allocated */
 
 /*

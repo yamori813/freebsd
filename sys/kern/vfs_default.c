@@ -588,21 +588,36 @@ vop_stdgetwritemount(ap)
 	} */ *ap;
 {
 	struct mount *mp;
+	struct vnode *vp;
 
 	/*
-	 * XXX Since this is called unlocked we may be recycled while
-	 * attempting to ref the mount.  If this is the case or mountpoint
-	 * will be set to NULL.  We only have to prevent this call from
-	 * returning with a ref to an incorrect mountpoint.  It is not
-	 * harmful to return with a ref to our previous mountpoint.
+	 * Note that having a reference does not prevent forced unmount from
+	 * setting ->v_mount to NULL after the lock gets released. This is of
+	 * no consequence for typical consumers (most notably vn_start_write)
+	 * since in this case the vnode is VI_DOOMED. Unmount might have
+	 * progressed far enough that its completion is only delayed by the
+	 * reference obtained here. The consumer only needs to concern itself
+	 * with releasing it.
 	 */
-	mp = ap->a_vp->v_mount;
-	if (mp != NULL) {
-		vfs_ref(mp);
-		if (mp != ap->a_vp->v_mount) {
-			vfs_rel(mp);
+	vp = ap->a_vp;
+	mp = vp->v_mount;
+	if (mp == NULL) {
+		*(ap->a_mpp) = NULL;
+		return (0);
+	}
+	if (vfs_op_thread_enter(mp)) {
+		if (mp == vp->v_mount)
+			vfs_mp_count_add_pcpu(mp, ref, 1);
+		else
 			mp = NULL;
-		}
+		vfs_op_thread_exit(mp);
+	} else {
+		MNT_ILOCK(mp);
+		if (mp == vp->v_mount)
+			MNT_REF(mp);
+		else
+			mp = NULL;
+		MNT_IUNLOCK(mp);
 	}
 	*(ap->a_mpp) = mp;
 	return (0);

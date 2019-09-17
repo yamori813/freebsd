@@ -226,11 +226,6 @@ struct vop_vector fuse_vnops = {
 
 uma_zone_t fuse_pbuf_zone;
 
-#define fuse_vm_page_lock(m)		vm_page_lock((m));
-#define fuse_vm_page_unlock(m)		vm_page_unlock((m));
-#define fuse_vm_page_lock_queues()	((void)0)
-#define fuse_vm_page_unlock_queues()	((void)0)
-
 /* Check permission for extattr operations, much like extattr_check_cred */
 static int
 fuse_extattr_check_cred(struct vnode *vp, int ns, struct ucred *cred,
@@ -509,7 +504,7 @@ fuse_vnop_bmap(struct vop_bmap_args *ap)
 	if (runp != NULL) {
 		error = fuse_vnode_size(vp, &filesize, td->td_ucred, td);
 		if (error == 0)
-			*runp = MIN(MAX(0, filesize / biosize - lbn - 1),
+			*runp = MIN(MAX(0, filesize / (off_t)biosize - lbn - 1),
 				    maxrun);
 		else
 			*runp = 0;
@@ -1530,14 +1525,12 @@ fuse_vnop_reclaim(struct vop_reclaim_args *ap)
 		fuse_filehandle_close(vp, fufh, td, NULL);
 	}
 
-	if ((!fuse_isdeadfs(vp)) && (fvdat->nlookup)) {
+	if (!fuse_isdeadfs(vp) && fvdat->nlookup > 0) {
 		fuse_internal_forget_send(vnode_mount(vp), td, NULL, VTOI(vp),
 		    fvdat->nlookup);
 	}
-	fuse_vnode_setparent(vp, NULL);
 	cache_purge(vp);
 	vfs_hash_remove(vp);
-	vnode_destroy_vobject(vp);
 	fuse_vnode_destroy(vp);
 
 	return 0;

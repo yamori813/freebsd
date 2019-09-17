@@ -55,6 +55,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/mount.h>
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -66,7 +67,7 @@ __FBSDID("$FreeBSD$");
 #include "msdos/direntry.h"
 #include <fs/msdosfs/denode.h>
 #include <fs/msdosfs/fat.h>
-#include "msdos/msdosfsmount.h"
+#include <fs/msdosfs/msdosfsmount.h>
 
 #include <mkfs_msdos.h>
 
