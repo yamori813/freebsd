@@ -1910,7 +1910,6 @@ aiotx_free_pgs(struct mbuf *m)
 {
 	struct mbuf_ext_pgs *ext_pgs;
 	struct kaiocb *job;
-	struct mtx *mtx;
 	vm_page_t pg;
 
 	MBUF_EXT_PGS_ASSERT(m);
@@ -1921,14 +1920,10 @@ aiotx_free_pgs(struct mbuf *m)
 	    m->m_len, jobtotid(job));
 #endif
 
-	mtx = NULL;
 	for (int i = 0; i < ext_pgs->npgs; i++) {
 		pg = PHYS_TO_VM_PAGE(ext_pgs->pa[i]);
-		vm_page_change_lock(pg, &mtx);
 		vm_page_unwire(pg, PQ_ACTIVE);
 	}
-	if (mtx != NULL)
-		mtx_unlock(mtx);
 
 	aiotx_free_job(job);
 }
@@ -2023,7 +2018,6 @@ alloc_aiotx_mbuf(struct kaiocb *job, int len)
 static void
 t4_aiotx_process_job(struct toepcb *toep, struct socket *so, struct kaiocb *job)
 {
-	struct adapter *sc;
 	struct sockbuf *sb;
 	struct file *fp;
 	struct inpcb *inp;
@@ -2032,7 +2026,6 @@ t4_aiotx_process_job(struct toepcb *toep, struct socket *so, struct kaiocb *job)
 	int error, len;
 	bool moretocome, sendmore;
 
-	sc = td_adapter(toep->td);
 	sb = &so->so_snd;
 	SOCKBUF_UNLOCK(sb);
 	fp = job->fd_file;
@@ -2104,8 +2097,8 @@ sendanother:
 		moretocome = false;
 	} else
 		moretocome = true;
-	if (len > sc->tt.sndbuf) {
-		len = sc->tt.sndbuf;
+	if (len > toep->params.sndbuf) {
+		len = toep->params.sndbuf;
 		sendmore = true;
 	} else
 		sendmore = false;

@@ -1010,6 +1010,8 @@
         ..
         limits
         ..
+        locale
+        ..
         m4
         ..
         mkimg
@@ -1017,6 +1019,8 @@
         ncal
         ..
         opensm
+        ..
+        patch
         ..
         pr
         ..
@@ -1077,6 +1081,8 @@
         extattr
         ..
         fstyp
+        ..
+        jail
         ..
         makefs
         ..
