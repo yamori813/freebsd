@@ -123,7 +123,6 @@
 			interrupt-parent = <&intc>;
 		};
 
-#if 0
 		serial1: serial@94000 {
 			compatible = "ns16550";
 			reg = <0x94000 0x4000>;
@@ -156,7 +155,6 @@
 			interrupt-parent = <&intc>;
 			reg = <0x70000 0x10000>;
 		};
-#endif
 
 	};
 
