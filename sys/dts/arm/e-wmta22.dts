@@ -31,9 +31,12 @@
 
 #include "m83261g13.dtsi"
 
+
 / {
 	compatible = "E-WMTA22", "mindspeed,m831xx-soc";
 	model = "E-WMTA22";
+	#address-cells = <1>;
+	#size-cells = <1>;
 
 	memory {
 		device_type = "memory";
@@ -69,11 +72,11 @@
 			label = "config";
 		};
 		partition@5 {
-			reg = <0x001a0000 0x00130000>;
+			reg = <0x001a0000 0x00160000>;
 			label = "kernel";
 		};
 		partition@6 {
-			reg = <0x002d0000 0x00330000>;
+			reg = <0x00300000 0x00800000>;
 			label = "rootfs";
 		};
 	};
