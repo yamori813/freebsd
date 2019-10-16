@@ -1,11 +1,8 @@
-/*	$NetBSD: tree.h,v 1.8 2004/03/28 19:38:30 provos Exp $	*/
-/*	$OpenBSD: tree.h,v 1.7 2002/10/17 21:51:54 art Exp $	*/
-/* $FreeBSD$ */
-
 /*-
  * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
  *
  * Copyright 2002 Niels Provos <provos@citi.umich.edu>
+ * Copyright 2018-2019 Netflix, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,6 +24,8 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * $FreeBSD$
  */
 
 #ifndef	_SYS_ARB_H_
@@ -775,5 +774,8 @@ name##_ARB_REINSERT(struct name *head, struct type *elm)		\
 
 #define	ARB_ARRFOREACH_REVERSE(x, field, head) \
 	ARB_ARRFOREACH_REVWCOND(x, field, head, 1)
+
+#define	ARB_RESET_TREE(head, name, maxn)				\
+	*(head) = ARB_INITIALIZER(name, maxn)
 
 #endif	/* _SYS_ARB_H_ */
