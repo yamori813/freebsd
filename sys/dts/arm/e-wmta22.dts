@@ -76,7 +76,7 @@
 			label = "kernel";
 		};
 		partition@6 {
-			reg = <0x00300000 0x00800000>;
+			reg = <0x00310000 0x00800000>;
 			label = "rootfs";
 		};
 	};
