@@ -1,6 +1,7 @@
 .\"	$OpenBSD: tree.3,v 1.7 2002/06/12 01:09:20 provos Exp $
 .\"
 .\" Copyright 2002 Niels Provos <provos@citi.umich.edu>
+.\" Copyright 2018-2019 Netflix, Inc.
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -30,7 +31,7 @@
 .\"
 .\" $FreeBSD$
 .\"
-.Dd September 28, 2019
+.Dd October 14, 2019
 .Dt ARB 3
 .Os
 .Sh NAME
@@ -94,7 +95,8 @@
 .Nm ARB_INIT ,
 .Nm ARB_INSERT ,
 .Nm ARB_REMOVE ,
-.Nm ARB_REINSERT
+.Nm ARB_REINSERT ,
+.Nm ARB_RESET_TREE
 .Nd "array-based red-black trees"
 .Sh SYNOPSIS
 .In sys/arb.h
@@ -179,6 +181,8 @@
 .Fn ARB_REMOVE NAME "ARB_HEAD *head" "struct TYPE *elm"
 .Ft "struct TYPE *"
 .Fn ARB_REINSERT NAME "ARB_HEAD *head" "struct TYPE *elm"
+.Ft void
+.Fn ARB_RESET_TREE "ARB_HEAD *head" NAME "int<8|16|32>_t maxnodes"
 .Sh DESCRIPTION
 These macros define data structures for and array-based red-black trees.
 They use a single, continuous chunk of memory, and are useful
@@ -396,7 +400,7 @@ macros can be used to find a particular element in the tree.
 .Bd -literal -offset indent
 struct TYPE find, *res;
 find.key = 30;
-res = RB_FIND(NAME, head, &find);
+res = ARB_FIND(NAME, head, &find);
 .Ed
 .Pp
 The
@@ -408,7 +412,7 @@ and
 .Fn ARB_PREV
 macros can be used to traverse the tree:
 .Pp
-.Dl "for (np = RB_MIN(NAME, &head); np != NULL; np = RB_NEXT(NAME, &head, np))"
+.Dl "for (np = ARB_MIN(NAME, &head); np != NULL; np = ARB_NEXT(NAME, &head, np))"
 .Pp
 Or, for simplicity, one can use the
 .Fn ARB_FOREACH
@@ -416,7 +420,7 @@ or
 .Fn ARB_FOREACH_REVERSE
 macro:
 .Bd -ragged -offset indent
-.Fn RB_FOREACH np NAME head
+.Fn ARB_FOREACH np NAME head
 .Ed
 .Pp
 The macros
@@ -475,7 +479,7 @@ returns the pointer to the removed element otherwise they return
 to indicate an error.
 .Pp
 The
-.Fn RB_REINSERT
+.Fn ARB_REINSERT
 macro updates the position of the element
 .Fa elm
 in the tree.
@@ -485,6 +489,11 @@ is modified in a way that affects comparison, such as by modifying
 a node's key.
 This is a lower overhead alternative to removing the element
 and reinserting it again.
+.Pp
+The
+.Fn ARB_RESET_TREE
+macro discards the tree topology.
+It does not modify embedded object values or the free list.
 .Sh SEE ALSO
 .Xr queue 3 ,
 .Xr tree 3
