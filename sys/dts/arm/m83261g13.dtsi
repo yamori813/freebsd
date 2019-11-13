@@ -28,7 +28,7 @@
  */
 
 / {
-	compatible = "mindspeed,m83261g13-soc";
+	compatible = "mindspeed,m83261g13-soc", "mindspeed,comcerto";
 	#address-cells = <1>;
 	#size-cells = <1>;
 
@@ -46,8 +46,8 @@
 			reg = <0x0>;
 			d-cache-line-size = <32>;	// 32 bytes
 			i-cache-line-size = <32>;	// 32 bytes
-			d-cache-size = <0x8000>;	// L1, 32K
-			i-cache-size = <0x8000>;	// L1, 32K
+			d-cache-size = <0x10000>;	// L1, 64K
+			i-cache-size = <0x10000>;	// L1, 64K
 			timebase-frequency = <0>;
 			bus-frequency = <0>;
 			clock-frequency = <650000000>;
@@ -59,19 +59,20 @@
 			reg = <0x0>;
 			d-cache-line-size = <32>;	// 32 bytes
 			i-cache-line-size = <32>;	// 32 bytes
-			d-cache-size = <0x8000>;	// L1, 32K
-			i-cache-size = <0x8000>;	// L1, 32K
+			d-cache-size = <0x10000>;	// L1, 64K
+			i-cache-size = <0x10000>;	// L1, 64K
 			timebase-frequency = <0>;
 			bus-frequency = <0>;
 			clock-frequency = <650000000>;
 		};
+
 	};
 
 	localbus@20000000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
-		ranges = <0x0 0x20000000 0x2000000>;
+		ranges = <0x0 0x20000000 0x1000000>;
 	};
 
 	apb@10000000 {
@@ -156,6 +157,13 @@
 			reg = <0x70000 0x10000>;
 		};
 
+	};
+
+	usb0@f000000 {
+		compatible = "comcerto,usb-ehci", "usb-ehci";
+		reg = <0xf000000 0x800000>;
+		interrupts = <5>;
+		interrupt-parent = <&intc>;
 	};
 
 };
