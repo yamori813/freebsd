@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2016 Hiroki Mori
  *
@@ -93,7 +94,7 @@
 		mac0@d0000 {
 			compatible = "comcerto,ethernet";
 			reg = <0xd0000 0x10000>;
-			interrupts = <6>;
+			interrupts = <6 23>;
 			interrupt-parent = <&intc>;	
 			local-mac-address = [ 00 1a f1 01 1f 23 ];
 		};
@@ -101,9 +102,14 @@
 		mac1@190000 {
 			compatible = "comcerto,ethernet";
 			reg = <0x190000 0x10000>;
-			interrupts = <7>;
+			interrupts = <7 24>;
 			interrupt-parent = <&intc>;	
 			local-mac-address = [ 00 1a f1 01 1f 23 ];
+		};
+
+		mdio0@d0000 {
+			compatible = "comcerto,mdio";
+			reg = <0xd0000 0x10000>;
 		};
 
 		timer@50000 {
