@@ -4896,7 +4896,7 @@ arc_adjust_cb_check(void *arg, zthr_t *zthr)
  * Keep arc_size under arc_c by running arc_adjust which evicts data
  * from the ARC. */
 /* ARGSUSED */
-static int
+static void
 arc_adjust_cb(void *arg, zthr_t *zthr)
 {
 	uint64_t evicted = 0;
@@ -4927,8 +4927,6 @@ arc_adjust_cb(void *arg, zthr_t *zthr)
 		cv_broadcast(&arc_adjust_waiters_cv);
 	}
 	mutex_exit(&arc_adjust_lock);
-
-	return (0);
 }
 
 /* ARGSUSED */
@@ -4970,7 +4968,7 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
  * to free more buffers.
  */
 /* ARGSUSED */
-static int
+static void
 arc_reap_cb(void *arg, zthr_t *zthr)
 {
 	int64_t free_memory;
@@ -5011,8 +5009,6 @@ arc_reap_cb(void *arg, zthr_t *zthr)
 #endif
 		arc_reduce_target_size(to_free);
 	}
-
-	return (0);
 }
 
 static u_int arc_dnlc_evicts_arg;
@@ -7890,7 +7886,6 @@ l2arc_read_done(zio_t *zio)
 		zio->io_private = hdr;
 		arc_read_done(zio);
 	} else {
-		mutex_exit(hash_lock);
 		/*
 		 * Buffer didn't survive caching.  Increment stats and
 		 * reissue to the original storage device.
@@ -7913,11 +7908,17 @@ l2arc_read_done(zio_t *zio)
 
 			ASSERT(!pio || pio->io_child_type == ZIO_CHILD_LOGICAL);
 
-			zio_nowait(zio_read(pio, zio->io_spa, zio->io_bp,
+			zio = zio_read(pio, zio->io_spa, zio->io_bp,
 			    hdr->b_l1hdr.b_pabd, zio->io_size, arc_read_done,
 			    hdr, zio->io_priority, cb->l2rcb_flags,
-			    &cb->l2rcb_zb));
-		}
+			    &cb->l2rcb_zb);
+			for (struct arc_callback *acb = hdr->b_l1hdr.b_acb;
+			    acb != NULL; acb = acb->acb_next)
+				acb->acb_zio_head = zio;
+			mutex_exit(hash_lock);
+			zio_nowait(zio);
+		} else
+			mutex_exit(hash_lock);
 	}
 
 	kmem_free(cb, sizeof (l2arc_read_callback_t));

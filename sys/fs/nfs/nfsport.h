@@ -669,6 +669,7 @@ void nfsrvd_rcv(struct socket *, void *, int);
 #define	NFSLOCKSOCK()		mtx_lock(&nfs_slock_mutex)
 #define	NFSUNLOCKSOCK()		mtx_unlock(&nfs_slock_mutex)
 #define	NFSNAMEIDMUTEX		extern struct mtx nfs_nameid_mutex
+#define	NFSNAMEIDMUTEXPTR	(&nfs_nameid_mutex)
 #define	NFSLOCKNAMEID()		mtx_lock(&nfs_nameid_mutex)
 #define	NFSUNLOCKNAMEID()	mtx_unlock(&nfs_nameid_mutex)
 #define	NFSNAMEIDREQUIRED()	mtx_assert(&nfs_nameid_mutex, MA_OWNED)
@@ -878,6 +879,7 @@ MALLOC_DECLARE(M_NEWNFSDSESSION);
 int nfscl_loadattrcache(struct vnode **, struct nfsvattr *, void *, void *,
     int, int);
 int newnfs_realign(struct mbuf **, int);
+bool ncl_pager_setsize(struct vnode *vp, u_quad_t *nsizep);
 
 /*
  * If the port runs on an SMP box that can enforce Atomic ops with low
