@@ -1406,8 +1406,12 @@ moea64_enter(mmu_t mmu, pmap_t pmap, vm_offset_t va, vm_page_t m,
 	uint64_t	pte_lo;
 	int		error;
 
-	if ((m->oflags & VPO_UNMANAGED) == 0)
-		VM_PAGE_OBJECT_BUSY_ASSERT(m);
+	if ((m->oflags & VPO_UNMANAGED) == 0) {
+		if ((flags & PMAP_ENTER_QUICK_LOCKED) == 0)
+			VM_PAGE_OBJECT_BUSY_ASSERT(m);
+		else
+			VM_OBJECT_ASSERT_LOCKED(m->object);
+	}
 
 	pvo = alloc_pvo_entry(0);
 	if (pvo == NULL)
@@ -1548,7 +1552,8 @@ moea64_enter_object(mmu_t mmu, pmap_t pm, vm_offset_t start, vm_offset_t end,
 	m = m_start;
 	while (m != NULL && (diff = m->pindex - m_start->pindex) < psize) {
 		moea64_enter(mmu, pm, start + ptoa(diff), m, prot &
-		    (VM_PROT_READ | VM_PROT_EXECUTE), PMAP_ENTER_NOSLEEP, 0);
+		    (VM_PROT_READ | VM_PROT_EXECUTE), PMAP_ENTER_NOSLEEP |
+		    PMAP_ENTER_QUICK_LOCKED, 0);
 		m = TAILQ_NEXT(m, listq);
 	}
 }
@@ -1559,7 +1564,7 @@ moea64_enter_quick(mmu_t mmu, pmap_t pm, vm_offset_t va, vm_page_t m,
 {
 
 	moea64_enter(mmu, pm, va, m, prot & (VM_PROT_READ | VM_PROT_EXECUTE),
-	    PMAP_ENTER_NOSLEEP, 0);
+	    PMAP_ENTER_NOSLEEP | PMAP_ENTER_QUICK_LOCKED, 0);
 }
 
 vm_paddr_t
@@ -1872,7 +1877,7 @@ moea64_kenter_attr(mmu_t mmu, vm_offset_t va, vm_paddr_t pa, vm_memattr_t ma)
 		free_pvo_entry(oldpvo);
 	}
 
-	if (error != 0 && error != ENOENT)
+	if (error != 0)
 		panic("moea64_kenter: failed to enter va %#zx pa %#jx: %d", va,
 		    (uintmax_t)pa, error);
 }
@@ -2510,8 +2515,8 @@ static int
 moea64_pvo_enter(mmu_t mmu, struct pvo_entry *pvo, struct pvo_head *pvo_head,
     struct pvo_entry **oldpvop)
 {
-	int first, err;
 	struct pvo_entry *old_pvo;
+	int err;
 
 	PMAP_LOCK_ASSERT(pvo->pvo_pmap, MA_OWNED);
 
@@ -2528,13 +2533,7 @@ moea64_pvo_enter(mmu_t mmu, struct pvo_entry *pvo, struct pvo_head *pvo_head,
 		return (EEXIST);
 	}
 
-	/*
-	 * Remember if the list was empty and therefore will be the first
-	 * item.
-	 */
 	if (pvo_head != NULL) {
-		if (LIST_FIRST(pvo_head) == NULL)
-			first = 1;
 		LIST_INSERT_HEAD(pvo_head, pvo, pvo_vlink);
 	}
 
@@ -2565,7 +2564,7 @@ moea64_pvo_enter(mmu_t mmu, struct pvo_entry *pvo, struct pvo_head *pvo_head,
 		    pvo->pvo_vaddr & PVO_LARGE);
 #endif
 
-	return (first ? ENOENT : 0);
+	return (0);
 }
 
 static void

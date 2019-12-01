@@ -1428,6 +1428,7 @@ pf_send(struct pf_send_entry *pfse)
 void
 pf_intr(void *v)
 {
+	struct epoch_tracker et;
 	struct pf_send_head queue;
 	struct pf_send_entry *pfse, *next;
 
@@ -1437,6 +1438,8 @@ pf_intr(void *v)
 	queue = V_pf_sendqueue;
 	STAILQ_INIT(&V_pf_sendqueue);
 	PF_SENDQ_UNLOCK();
+
+	NET_EPOCH_ENTER(et);
 
 	STAILQ_FOREACH_SAFE(pfse, &queue, pfse_next, next) {
 		switch (pfse->pfse_type) {
@@ -1464,6 +1467,7 @@ pf_intr(void *v)
 		}
 		free(pfse, M_PFTEMP);
 	}
+	NET_EPOCH_EXIT(et);
 	CURVNET_RESTORE();
 }
 
@@ -3751,7 +3755,8 @@ pf_create_state(struct pf_rule *r, struct pf_rule *nr, struct pf_rule *a,
 		    &s->src, &s->dst, rewrite)) {
 			/* This really shouldn't happen!!! */
 			DPFPRINTF(PF_DEBUG_URGENT,
-			    ("pf_normalize_tcp_stateful failed on first pkt"));
+			    ("pf_normalize_tcp_stateful failed on first "
+			     "pkt\n"));
 			pf_normalize_tcp_cleanup(s);
 			pf_src_tree_remove_state(s);
 			STATE_DEC_COUNTERS(s);
