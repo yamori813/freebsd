@@ -36,6 +36,7 @@
 			reg = <0x00040000 0x00010000>;
 			read-only;
 		};
+/*
 		kernel: partition@50000 {
 			label = "kernel";
 			reg = <0x00050000 0x00100000>;
@@ -46,13 +47,13 @@
 			reg = <0x00150000 0x00290000>;
 			read-only;
 		};
-/*
-		firmware: partition@50000 {
+*/
+		firmware: partition@150000 {
+			compatible = "denx,uimage";
 			label = "firmware";
 			reg = <0x00050000 0x00390000>;
 			read-only;
 		};
-*/
 		upgrade: partition@390000 {
 			label = "upgrade";
 			reg = <0x00050000 0x00390000>;
