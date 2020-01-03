@@ -1455,14 +1455,12 @@ if_addgroup(struct ifnet *ifp, const char *groupname)
 			return (EEXIST);
 		}
 
-	if ((ifgl = (struct ifg_list *)malloc(sizeof(struct ifg_list), M_TEMP,
-	    M_NOWAIT)) == NULL) {
+	if ((ifgl = malloc(sizeof(*ifgl), M_TEMP, M_NOWAIT)) == NULL) {
 	    	IFNET_WUNLOCK();
 		return (ENOMEM);
 	}
 
-	if ((ifgm = (struct ifg_member *)malloc(sizeof(struct ifg_member),
-	    M_TEMP, M_NOWAIT)) == NULL) {
+	if ((ifgm = malloc(sizeof(*ifgm), M_TEMP, M_NOWAIT)) == NULL) {
 		free(ifgl, M_TEMP);
 		IFNET_WUNLOCK();
 		return (ENOMEM);
@@ -1473,8 +1471,7 @@ if_addgroup(struct ifnet *ifp, const char *groupname)
 			break;
 
 	if (ifg == NULL) {
-		if ((ifg = (struct ifg_group *)malloc(sizeof(struct ifg_group),
-		    M_TEMP, M_NOWAIT)) == NULL) {
+		if ((ifg = malloc(sizeof(*ifg), M_TEMP, M_NOWAIT)) == NULL) {
 			free(ifgl, M_TEMP);
 			free(ifgm, M_TEMP);
 			IFNET_WUNLOCK();
@@ -1506,39 +1503,36 @@ if_addgroup(struct ifnet *ifp, const char *groupname)
 }
 
 /*
- * Remove a group from an interface
+ * Helper function to remove a group out of an interface.  Expects the global
+ * ifnet lock to be write-locked, and drops it before returning.
  */
-int
-if_delgroup(struct ifnet *ifp, const char *groupname)
+static void
+_if_delgroup_locked(struct ifnet *ifp, struct ifg_list *ifgl,
+    const char *groupname)
 {
-	struct ifg_list		*ifgl;
-	struct ifg_member	*ifgm;
-	int freeifgl;
+	struct ifg_member *ifgm;
+	bool freeifgl;
 
-	IFNET_WLOCK();
-	CK_STAILQ_FOREACH(ifgl, &ifp->if_groups, ifgl_next)
-		if (!strcmp(ifgl->ifgl_group->ifg_group, groupname))
-			break;
-	if (ifgl == NULL) {
-		IFNET_WUNLOCK();
-		return (ENOENT);
-	}
+	IFNET_WLOCK_ASSERT();
 
-	freeifgl = 0;
 	IF_ADDR_WLOCK(ifp);
 	CK_STAILQ_REMOVE(&ifp->if_groups, ifgl, ifg_list, ifgl_next);
 	IF_ADDR_WUNLOCK(ifp);
 
-	CK_STAILQ_FOREACH(ifgm, &ifgl->ifgl_group->ifg_members, ifgm_next)
-		if (ifgm->ifgm_ifp == ifp)
+	CK_STAILQ_FOREACH(ifgm, &ifgl->ifgl_group->ifg_members, ifgm_next) {
+		if (ifgm->ifgm_ifp == ifp) {
+			CK_STAILQ_REMOVE(&ifgl->ifgl_group->ifg_members, ifgm,
+			    ifg_member, ifgm_next);
 			break;
-
-	if (ifgm != NULL)
-		CK_STAILQ_REMOVE(&ifgl->ifgl_group->ifg_members, ifgm, ifg_member, ifgm_next);
+		}
+	}
 
 	if (--ifgl->ifgl_group->ifg_refcnt == 0) {
-		CK_STAILQ_REMOVE(&V_ifg_head, ifgl->ifgl_group, ifg_group, ifg_next);
-		freeifgl = 1;
+		CK_STAILQ_REMOVE(&V_ifg_head, ifgl->ifgl_group, ifg_group,
+		    ifg_next);
+		freeifgl = true;
+	} else {
+		freeifgl = false;
 	}
 	IFNET_WUNLOCK();
 
@@ -1551,6 +1545,26 @@ if_delgroup(struct ifnet *ifp, const char *groupname)
 	free(ifgl, M_TEMP);
 
 	EVENTHANDLER_INVOKE(group_change_event, groupname);
+}
+
+/*
+ * Remove a group from an interface
+ */
+int
+if_delgroup(struct ifnet *ifp, const char *groupname)
+{
+	struct ifg_list *ifgl;
+
+	IFNET_WLOCK();
+	CK_STAILQ_FOREACH(ifgl, &ifp->if_groups, ifgl_next)
+		if (strcmp(ifgl->ifgl_group->ifg_group, groupname) == 0)
+			break;
+	if (ifgl == NULL) {
+		IFNET_WUNLOCK();
+		return (ENOENT);
+	}
+
+	_if_delgroup_locked(ifp, ifgl, groupname);
 
 	return (0);
 }
@@ -1561,44 +1575,13 @@ if_delgroup(struct ifnet *ifp, const char *groupname)
 static void
 if_delgroups(struct ifnet *ifp)
 {
-	struct ifg_list		*ifgl;
-	struct ifg_member	*ifgm;
+	struct ifg_list *ifgl;
 	char groupname[IFNAMSIZ];
-	int ifglfree;
 
 	IFNET_WLOCK();
-	while (!CK_STAILQ_EMPTY(&ifp->if_groups)) {
-		ifgl = CK_STAILQ_FIRST(&ifp->if_groups);
-
+	while ((ifgl = CK_STAILQ_FIRST(&ifp->if_groups)) != NULL) {
 		strlcpy(groupname, ifgl->ifgl_group->ifg_group, IFNAMSIZ);
-
-		IF_ADDR_WLOCK(ifp);
-		CK_STAILQ_REMOVE(&ifp->if_groups, ifgl, ifg_list, ifgl_next);
-		IF_ADDR_WUNLOCK(ifp);
-
-		CK_STAILQ_FOREACH(ifgm, &ifgl->ifgl_group->ifg_members, ifgm_next)
-			if (ifgm->ifgm_ifp == ifp)
-				break;
-
-		if (ifgm != NULL)
-			CK_STAILQ_REMOVE(&ifgl->ifgl_group->ifg_members, ifgm, ifg_member,
-			    ifgm_next);
-		ifglfree = 0;
-		if (--ifgl->ifgl_group->ifg_refcnt == 0) {
-			CK_STAILQ_REMOVE(&V_ifg_head, ifgl->ifgl_group, ifg_group, ifg_next);
-			ifglfree = 1;
-		}
-
-		IFNET_WUNLOCK();
-		epoch_wait_preempt(net_epoch_preempt);
-		free(ifgm, M_TEMP);
-		if (ifglfree) {
-			EVENTHANDLER_INVOKE(group_detach_event,
-								ifgl->ifgl_group);
-			free(ifgl->ifgl_group, M_TEMP);
-		}
-		EVENTHANDLER_INVOKE(group_change_event, groupname);
-
+		_if_delgroup_locked(ifp, ifgl, groupname);
 		IFNET_WLOCK();
 	}
 	IFNET_WUNLOCK();
@@ -1680,7 +1663,7 @@ if_getgroupmembers(struct ifgroupreq *ifgr)
 
 	IFNET_RLOCK();
 	CK_STAILQ_FOREACH(ifg, &V_ifg_head, ifg_next)
-		if (!strcmp(ifg->ifg_group, ifgr->ifgr_name))
+		if (strcmp(ifg->ifg_group, ifgr->ifgr_name) == 0)
 			break;
 	if (ifg == NULL) {
 		IFNET_RUNLOCK();
@@ -1853,6 +1836,7 @@ ifa_maintain_loopback_route(int cmd, const char *otype, struct ifaddr *ifa,
 	struct rt_addrinfo info;
 	struct sockaddr_dl null_sdl;
 	struct ifnet *ifp;
+	struct ifaddr *rti_ifa = NULL;
 
 	ifp = ifa->ifa_ifp;
 
@@ -1863,9 +1847,10 @@ ifa_maintain_loopback_route(int cmd, const char *otype, struct ifaddr *ifa,
 		/* explicitly specify (loopback) ifa */
 		if (info.rti_ifp != NULL) {
 			NET_EPOCH_ENTER(et);
-			info.rti_ifa = ifaof_ifpforaddr(ifa->ifa_addr, info.rti_ifp);
-			if (info.rti_ifa != NULL)
-				ifa_ref(info.rti_ifa);
+			rti_ifa = ifaof_ifpforaddr(ifa->ifa_addr, info.rti_ifp);
+			if (rti_ifa != NULL)
+				ifa_ref(rti_ifa);
+			info.rti_ifa = rti_ifa;
 			NET_EPOCH_EXIT(et);
 		}
 	}
@@ -1875,6 +1860,9 @@ ifa_maintain_loopback_route(int cmd, const char *otype, struct ifaddr *ifa,
 	link_init_sdl(ifp, (struct sockaddr *)&null_sdl, ifp->if_type);
 
 	error = rtrequest1_fib(cmd, &info, NULL, ifp->if_fib);
+
+	if (rti_ifa != NULL)
+		ifa_free(rti_ifa);
 
 	if (error != 0 &&
 	    !(cmd == RTM_ADD && error == EEXIST) &&

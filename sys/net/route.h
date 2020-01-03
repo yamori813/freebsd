@@ -145,6 +145,8 @@ struct rtentry {
 	 */
 #define	rt_key(r)	(*((struct sockaddr **)(&(r)->rt_nodes->rn_key)))
 #define	rt_mask(r)	(*((struct sockaddr **)(&(r)->rt_nodes->rn_mask)))
+#define	rt_key_const(r)		(*((const struct sockaddr * const *)(&(r)->rt_nodes->rn_key)))
+#define	rt_mask_const(r)	(*((const struct sockaddr * const *)(&(r)->rt_nodes->rn_mask)))
 	struct	sockaddr *rt_gateway;	/* value */
 	struct	ifnet *rt_ifp;		/* the answer: interface to use */
 	struct	ifaddr *rt_ifa;		/* the answer: interface address to use */
@@ -237,13 +239,14 @@ rt_update_ro_flags(struct route *ro)
 /*
  * Routing statistics.
  */
-struct	rtstat {
-	short	rts_badredirect;	/* bogus redirect calls */
-	short	rts_dynamic;		/* routes created by redirects */
-	short	rts_newgateway;		/* routes modified by redirects */
-	short	rts_unreach;		/* lookups which failed */
-	short	rts_wildcard;		/* lookups satisfied by a wildcard */
+struct rtstat {
+	uint64_t rts_badredirect;	/* bogus redirect calls */
+	uint64_t rts_dynamic;		/* routes created by redirects */
+	uint64_t rts_newgateway;	/* routes modified by redirects */
+	uint64_t rts_unreach;		/* lookups which failed */
+	uint64_t rts_wildcard;		/* lookups satisfied by a wildcard */
 };
+
 /*
  * Structures for routing messages.
  */

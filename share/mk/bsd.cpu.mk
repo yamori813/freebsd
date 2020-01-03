@@ -375,6 +375,10 @@ CFLAGS += -march=rv64imac -mabi=lp64
 .else
 CFLAGS += -march=rv64imafdc -mabi=lp64d
 .endif
+
+.if ${LINKER_FEATURES:U:Mriscv-relaxations} == ""
+CFLAGS += -mno-relax
+.endif
 .endif
 
 # NB: COPTFLAGS is handled in /usr/src/sys/conf/kern.pre.mk
@@ -408,3 +412,17 @@ CFLAGS_NO_SIMD += ${CFLAGS_NO_SIMD.${COMPILER_TYPE}}
 # These come from make.conf or the command line or the environment.
 CFLAGS += ${CFLAGS.${MACHINE_ARCH}}
 CXXFLAGS += ${CXXFLAGS.${MACHINE_ARCH}}
+
+
+# Defines a variable for Binutils linker, to be used to workaround some
+# issue with LLVM LLD (i.e. support for PowerPC32 bit on PowerPC64)
+#
+# This is an unavoidable cross coupling with Makefile.inc1 and
+# normal builds works when CROSS_BINUTILS_PREFIX and could be removed
+# when LLD PowerPC 32 bit support is completed
+.if defined(CROSS_BINUTILS_PREFIX)
+LD_BFD=${LOCALBASE}/bin/${CROSS_BINUTILS_PREFIX}-ld.bfd
+.else
+LD_BFD=${OBJTOP}/tmp/usr/bin/ld.bfd
+.endif
+
