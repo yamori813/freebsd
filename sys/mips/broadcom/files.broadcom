@@ -30,3 +30,14 @@ geom/geom_flashmap.c			standard
 dev/bhnd/cores/usb/bhnd_usb.c		optional usb
 dev/bhnd/cores/usb/bhnd_ehci.c		optional ehci
 dev/bhnd/cores/usb/bhnd_ohci.c		optional ohci
+
+mips/broadcom/bgmac/bcm_dma.c standard
+mips/broadcom/bgmac/bcm_dma_ops.c standard
+mips/broadcom/bgmac/bcm_dma_ring.c standard
+mips/broadcom/bgmac/bcm_dma_rx.c standard
+mips/broadcom/bgmac/bcm_dma_tx.c standard
+mips/broadcom/bgmac/bgmac.c standard
+mips/broadcom/bgmac/bgmac_ddb.c standard
+mips/broadcom/bgmac/bgmac_sysctl.c standard
+mips/broadcom/bgmac/bgmac_tx.c standard
+
