@@ -63,7 +63,6 @@ __DEFAULT_YES_OPTIONS = \
     AUTOFS \
     BHYVE \
     BINUTILS \
-    BINUTILS_BOOTSTRAP \
     BLACKLIST \
     BLUETOOTH \
     BOOT \
@@ -108,6 +107,7 @@ __DEFAULT_YES_OPTIONS = \
     GDB \
     GNU_DIFF \
     GNU_GREP \
+    GOOGLETEST \
     GPIO \
     HAST \
     HTML \
@@ -128,6 +128,7 @@ __DEFAULT_YES_OPTIONS = \
     LIBPTHREAD \
     LIBTHR \
     LLVM_COV \
+    LLVM_LIBUNWIND \
     LLVM_TARGET_ALL \
     LOADER_GELI \
     LOADER_LUA \
@@ -199,6 +200,9 @@ __DEFAULT_NO_OPTIONS = \
     CLANG_EXTRAS \
     DTRACE_TESTS \
     EXPERIMENTAL \
+    GCC \
+    GCC_BOOTSTRAP \
+    GNUCXX \
     GNU_GREP_COMPAT \
     GPL_DTC \
     HESIOD \
@@ -262,15 +266,6 @@ __TT=${TARGET}
 __TT=${MACHINE}
 .endif
 
-# Default GOOGLETEST to off for MIPS while LLVM PR 43263 is active.  Part
-# of the fusefs tests trigger excessively long compile times.  It does
-# eventually succeed, but this shouldn't be forced on those building by default.
-.if ${__TT} == "mips"
-__DEFAULT_NO_OPTIONS+=	GOOGLETEST
-.else
-__DEFAULT_YES_OPTIONS+=	GOOGLETEST
-.endif
-
 # All supported backends for LLVM_TARGET_XXX
 __LLVM_TARGETS= \
 		aarch64 \
@@ -297,40 +292,37 @@ __DEFAULT_DEPENDENT_OPTIONS+=	LLVM_TARGET_${__llt:${__LLVM_TARGET_FILT}:tu}/LLVM
 __DEFAULT_NO_OPTIONS+=LLVM_TARGET_BPF
 
 .include <bsd.compiler.mk>
-# If the compiler is not C++11 capable, disable Clang and use GCC instead.
-# This means that architectures that have GCC 4.2 as default can not
-# build Clang without using an external compiler.
+# If the compiler is not C++11 capable, disable Clang.  External toolchain will
+# be required.
 
-.if ${COMPILER_FEATURES:Mc++11} && (${__TT} != "mips" && \
-    ${__TT} != "riscv" && ${__TT} != "sparc64")
+.if ${COMPILER_FEATURES:Mc++11} && (${__TT} != "mips" && ${__TT} != "sparc64")
 # Clang is enabled, and will be installed as the default /usr/bin/cc.
 __DEFAULT_YES_OPTIONS+=CLANG CLANG_BOOTSTRAP CLANG_IS_CC LLD
-__DEFAULT_NO_OPTIONS+=GCC GCC_BOOTSTRAP GNUCXX
 .elif ${COMPILER_FEATURES:Mc++11} && ${__T} != "sparc64"
 # If an external compiler that supports C++11 is used as ${CC} and Clang
-# supports the target, then Clang is enabled but GCC is installed as the
+# supports the target, then Clang is enabled but we still require an external
+# toolchain.
 # default /usr/bin/cc.
-__DEFAULT_YES_OPTIONS+=CLANG GCC GCC_BOOTSTRAP GNUCXX LLD
+__DEFAULT_YES_OPTIONS+=CLANG LLD
 __DEFAULT_NO_OPTIONS+=CLANG_BOOTSTRAP CLANG_IS_CC
 .else
 # Everything else disables Clang, and uses GCC instead.
-__DEFAULT_YES_OPTIONS+=GCC GCC_BOOTSTRAP GNUCXX
 __DEFAULT_NO_OPTIONS+=CLANG CLANG_BOOTSTRAP CLANG_IS_CC LLD
 .endif
 # In-tree binutils/gcc are older versions without modern architecture support.
 .if ${__T} == "aarch64" || ${__T:Mriscv*} != ""
 BROKEN_OPTIONS+=BINUTILS BINUTILS_BOOTSTRAP GCC GCC_BOOTSTRAP GDB
 .endif
+.if ${__T} == "amd64" || ${__T} == "i386" || ${__T:Mpowerpc*}
+__DEFAULT_YES_OPTIONS+=BINUTILS_BOOTSTRAP
+.else
+__DEFAULT_NO_OPTIONS+=BINUTILS_BOOTSTRAP
+.endif
 .if ${__T:Mriscv*} != ""
 BROKEN_OPTIONS+=OFED
 .endif
-.if ${__T} != "armv6" && ${__T} != "armv7" && ${__T} != "sparc64"
-__DEFAULT_YES_OPTIONS+=LLVM_LIBUNWIND
-.else
-__DEFAULT_NO_OPTIONS+=LLVM_LIBUNWIND
-.endif
 .if ${__TT} != "mips" && ${__T} != "powerpc" && ${__T} != "powerpcspe" && \
-    ${__TT} != "riscv" && ${__T} != "sparc64"
+    ${__T} != "sparc64"
 __DEFAULT_YES_OPTIONS+=LLD_BOOTSTRAP LLD_IS_LD
 .else
 __DEFAULT_NO_OPTIONS+=LLD_BOOTSTRAP LLD_IS_LD
@@ -471,6 +463,7 @@ MK_CTF:=	no
 MK_OPENSSL:=	no
 MK_OPENSSH:=	no
 MK_KERBEROS:=	no
+MK_KERBEROS_SUPPORT:=	no
 .endif
 
 .if ${MK_CXX} == "no"
@@ -486,6 +479,10 @@ MK_BSDINSTALL:=	no
 
 .if ${MK_FILE} == "no"
 MK_SVNLITE:=	no
+.endif
+
+.if (${__TT} == "mips" || ${__TT} == "sparc64") && ${MK_GCC} == "no"
+MK_BINUTILS_BOOTSTRAP:=	no
 .endif
 
 .if ${MK_MAIL} == "no"
@@ -504,8 +501,10 @@ MK_NLS_CATALOGS:= no
 .endif
 
 .if ${MK_OPENSSL} == "no"
+MK_DMAGENT:=	no
 MK_OPENSSH:=	no
 MK_KERBEROS:=	no
+MK_KERBEROS_SUPPORT:=	no
 MK_LDNS:=	no
 .endif
 
