@@ -804,7 +804,7 @@ vop_stdvptocnp(struct vop_vptocnp_args *ap)
 	struct vnode **dvp = ap->a_vpp;
 	struct ucred *cred = ap->a_cred;
 	char *buf = ap->a_buf;
-	int *buflen = ap->a_buflen;
+	size_t *buflen = ap->a_buflen;
 	char *dirbuf, *cpos;
 	int i, error, eofflag, dirbuflen, flags, locked, len, covered;
 	off_t off;
@@ -1450,20 +1450,7 @@ vop_sigdefer(struct vop_vector *vop, struct vop_generic_args *a)
 	vop_bypass_t *bp;
 	int prev_stops, rc;
 
-	for (; vop != NULL; vop = vop->vop_default) {
-		bp = bp_by_off(vop, a);
-		if (bp != NULL)
-			break;
-
-		/*
-		 * Bypass is not really supported.  It is done for
-		 * fallback to unimplemented vops in the default
-		 * vector.
-		 */
-		bp = vop->vop_bypass;
-		if (bp != NULL)
-			break;
-	}
+	bp = bp_by_off(vop, a);
 	MPASS(bp != NULL);
 
 	prev_stops = sigdeferstop(SIGDEFERSTOP_SILENT);
